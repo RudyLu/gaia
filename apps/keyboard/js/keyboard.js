@@ -6,6 +6,17 @@
 // Duplicated code in severla places
 // TODO Better settings observe interface?
 
+
+if (!window.navigator.mozKeyboard) {
+  window.navigator.mozKeyboard = {};
+}
+
+if (!window.navigator.mozKeyboard.sendKey) {
+  window.navigator.mozKeyboard.sendKey = function moz_sendKey(charCode, keyCode) {
+    console.log('moz sendKey: (' + charCode + ', ' + keyCode + ')' );
+  }
+}
+
 var SettingsListener = {
   _callbacks: {},
 
@@ -24,7 +35,8 @@ var SettingsListener = {
   observe: function sl_observe(name, defaultValue, callback) {
     var settings = window.navigator.mozSettings;
     if (!settings) {
-      window.setTimeout(function() { callback(defaultValue); });
+      console.warn("Cannot load mozSettings: default to enable " + name);
+      window.setTimeout(function() { callback(true); });
       return;
     }
 

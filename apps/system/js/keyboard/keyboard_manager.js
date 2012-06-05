@@ -8,7 +8,8 @@ var KeyboardManager = (function() {
   var KEYBOARD_ID = 'keyboardFrame';
 
   // TODO: Retrieve it from Settings, allowing 3rd party keyboards
-  var KEYBOARD_URL = 'http://keyboard.' + domain;
+  var KEYBOARD_URL = 'http://gaiamobile.org:8080/gaia/apps/keyboard/index.html';
+  //var KEYBOARD_URL = 'http://www.google.com';
 
 
   var init = function kbManager_init() {
@@ -28,12 +29,15 @@ var KeyboardManager = (function() {
       var currentApp = WindowManager.getAppFrame(WindowManager.getDisplayedApp());
       var event = JSON.parse(e.data);
       if (event.action == 'resize') {
-        WindowManager.setAppSize(WindowManager.getDisplayedApp());
+        if (WindowManager && WindowManager.setAppSize) {
+          WindowManager.setAppSize(WindowManager.getDisplayedApp());
+	}
+
         var currentHeight = currentApp.style.height;
         currentApp.style.height = '-moz-calc(' + currentHeight + ' - ' + event.height + ')';
         currentApp.classList.add('keyboardOn');
         keyboardFrame.style.display = 'block';
-        keyboardFrame.style.height = '100%';
+        //keyboardFrame.style.height = '500px';
       }
     });
   };
@@ -46,9 +50,9 @@ var KeyboardManager = (function() {
     // https://bugzilla.mozilla.org/show_bug.cgi?id=754083
 
     function hideImeListener(evt) {
-      keyboardFrame.style.height = 0;
-      keyboardFrame.style.display = 'none';
-      WindowManager.setAppSize(WindowManager.getDisplayedApp());
+      //keyboardFrame.style.height = 0;
+      //keyboardFrame.style.display = 'none';
+      //WindowManager.setAppSize(WindowManager.getDisplayedApp());
     }
 
     window.addEventListener('showime', function showImeListener(evt) {
