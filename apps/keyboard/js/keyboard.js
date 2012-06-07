@@ -60,8 +60,18 @@ const IMEManager = {
 
   // IME Engines are self registering here.
   IMEngines: {},
-  get currentEngine() {
-    return this.IMEngines[Keyboards[this.currentKeyboard].imEngine];
+  get currentIMEngine() {
+    if (Keyboards[this.currentKeyboard].imEngine)
+      return this.IMEngines[Keyboards[this.currentKeyboard].imEngine];
+    return null;
+  },
+
+  // Suggestion Engines are self registering here.
+  SuggestionEngines: {},
+  get currentSuggestionEngine() {
+    if (Keyboards[this.currentKeyboard].suggestionEngine)
+      return this.SuggestionEngines[Keyboards[this.currentKeyboard].suggestionEngine];
+    return null;
   },
 
   currentKeyboard: '',
@@ -539,9 +549,14 @@ const IMEManager = {
 
   loadKeyboard: function km_loadKeyboard(name) {
     var keyboard = Keyboards[name];
-    if (keyboard.type !== 'ime')
-      return;
+    if (keyboard.imEngine)
+      this.loadIMEngine(name);
+    if (keyboard.suggestionEngine)
+      this.loadSuggestionEngine(name);
+  },
 
+  loadIMEngine: function km_loadIMEngine(name) {
+    var keyboard = Keyboards[name];
     var sourceDir = './js/imes/';
     var imEngine = keyboard.imEngine;
 
@@ -591,6 +606,56 @@ const IMEManager = {
     script.addEventListener('load', (function IMEnginesLoaded() {
       var engine = this.IMEngines[imEngine];
       engine.init(glue);
+    }).bind(this));
+
+    document.body.appendChild(script);
+  },
+
+  loadSuggestionEngine: function km_loadSuggestionEngine(layoutName) {
+    var keyboard = Keyboards[layoutName];
+    var sourceDir = './js/suggestion-engines/';
+    var engineName = keyboard.suggestionEngine;
+
+    // Same IME Engine could be load by multiple keyboard layouts
+    // keep track of it by adding a placeholder to the registration point
+    if (this.SuggestionEngines[engineName])
+      return;
+
+    this.SuggestionEngines[engineName] = {};
+
+    var script = document.createElement('script');
+    script.src = sourceDir + engineName + '/' + engineName + '.js';
+    var self = this;
+    var glue = {
+      path: sourceDir + engineName,
+      // XXX: no way to load suggestion engine with another language
+      lang: keyboard.suggestionEngineLang,
+      sendCandidates: function(candidates) {
+        self.showCandidates(candidates);
+      },
+      sendPendingSymbols: function(symbols) {
+        self.showPendingSymbols(symbols);
+      },
+      sendKey: function(keyCode) {
+        switch (keyCode) {
+          case KeyEvent.DOM_VK_BACK_SPACE:
+          case KeyEvent.DOM_VK_RETURN:
+            window.navigator.mozKeyboard.sendKey(keyCode, 0);
+            break;
+
+          default:
+            window.navigator.mozKeyboard.sendKey(0, keyCode);
+            break;
+        }
+      },
+      sendString: function(str) {
+        for (var i = 0; i < str.length; i++)
+          this.sendKey(str.charCodeAt(i));
+      }
+    };
+
+    script.addEventListener('load', (function SuggestionEngineLoaded() {
+      this.SuggestionEngines[engineName].init(glue);
     }).bind(this));
 
     document.body.appendChild(script);
@@ -665,12 +730,13 @@ const IMEManager = {
         var sendDelete = (function sendDelete(feedback) {
           if (feedback)
             this.triggerFeedback();
-          if (Keyboards[this.currentKeyboard].type == 'ime' &&
-              !this.currentKeyboardMode) {
-            this.currentEngine.click(keyCode);
+          if (this.currentIMEngine && !this.currentKeyboardMode) {
+            this.currentIMEngine.click(keyCode);
             return;
           }
           window.navigator.mozKeyboard.sendKey(keyCode, 0);
+          if (Keyboards[this.currentKeyboard].suggestionEngine)
+            this.currentSuggestionEngine.click(keyCode);
         }).bind(this);
 
         sendDelete(false);
@@ -769,7 +835,11 @@ const IMEManager = {
 
         var dataset = target.dataset;
         if (dataset.selection) {
-          this.currentEngine.select(target.textContent, dataset.data);
+          if (this.currentIMEngine) {
+            this.currentIMEngine.select(target.textContent, dataset.data);
+          } else if (this.currentSuggestionEngine) {
+            this.currentSuggestionEngine.select(target.textContent, dataset.data);
+          }
           delete this.currentKey.dataset.active;
           delete this.currentKey;
 
@@ -843,10 +913,8 @@ const IMEManager = {
               this.updateTargetWindowHeight();
             }
 
-            if (Keyboards[this.currentKeyboard].type == 'ime') {
-              if (this.currentEngine.show) {
-                this.currentEngine.show(this.currentType);
-              }
+            if (this.currentIMEngine && this.currentIMEngine.show) {
+              this.currentIMEngine.show(this.currentType);
             }
 
             break;
@@ -897,25 +965,24 @@ const IMEManager = {
             break;
 
           case KeyEvent.DOM_VK_RETURN:
-            if (Keyboards[this.currentKeyboard].type == 'ime' &&
-                !this.currentKeyboardMode) {
-              this.currentEngine.click(keyCode);
+            if (this.currentIMEngine && !this.currentKeyboardMode) {
+              this.currentIMEngine.click(keyCode);
               break;
             }
 
             window.navigator.mozKeyboard.sendKey(keyCode, 0);
-            break;
+            if (this.currentSuggestionEngine)
+              this.currentSuggestionEngine.click(keyCode);
+          break;
 
           // To handle the case when double tapping the space key
           case KeyEvent.DOM_VK_SPACE:
             if (this.isWaitingForSpaceSecondTap &&
                 !this.isContinousSpacePressed) {
 
-              if (Keyboards[this.currentKeyboard].type == 'ime' &&
-                !this.currentKeyboardMode) {
-
+              if (this.currentIMEngine && !this.currentKeyboardMode) {
                 //TODO: need to define the inteface for double tap handling
-                //this.currentEngine.doubleTap(keyCode);
+                //this.currentIMEngine.doubleTap(keyCode);
                 break;
               }
 
@@ -949,7 +1016,6 @@ const IMEManager = {
           default:
             this.handleMouseDownEvent(keyCode);
             break;
-
         }
         break;
 
@@ -1191,7 +1257,10 @@ const IMEManager = {
       ime.insertBefore(this.pendingSymbolPanel, ime.firstChild);
       this.showPendingSymbols('');
       this.showCandidates([], true);
-      this.currentEngine.empty();
+      if (this.currentIMEngine && this.currentIMEngine.empty)
+        this.currentIMEngine.empty();
+      if (this.currentSuggestionEngine && this.currentSuggestionEngine.empty)
+        this.currentSuggestionEngine.empty();
     }
   },
 
@@ -1244,10 +1313,8 @@ const IMEManager = {
       delete this.ime.dataset.hidden;
     }
 
-    if (Keyboards[this.currentKeyboard].type == 'ime') {
-      if (this.currentEngine.show) {
-        this.currentEngine.show(type);
-      }
+    if (this.currentIMEngine && this.currentIMEngine.show) {
+      this.currentIMEngine.show(type);
     }
   },
 
@@ -1340,19 +1407,20 @@ const IMEManager = {
   },
 
   handleMouseDownEvent: function km_handleMouseDownEvent(keyCode) {
-    if (Keyboards[this.currentKeyboard].type == 'ime' &&
-        !this.currentKeyboardMode) {
-          this.currentEngine.click(keyCode);
-          return;
-        }
+    if (this.currentIMEngine && !this.currentKeyboardMode) {
+      this.currentIMEngine.click(keyCode);
+      return;
+    }
 
     window.navigator.mozKeyboard.sendKey(0, keyCode);
+    if (this.currentSuggestionEngine)
+      this.currentSuggestionEngine.click(keyCode);
 
     if (this.isUpperCase &&
-        !this.isUpperCaseLocked && !this.currentKeyboardMode) {
-          this.isUpperCase = false;
-          this.updateLayout();
-        }
+      !this.isUpperCaseLocked && !this.currentKeyboardMode) {
+        this.isUpperCase = false;
+        this.updateLayout();
+      }
   }
 };
 
@@ -1360,3 +1428,4 @@ window.addEventListener('load', function initIMEManager(evt) {
   window.removeEventListener('load', initIMEManager);
   IMEManager.init();
 });
+
