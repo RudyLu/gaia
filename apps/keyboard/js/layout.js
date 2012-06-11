@@ -80,7 +80,7 @@ const Keyboards = {
     label: 'English',
     menuLabel: 'English',
     needsCandidatePanel: true,
-    suggestionEngine: 'typo-js',
+    suggestionEngine: 'predictive_text',
     suggestionEngineLang: 'en_US',
     alt: {
       a: 'áàâäåãāæ',
