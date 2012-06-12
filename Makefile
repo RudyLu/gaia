@@ -1,5 +1,5 @@
 ###############################################################################
-# Global configurations                                                       #
+# Global configurations.  Protip: set your own overrides in a local.mk file.  #
 #                                                                             #
 # GAIA_DOMAIN : change that if you plan to use a different domain to update   #
 #               your applications or want to use a local domain               #
@@ -26,6 +26,8 @@
 #                                                                             #
 # EXCLUEDED   : define apps which are not needed in demo.                     #
 ###############################################################################
+-include local.mk
+
 GAIA_DOMAIN?=gaiamobile.org
 
 HOMESCREEN?=http://system.$(GAIA_DOMAIN)
@@ -449,3 +451,4 @@ install-gaia: profile
 
 install-media-samples:
 	$(ADB) push media-samples/DCIM /sdcard/DCIM
+	$(ADB) push media-samples/videos /sdcard/videos
