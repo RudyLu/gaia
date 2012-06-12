@@ -492,6 +492,12 @@ const IMEManager = {
       (function observeSettings(key) {
         SettingsListener.observe('keyboard.layouts.' + key, false,
           function(value) {
+
+            if (key == 'english' || key == 'pinyin') {
+              self.enableSetting(key);
+              return;
+            }
+
             if (value)
               self.enableSetting(key);
             else
