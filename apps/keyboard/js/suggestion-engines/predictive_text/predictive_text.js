@@ -3,7 +3,7 @@
 
 'use strict';
 
-(function () {
+(function() {
 
   var debugging = true;
   var TAG = '[PredictiveText] ';
@@ -21,6 +21,19 @@
     }
   };
 
+  var SimpleProfiler = function(tag) {
+    this.startTime = new Date().getTime();
+    this.tag = tag || 'Simple Profiling';
+  };
+
+  SimpleProfiler.prototype = {
+    endProfiling: function() {
+      var endTime = new Date().getTime();
+      debug('elapse time for ' + this.tag + ' : ' +
+             (endTime - this.startTime) + ' ms');
+    }
+  };
+
   /* for non-Mozilla browsers */
   if (!KeyEvent) {
     var KeyEvent = {
@@ -31,77 +44,23 @@
   }
 
   var settings;
-
   var ptDict;
 
   var SpellChecker = function spellchecker() {
-    var dictionaryWorker;
 
     var currentWord = '';
 
     this.init = function spellchecker_init(options) {
       settings = options;
-      var affData;
-      var dicData;
-
-      //dictionaryWorker = new Worker(settings.path + '/typo-js.worker.js');
-      
-      /*
-      dictionaryWorker.onmessage = function (evt) {
-        if (typeof evt.data == 'string') {
-          debug(evt.data);
-          return;
-        }
-        debug('got dictionary worker msg');
-        var candidates = [];
-        evt.data.forEach(function (word) {
-          candidates.push([word]);
-        });
-        settings.sendCandidates(candidates);
-      };
-      */
 
       /* load dictionaries */
       var lang = settings.lang;
 
-      /*
-      dictionaryWorker.postMessage(
-        {
-          name: 'lang',
-          value: lang
-        }
-      );
-      */
-
-      // XXX: Bug 753981 prevents XHR in Web Workers to get these dictionary data.
-      // We get them here and postMessage the data into the worker.
-      var getDictionary = function getDictionary(name, url) {
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', url, true);
-        xhr.overrideMimeType('text/plain; charset=utf-8');
-        xhr.onreadystatechange = function xhrReadystatechange(ev) {
-          if (xhr.readyState !== 4)
-            return;
-          debug(name + ' file loaded, length: ' + xhr.responseText.length);
-          dictionaryWorker.postMessage(
-            {
-              name: name,
-              value: xhr.responseText
-            }
-          );
-          xhr = null;
-        }
-        xhr.send();
-      };
-
-      //getDictionary('affData', settings.path + '/dictionaries/' + lang + '/' + lang + '.aff');
-      //getDictionary('dicData', settings.path + '/dictionaries/' + lang + '/' + lang + '.dic');
-
       // Load dictionary into indexedDB
-      ptDict= new Dictionary('en');
+      ptDict = new Dictionary('en');
 
-      ptDict.openDB(function () {
-          ptDict.load();
+      ptDict.initAsync(function() {
+        debug('After DB init');
       });
     };
 
@@ -112,20 +71,24 @@
 
     this.empty = empty;
 
-    var doSpellCheck = function () {
-      //dictionaryWorker.postMessage(currentWord);
-      //settings.sendCandidates([ ['hi'], ['this']]);
-      
+    var doSpellCheck = function() {
+
+      // Only give word suggestions when the input >= 2 chars
       if (currentWord.length < 2) {
         settings.sendCandidates([]);
         return;
       }
 
-      var sendCandidates = function send_can (wordList) {
+      var sendCandidates = function send_can(wordList) {
+
+        if (!wordList || wordList.length == 0) {
+          ptDict.lookupCorrections(currentWord, sendCandidates);
+          return;
+        }
 
         var list = [];
         for (var i in wordList) {
-          list.push([ wordList[i] ]);
+          list.push([wordList[i].key]);
         }
 
         settings.sendCandidates(list);
@@ -157,7 +120,7 @@
       }
     };
 
-    this.select = function (text, type) {
+    this.select = function(text, type) {
       var i = currentWord.length;
       while (i--) {
         settings.sendKey(KeyEvent.DOM_VK_BACK_SPACE);
@@ -169,76 +132,132 @@
     };
   };
 
-  var indexedDB = window.indexedDB || window.webkitIndexedDB ||
-                  window.mozIndexedDB || window.msIndexedDB;
+  var insertArray = function insertArray(array, element, limit) {
 
-  if (!indexedDB) {
-    var msg = 'Cannot init IndexedDB module';
-    console.error(msg);
-    window.alert(msg);
-  }
 
-  var jsonData;
-  var dbName = "predictText-dictionary-test3";
-  var dbVersion = 6;
+    for (var j = 0; j < Math.min(limit, array.length); j++) {
+      if (array[j].value < element.value) {
+
+        if (j + 1 == limit)
+          array.splice(j, 1, element);
+        else
+          array.splice(j, 0, element);
+
+        break;
+      }
+    }
+
+    // just insert the element when the length < limit (and the case length = 0)
+    if (j == array.length && array.length < limit) {
+      array.push(element);
+      return;
+    }
+
+    if (array.length > limit)
+      var c = array.pop();
+
+  };
 
   var Dictionary = function pt_dictionary(locale) {
     this._locale = locale;
     this._db = null;
+    this._dictIndex = 0;
   };
 
   Dictionary.prototype = {
+
+    kIndexedDB: window.indexedDB || window.webkitIndexedDB ||
+                window.mozIndexedDB || window.msIndexedDB,
+
+    kDBName: 'predict-text-dictionary',
+    kDBVersion: 1,
+    kAlphabet: 'abcdefghijklmnopqrstuvwxyz',
+    kCandidateNumber: 10,
+
     // To open DB to store dictionary
-    openDB: function dict_openDB (callback) {
-      var kDBVersion;   // to define the DB version
-      //var dbName = "predictText-dictionary";
-      var request = indexedDB.open(dbName, dbVersion);
+    openAsync: function dict_openAsync(callback) {
+
+      if (this._db) {
+        callback();
+        return;
+      }
+
+      if (!this.kIndexedDB) {
+        console.error('[Predictive Text] Cannot init IndexedDB');
+        return;
+      }
+
+      var request = this.kIndexedDB.open(this.kDBName, this.kDBVersion);
 
       request.onsuccess = function openDB_success(event) {
-        console.log('open database', dbName, event);
-        //func(request.result, storeName, callback, data);
-        //
+        debug('open database', this.kDBName, event);
         this._db = event.target.result;
         callback();
 
       }.bind(this);
 
       request.onerror = function(event) {
-        console.error('Can\'t open database', dbName, event);
-        alert("Cannot open dictionary IndexedDB?!");
+        debug('Can\'t open database', this.kDBName, event);
+        callback();
       };
 
-      request.onupgradeneeded = function (event) {
+      request.onupgradeneeded = function(event) {
         var db = event.target.result;
 
-        // Create an objectStore to hold information about our customers. We're  
-        // going to use "ssn" as our key path because it's guaranteed to be  
-        // unique.  
-        if (db.objectStoreNames.contains("dictionary")) {
-          db.deleteObjectStore("dictionary");
-          console.log('dictionary store deleted!');
+        if (db.objectStoreNames.contains('dictionary')) {
+          db.deleteObjectStore('dictionary');
+          debug('dictionary store deleted!');
         }
 
         db.createObjectStore('dictionary', {keyPath: 'key'});
       }
+    },
+
+    initAsync: function pt_initAsync(callback) {
+      // check DB is loaded or not
+      debug('To check if the DB is ready');
+      this.checkDBLoadedAsync(callback);
+    },
+
+    checkDBLoadedAsync: function pt_checkDBLoadedAsync(callback) {
+      this.openAsync(function complete_openAsync() {
+        if (!this._db) {
+          debug('the DB is not ready');
+          return;
+        }
+
+        var transaction = this._db.transaction('dictionary');
+        var req = transaction.objectStore('dictionary').get('_last_entry_');
+        req.onsuccess = function getdbSuccess(ev) {
+          if (ev.target.result !== undefined) {
+            callback();
+            return;
+          }
+
+          debug('IndexedDB is supported but empty; Downloading JSON ...');
+          this.loadAsync();
+        }.bind(this);
+
+      }.bind(this));
 
     },
 
+    loadAsync: function pt_loadAsync() {
 
-    load: function () {
+      var self = this;
 
       var getDictJSON = function dict_getDictJSON(callback) {
         var xhr = new XMLHttpRequest();
         xhr.open('GET', settings.path + '/dictionaries/en.json', true);
 
         try {
-          //xhr.responseType = 'json';
+          xhr.responseType = 'json';
         } catch (e) { }
 
         xhr.overrideMimeType('application/json; charset=utf-8');
         xhr.onreadystatechange = function xhrReadystatechange(ev) {
 
-          console.log('xhr ready state: ' + xhr.readyState);
+          debug('xhr ready state: ' + xhr.readyState);
           if (xhr.readyState !== 4)
             return;
 
@@ -246,10 +265,7 @@
           if (xhr.responseType == 'json') {
             response = xhr.response;
           } else {
-
-
             try {
-              //console.log('JSON parsing: ' + xhr.responseText);
               response = JSON.parse(xhr.responseText);
             } catch (e) {
               console.log('JSON parsing error: ' + e);
@@ -263,7 +279,7 @@
             return;
           }
 
-          jsonData = response;
+          self.jsonData = response;
 
           xhr = null;
           callback();
@@ -272,106 +288,239 @@
         xhr.send(null);
       }
 
+      var JSONLoadingProfiling = new SimpleProfiler('JSON Loading');
 
-      // Store values in the newly created objectStore.  
-      var timeBegin = (new Date()).getTime();
-
-      getDictJSON( function populateDB() {
-
-          var timeEnd = (new Date()).getTime();
-
-          console.log('loading dict: ' + (timeEnd - timeBegin) + ' ms');
-
-          var timeStart = (new Date()).getTime();
-
-          var count = 0;
-
-          var addTransaction = this._db.transaction(["dictionary"], IDBTransaction.READ_WRITE);
-          var objectStore = addTransaction.objectStore("dictionary");
-
-
-          addTransaction.oncomplete = function putComplete() {
-            console.log('add complete');
-          };
-
-          addTransaction.onerror = function (e) {
-            console.log("transaction error: ", e);
-          };
-
-          for (var i in jsonData) {
-            var addRequest = objectStore.put(jsonData[i]);
-            addRequest.onsuccess = function (event) {
-              count++;
-            }
-          }
-
-          console.log('Inserted: ' + count + ' records');
-
-          addRequest.onsuccess = function(event) {  
-            //i++;
-            //objectStore.add(jsonData[i].value, jsonData[i].key);
-          };
-
-          timeEnd = (new Date()).getTime();
-          console.log('loading dict into DB: ' + (timeEnd - timeStart) + ' ms');
+      getDictJSON(function populateDB() {
+          JSONLoadingProfiling.endProfiling();
+          this.populateDBAsync();
       }.bind(this));
 
     },
 
-    lookup: function (inputKey, callback) {
+    lookup: function(inputKey, callback) {
+
+      debug('lookup + ' + inputKey);
 
       // query by keyRange
-      var queryString = inputKey
+      var queryString = inputKey;
+      this.currentWord = queryString;
 
-      var request = indexedDB.open(dbName, dbVersion);
+      this.openAsync(function end_openAsync() {
+        var db = this._db;
+        var self = this;
 
-      request.onsuccess = function(event) {
-        console.log('open database', dbName, event);
-        //func(request.result, storeName, callback, data);
-        //
-        var db = event.target.result;
-
-        var transaction = db.transaction(["dictionary"]);  
+        var transaction = db.transaction(['dictionary']);
         if (transaction == null)
           return;
 
-        var boundKeyRange = IDBKeyRange.bound(queryString, queryString + 'z', false, false);
-        var objectStore = transaction.objectStore("dictionary");
+        var boundKeyRange = IDBKeyRange.bound(queryString, queryString + 'z',
+                                              false, false);
+        var objectStore = transaction.objectStore('dictionary');
 
         var resultList = [];
 
-        var timeStart = new Date().getTime();
+        var queryDB = new SimpleProfiler('DB Query');
 
-        objectStore.openCursor(boundKeyRange, IDBCursor.PREV).onsuccess = function(event) {
+        var request = objectStore.openCursor(boundKeyRange, IDBCursor.PREV);
+        request.onsuccess = function cursor_openSuccess(event) {
           var cursor = event.target.result;
+
           if (cursor) {
-            resultList.push(cursor.value);
-            cursor.continue();
-          } else {
-            console.log('empty cursor');
-
-            var timeEnd = new Date().getTime();
-            console.log('query DB took: ' + (timeEnd - timeStart) + 'ms' );
-
-            resultList.sort(function compare(a, b) {
-                return (b.value - a.value);
-            });
-
-            var returnList = [];
-            for (var i = 0; i < Math.min(resultList.length, 10); i++) {
-              console.log('key: ' + resultList[i].key + ' , ' + resultList[i].value);
-              returnList.push(resultList[i].key);
+            var weight = 1;
+            if (cursor.key.length == queryString.length) {
+              weight = 3;
+            } else if (cursor.key.length - queryString.length == 1) {
+              weight = 2;
             }
-            // callback with results
-            callback(returnList);
-          }
 
+            var result = {key: cursor.key,
+                          value: cursor.value.value * weight};
+
+            insertArray(resultList, result, self.kCandidateNumber);
+
+            if (queryString == self.currentWord) {
+              cursor.continue();
+            }
+
+          } else {
+            queryDB.endProfiling();
+            if (queryString == self.currentWord)
+              callback(resultList);
+          }
+        };
+      }.bind(this));
+    },
+
+    populateDBAsync: function pt_populateDBAsync(callback) {
+
+      this._dictIndex = 0;
+      debug('Going to populate DB part by part: ' + this._dictIndex);
+      var dbPopulate = new SimpleProfiler('DB populating');
+
+      var addChunk = function pt_addChunk() {
+
+        debug('[InAddChunk] Going to populate DB part by part now i: ' +
+               this._dictIndex);
+
+        var addTransaction = this._db.transaction(['dictionary'], 'readwrite');
+        var objectStore = addTransaction.objectStore('dictionary');
+
+        addTransaction.oncomplete = function putComplete() {
+          debug('add complete');
         };
 
+        addTransaction.onerror = function(e) {
+          console.log('transaction error: ', e);
+        };
+
+        for (var i = this._dictIndex; i < this.jsonData.length; ++i) {
+          objectStore.put(this.jsonData[i]);
+          if ((i + 1) % 2048 == 0) {
+            this._dictIndex = i + 1;
+            break;
+          }
+        }
+
+        debug('Going to populate DB part by part now i: ' + i);
+
+        if (i == this.jsonData.length) {
+
+          dbPopulate.endProfiling();
+          objectStore.put({key: '_last_entry_'});
+
+          self.jsonData = null;
+
+          if (callback)
+            callback();
+        } else {
+          window.setTimeout(addChunk, 0);
+        }
+
+      }.bind(this);
+
+      addChunk();
+
+    },
+
+    // get words with edit distance 1, from typo.js
+    edits1: function pt_edits1(words) {
+      var rv = [];
+
+      for (var ii = 0, _iilen = words.length; ii < _iilen; ii++) {
+        var word = words[ii];
+
+        var splits = [];
+
+        for (var i = 0, _len = word.length + 1; i < _len; i++) {
+          splits.push([word.substring(0, i), word.substring(i, word.length)]);
+        }
+
+        var deletes = [];
+
+        for (var i = 0, _len = splits.length; i < _len; i++) {
+          var s = splits[i];
+
+          if (s[1]) {
+            deletes.push(s[0] + s[1].substring(1));
+          }
+        }
+
+        var transposes = [];
+
+        for (var i = 0, _len = splits.length; i < _len; i++) {
+          var s = splits[i];
+
+          if (s[1].length > 1) {
+            transposes.push(s[0] + s[1][1] + s[1][0] + s[1].substring(2));
+          }
+        }
+
+        var replaces = [];
+
+        for (var i = 0, _len = splits.length; i < _len; i++) {
+          var s = splits[i];
+
+          if (s[1]) {
+            for (var j = 0, _jlen = this.kAlphabet.length; j < _jlen; j++) {
+              replaces.push(s[0] + this.kAlphabet[j] + s[1].substring(1));
+            }
+          }
+        }
+
+        var inserts = [];
+
+        for (var i = 0, _len = splits.length; i < _len; i++) {
+          var s = splits[i];
+
+          if (s[1]) {
+            for (var j = 0, _jlen = this.kAlphabet.length; j < _jlen; j++) {
+              inserts.push(s[0] + this.kAlphabet[j] + s[1]);
+            }
+          }
+        }
+
+        rv = rv.concat(deletes);
+        rv = rv.concat(transposes);
+        rv = rv.concat(replaces);
+        rv = rv.concat(inserts);
+      }
+
+      return rv;
+    },
+
+    lookupCorrections: function pt_lookupCorrection(word, callback) {
+
+      this.currentWord = word;
+      var correctPattern = this.edits1([word]);
+
+      //unique
+      var uniCorrectPattern = [];
+      for (var i in correctPattern) {
+        if (uniCorrectPattern.indexOf(correctPattern[i]) == -1)
+          uniCorrectPattern.push(correctPattern[i]);
+      }
+
+      var correctionResult = [];
+      var count = 0;
+      var self = this;
+
+      for (var i = 0; i < uniCorrectPattern.length; i++) {
+
+        if (word != this.currentWord)
+          break;
+
+        var queryString = uniCorrectPattern[i];
+        this.openAsync(function end_openAsync() {
+          var db = this._db;
+          var transaction = db.transaction(['dictionary']);
+          if (transaction == null)
+            return;
+
+          var objectStore = transaction.objectStore('dictionary');
+          var request = objectStore.get(queryString);
+          request.onerror = function(event) {
+            debug('failed to query the specific key: ' + queryString);
+          };
+
+          request.onsuccess = function correctionCallback(event) {
+
+            ++count;
+            var result = event.target.result;
+            if (result) {
+              debug('request success: ' + result.key + ' , ' + result.value);
+              insertArray(correctionResult, result, self.kCandidateNumber);
+
+            }
+
+            if (count == uniCorrectPattern.length && word == self.currentWord) {
+              callback(correctionResult);
+            }
+          };
+
+        }.bind(this));
       }
     }
-
-  }
+  };
 
   var predictiveTextWrapper = new SpellChecker();
 
