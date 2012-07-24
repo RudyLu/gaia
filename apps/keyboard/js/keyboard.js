@@ -204,11 +204,16 @@ const IMEManager = {
   handleEvent: function km_handleEvent(evt) {
     var target = evt.target;
     switch (evt.type) {
+
+      /*
       case 'showime':
+      // Disable this in Gaia, which may introduce performance penalty
+      // by repeatedly calling showIME, but still used in Gaia demo pages
         clearTimeout(this._hideIMETimer);
         this.showIME(evt.detail.type);
 
         break;
+      */
 
       // Now this is for keyboard demo only
       case 'hideime':
@@ -223,6 +228,7 @@ const IMEManager = {
         IMEController.hideIME(true);
 
         break;
+      */
 
       case 'resize':
         var currentWidth = window.innerWidth;
