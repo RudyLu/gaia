@@ -12,6 +12,40 @@
 
 'use strict';
 
+var NUL = -1;
+var PROXIMITY = [
+  'q', 'w', 's', 'a', 'z', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  'w', 'q', 'a', 's', 'd', 'e', 'x', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  'e', 'w', 's', 'd', 'f', 'r', 'a', 'i', 'o', 'u', NUL, NUL, NUL, NUL, NUL, NUL,
+  'r', 'e', 'd', 'f', 'g', 't', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  't', 'r', 'f', 'g', 'h', 'y', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  'y', 't', 'g', 'h', 'j', 'u', 'a', 's', 'd', 'x', NUL, NUL, NUL, NUL, NUL, NUL,
+  'u', 'y', 'h', 'j', 'k', 'i', 'a', 'e', 'o', NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  'i', 'u', 'j', 'k', 'l', 'o', 'a', 'e', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  'o', 'i', 'k', 'l', 'p', 'a', 'e', 'u', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  'p', 'o', 'l', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  'a', 'z', 'x', 's', 'w', 'q', 'e', 'i', 'o', 'u', NUL, NUL, NUL, NUL, NUL, NUL,
+  's', 'q', 'a', 'z', 'x', 'c', 'd', 'e', 'w', NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  'd', 'w', 's', 'x', 'c', 'v', 'f', 'r', 'e', 'w', NUL, NUL, NUL, NUL, NUL, NUL,
+  'f', 'e', 'd', 'c', 'v', 'b', 'g', 't', 'r', NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  'g', 'r', 'f', 'v', 'b', 'n', 'h', 'y', 't', NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  'h', 't', 'g', 'b', 'n', 'm', 'j', 'u', 'y', NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  'j', 'y', 'h', 'n', 'm', 'k', 'i', 'u', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  'k', 'u', 'j', 'm', 'l', 'o', 'i', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  'l', 'i', 'k', 'p', 'o', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  'z', 'a', 's', 'd', 'x', 't', 'g', 'h', 'j', 'u', 'q', 'e', NUL, NUL, NUL, NUL,
+  'x', 'z', 'a', 's', 'd', 'c', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  'c', 'x', 's', 'd', 'f', 'v', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  'v', 'c', 'd', 'f', 'g', 'b', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  'b', 'v', 'f', 'g', 'h', 'n', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  'n', 'b', 'g', 'h', 'j', 'm', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  'm', 'n', 'h', 'j', 'k', 'l', 'o', 'p', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+  NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
+]; 
+
 var debugging = true;
 
 function debug(msg) {
@@ -94,7 +128,14 @@ BinaryDictionary.prototype = {
                */
 
       for (var j = 0; j < alternatives.length; j++) {
-        this._inputCodes[i * this.MAX_PROXIMITY_CHARS_SIZE + j] = String.fromCharCode(alternatives[j]);
+        if (alternatives[j] == -1) {
+          this._inputCodes[i * this.MAX_PROXIMITY_CHARS_SIZE + j] = 0;
+        } else {
+          var code = String.fromCharCode(alternatives[j]);
+          code = code.toLowerCase();
+          this._inputCodes[i * this.MAX_PROXIMITY_CHARS_SIZE + j] = code;
+          this
+        }
       }
 
     }
@@ -103,39 +144,6 @@ BinaryDictionary.prototype = {
 
    /* TEST INPUT */
 
-   var NUL = -1;
-   var PROXIMITY = [
-     'q', 'w', 's', 'a', 'z', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     'w', 'q', 'a', 's', 'd', 'e', 'x', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     'e', 'w', 's', 'd', 'f', 'r', 'a', 'i', 'o', 'u', NUL, NUL, NUL, NUL, NUL, NUL,
-     'r', 'e', 'd', 'f', 'g', 't', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     't', 'r', 'f', 'g', 'h', 'y', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     'y', 't', 'g', 'h', 'j', 'u', 'a', 's', 'd', 'x', NUL, NUL, NUL, NUL, NUL, NUL,
-     'u', 'y', 'h', 'j', 'k', 'i', 'a', 'e', 'o', NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     'i', 'u', 'j', 'k', 'l', 'o', 'a', 'e', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     'o', 'i', 'k', 'l', 'p', 'a', 'e', 'u', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     'p', 'o', 'l', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     'a', 'z', 'x', 's', 'w', 'q', 'e', 'i', 'o', 'u', NUL, NUL, NUL, NUL, NUL, NUL,
-     's', 'q', 'a', 'z', 'x', 'c', 'd', 'e', 'w', NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     'd', 'w', 's', 'x', 'c', 'v', 'f', 'r', 'e', 'w', NUL, NUL, NUL, NUL, NUL, NUL,
-     'f', 'e', 'd', 'c', 'v', 'b', 'g', 't', 'r', NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     'g', 'r', 'f', 'v', 'b', 'n', 'h', 'y', 't', NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     'h', 't', 'g', 'b', 'n', 'm', 'j', 'u', 'y', NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     'j', 'y', 'h', 'n', 'm', 'k', 'i', 'u', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     'k', 'u', 'j', 'm', 'l', 'o', 'i', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     'l', 'i', 'k', 'p', 'o', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     'z', 'a', 's', 'd', 'x', 't', 'g', 'h', 'j', 'u', 'q', 'e', NUL, NUL, NUL, NUL,
-     'x', 'z', 'a', 's', 'd', 'c', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     'c', 'x', 's', 'd', 'f', 'v', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     'v', 'c', 'd', 'f', 'g', 'b', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     'b', 'v', 'f', 'g', 'h', 'n', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     'n', 'b', 'g', 'h', 'j', 'm', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     'm', 'n', 'h', 'j', 'k', 'l', 'o', 'p', NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-     NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL,
-   ];
      var MAXPROXIMITYCHARSIZE = 16;
      var displayInfoParameters = {
        proximityCharsLength : MAXPROXIMITYCHARSIZE,
@@ -171,7 +179,14 @@ BinaryDictionary.prototype = {
        charCode : 0,
        sweetSpotInfo : sweetSpotInfoParameters2
      };
-    var testProximityInfo = _ptManager.createProximityInfo(displayInfoParameters, [keyInfoParameters, keyInfoParameters2]); 
+
+     var testProximityInfo = _ptManager.createProximityInfo(displayInfoParameters, [keyInfoParameters, keyInfoParameters2]); 
+     //console.log('testProx:' + JSON.stringify(testProximityInfo)); 
+
+     for (var o in testProximityInfo) {
+       console.log('dumpProx: ' + o + " : " + testProximityInfo[o]);
+     }
+
    /****/
 
    var word = codes._typedWord;
@@ -189,11 +204,7 @@ BinaryDictionary.prototype = {
    }
    for (var i = 0; i < word.length; i++) {
      inputword[i*MAXPROXIMITYCHARSIZE] = word[i];
-   } 
-
-   //codes._xCoordinates = xcoords;
-   //codes._yCoordinates = ycoords;
-   //this._inputCodes = inputword;
+   }
 
    var suggestionParameters = {
      xCoordinates : codes._xCoordinates,
@@ -202,11 +213,11 @@ BinaryDictionary.prototype = {
      flags : 0
    }; 
 
-   console.log('input:' + JSON.stringify(proximityInfo)); 
+   console.log('input:' + JSON.stringify(proximityInfo._nativeProximityInfo)); 
    console.log('input2:' + JSON.stringify(suggestionParameters)); 
 
 
-   var req = _ptManager.getSuggestions(testProximityInfo, 
+   var req = _ptManager.getSuggestions(proximityInfo._nativeProximityInfo, 
                                       suggestionParameters);
 
    // handle result
@@ -515,7 +526,7 @@ ProximityInfo.prototype = {
       keyboardHeight : keyboardHeight,
       gridWidth : this._gridWidth,
       gridHeight : this._gridHeight,
-      proximityChars : proximityCharsArray
+      proximityChars : PROXIMITY
     };
 
     var sweetSpotInfoParameters = {
@@ -533,7 +544,7 @@ ProximityInfo.prototype = {
         y : key.y,
         width : key.width,
         height : key.height,
-        charCode : key.code,
+        charCode : key.code - 0,
         sweetSpotInfo : sweetSpotInfoParameters
       };
 
@@ -549,7 +560,13 @@ ProximityInfo.prototype = {
       sweetSpotCenterXs, sweetSpotCenterYs, sweetSpotRadii);
     */
 
+    console.log('keyInfo:' + JSON.stringify(keyInfoArray));
     this._nativeProximityInfo = _ptManager.createProximityInfo(displayInfoParameters, keyInfoArray);
+
+    if (this._nativeProximityInfo != null) 
+      console.log('native prox:' + JSON.stringify(this._nativeProximityInfo));
+    else 
+      console.log('native prox null:');
 
   },
 
