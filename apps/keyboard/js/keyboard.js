@@ -110,8 +110,13 @@ const IMEManager = {
       this.keyboards = this.keyboards.concat(this.keyboardSettingGroups[key]);
     }
 
-    if (this.keyboards.indexOf(IMEController.currentKeyboard) === -1)
+    if (this.keyboards.indexOf(IMEController.currentKeyboard) === -1) {
+      console.log('The first keyboard: ' + this.keyboards[0]);
       IMEController.currentKeyboard = this.keyboards[0];
+    } else {
+      console.log('current keyboard has been set: ' +
+                  IMEController.currentKeyboard);
+    }
 
     this.keyboards.forEach((function loadIMEngines(name) {
       IMEController.loadKeyboard(name);
@@ -145,6 +150,7 @@ const IMEManager = {
       (function observeSettings(key) {
         SettingsListener.observe('keyboard.layouts.' + key, false,
           function(value) {
+            console.log('keyboard layout dump: ' + key + "::" + value);
             if (value)
               self.enableSetting(key);
             else

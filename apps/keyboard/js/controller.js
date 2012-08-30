@@ -221,6 +221,9 @@ const IMEController = (function() {
     // lets look for a layout overriding or fallback to defaults
     // There is no memory-share risk here, we will preserve the original
     // layout some lines after if needed.
+
+
+    console.log('+++keyboard+++ ' + _baseLayoutName + "--" + layoutName);
     var layout = Keyboards[_baseLayoutName][layoutName] ||
                  Keyboards[layoutName];
 
@@ -809,6 +812,7 @@ const IMEController = (function() {
         // If the user has specify a keyboard in the menu,
         // switch to that keyboard.
         if (target.dataset.keyboard) {
+          console.log('+++keyboard+++ set ' + target.dataset.keyboard);
           _baseLayoutName = target.dataset.keyboard;
 
         // If the user is releasing the switch keyboard key while
@@ -821,6 +825,7 @@ const IMEController = (function() {
           var keyboards = IMEManager.keyboards;
           var index = keyboards.indexOf(_baseLayoutName);
           index = (index + 1) % keyboards.length;
+          console.log('+++keyboard+++ cycle ' +  IMEManager.keyboards[index]);
           _baseLayoutName = IMEManager.keyboards[index];
         }
 
@@ -1090,7 +1095,10 @@ const IMEController = (function() {
 
     // Current keyboard as the name of the layout
     get currentKeyboard() { return _baseLayoutName; },
-    set currentKeyboard(value) { _baseLayoutName = value; },
+    set currentKeyboard(value) {
+      console.log('+++keyboard+++ set current ' +  value);
+      _baseLayoutName = value; 
+    },
 
     // Exposed methods
     init: _init,
