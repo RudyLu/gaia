@@ -86,7 +86,40 @@ var StorageSettings = {
         StorageSettings.umsEnabledInfoBlock.style.display = 'none';
       }
     };
+
+    MediaStorage.getStat('apps', function(size) {
+      var id = 'app-total-space';
+      var sizeElement = document.querySelector('#' + id + ' span');
+
+      sizeElement.textContent = size;
+    });
   }
 };
+
+var MediaStorage = (function MediaStorage() {
+
+    var deviceStorage = {};
+
+    function _getFreeSpace(type, callback) {
+      deviceStorage[type] = navigator.getDeviceStorage(type);
+      var request = deviceStorage[type].stat();
+
+      request.onsuccess = function(e) {
+        console.log('media type - ' + type);
+
+        var totalSize = e.target.result.totalBytes;
+        console.log('free: ' + e.target.result.freeBytes);
+        console.log('total: ' + e.target.result.totalBytes);
+
+        callback(e.target.result.totalBytes,
+                 e.target.result.freeBytes);
+      };
+
+    }
+
+    return {
+      getStat: _getFreeSpace
+    };
+})();
 
 StorageSettings.init();
