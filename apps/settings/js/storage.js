@@ -86,13 +86,6 @@ var StorageSettings = {
         StorageSettings.umsEnabledInfoBlock.style.display = 'none';
       }
     };
-
-    MediaStorage.getStat('apps', function(size) {
-      var id = 'app-total-space';
-      var sizeElement = document.querySelector('#' + id + ' span');
-
-      sizeElement.textContent = size;
-    });
   }
 };
 
