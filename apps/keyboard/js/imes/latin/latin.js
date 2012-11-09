@@ -119,7 +119,7 @@
   function activate(lang, suggestionsEnabled, state) {
     language = lang;
     inputMode = getInputMode(state.type, state.inputmode);
-    inputText = state.value;
+    inputText = state.value || '';
     cursor = state.selectionStart;
     if (state.selectionEnd > state.selectionStart)
       selection = state.selectionEnd;
@@ -410,18 +410,14 @@
     //
     if (cursor === 0) {
       keyboard.setUpperCase(true);
-    }
-    else if (cursor >= 2 &&
-             isUpperCase(inputText.substring(cursor - 2, cursor))) {
+    } else if (cursor >= 2 &&
+               isUpperCase(inputText.substring(cursor - 2, cursor))) {
       keyboard.setUpperCase(true);
-    }
-    else if (!isWhiteSpace(inputText.substring(cursor - 1, cursor))) {
+    } else if (!isWhiteSpace(inputText.substring(cursor - 1, cursor))) {
       keyboard.setUpperCase(false);
-    }
-    else if (atSentenceStart()) {
+    } else if (atSentenceStart()) {
       keyboard.setUpperCase(true);
-    }
-    else {
+    } else {
       keyboard.setUpperCase(false);
     }
   }

@@ -325,45 +325,51 @@ function getKeyboardSettings() {
 
 function initKeyboard() {
   // First, register handlers to track settings changes
-  navigator.mozSettings.addObserver('language.current', function(e) {
-    // The keyboard won't be displayed when this setting changes, so we
-    // don't need to tell the keyboard about the new value right away.
-    // We pass the value to the input method when the keyboard is displayed.
-    userLanguage = e.settingValue;
-  });
 
-  navigator.mozSettings.addObserver('keyboard.wordsuggestion', function(e) {
-    // The keyboard won't be displayed when this setting changes, so we
-    // don't need to tell the keyboard about the new value right away.
-    // We pass the value to the input method when the keyboard is displayed
-    suggestionsEnabled = e.settingValue;
-  });
+  try {
+    navigator.mozSettings.addObserver('language.current', function(e) {
+      // The keyboard won't be displayed when this setting changes, so we
+      // don't need to tell the keyboard about the new value right away.
+      // We pass the value to the input method when the keyboard is displayed.
+      userLanguage = e.settingValue;
+    });
 
-  navigator.mozSettings.addObserver('keyboard.vibration', function(e) {
-    vibrationEnabled = e.settingValue;
-  });
+    navigator.mozSettings.addObserver('keyboard.wordsuggestion', function(e) {
+      // The keyboard won't be displayed when this setting changes, so we
+      // don't need to tell the keyboard about the new value right away.
+      // We pass the value to the input method when the keyboard is displayed
+      suggestionsEnabled = e.settingValue;
+    });
 
-  navigator.mozSettings.addObserver('keyboard.clicksound', function(e) {
-    clickEnabled = e.settingValue;
-    if (clickEnabled)
-      clicker = new Audio(CLICK_SOUND);
-    else
-      clicker = null;
-  });
+    navigator.mozSettings.addObserver('keyboard.vibration', function(e) {
+      vibrationEnabled = e.settingValue;
+    });
 
-  for (var group in keyboardGroups) {
+    navigator.mozSettings.addObserver('keyboard.clicksound', function(e) {
+      clickEnabled = e.settingValue;
+      if (clickEnabled)
+        clicker = new Audio(CLICK_SOUND);
+      else
+        clicker = null;
+    });
 
-    var settingName = 'keyboard.layouts.' + group;
+    for (var group in keyboardGroups) {
 
-    var createLayoutCallback = function createLayoutCallback(name) {
-      return function layoutCallback(e) {
-        enabledKeyboardGroups[name] = e.settingValue;
-        handleNewKeyboards();
+      var settingName = 'keyboard.layouts.' + group;
+
+      var createLayoutCallback = function createLayoutCallback(name) {
+        return function layoutCallback(e) {
+          enabledKeyboardGroups[name] = e.settingValue;
+          handleNewKeyboards();
+        }
       }
+
+      navigator.mozSettings.addObserver(settingName,
+        createLayoutCallback(settingName));
     }
 
-    navigator.mozSettings.addObserver(settingName,
-                                      createLayoutCallback(settingName));
+  } catch (e) {
+    console.log(e);
   }
 
   // Initialize the rendering module
@@ -389,6 +395,11 @@ function initKeyboard() {
   // Show or hide the keyboard when we get an focuschange event
   // from the keyboard
   var focusChangeTimeout = 0;
+
+  if (!navigator.mozKeyboard) {
+    navigator.mozKeyboard = {};
+  }
+
   navigator.mozKeyboard.onfocuschange = function onfocuschange(evt) {
     var state = evt.detail;
     var type = state.type;
@@ -766,6 +777,21 @@ function updateTargetWindowHeight(hide) {
   } else {
     document.location.hash = 'show=' + IMERender.ime.scrollHeight;
   }
+
+  var height;
+  if (IMERender.ime.dataset.hidden) {
+    height = 0;
+  } else {
+    height = IMERender.ime.scrollHeight;
+  }
+
+  var message = {
+    action: 'updateHeight',
+    keyboardHeight: height,
+    hidden: !!IMERender.ime.dataset.hidden
+  };
+
+  parent.postMessage(JSON.stringify(message), '*');
 }
 
 function notifyShowKeyboard(show) {
@@ -970,8 +996,7 @@ function onMouseDown(evt) {
     // Second, after a delay (with feedback)
     deleteTimeout = window.setTimeout(function() {
       sendDelete(true);
-
-      // Third, after shorter delay (with feedback too)
+// Third, after shorter delay (with feedback too)
       deleteInterval = setInterval(function() {
         sendDelete(true);
       }, REPEAT_RATE);
@@ -1007,6 +1032,7 @@ function onMouseMove(evt) {
 // When user changes to another button (it handle what happend if the user
 // keeps pressing the same area. Similar to onMouseDown)
 function onMouseOver(evt) {
+  console.log('++keyboard++ onMouseOver', evt.target.dataset.keycode);
   var target = evt.target;
   var keyCode = parseInt(target.dataset.keycode);
 
