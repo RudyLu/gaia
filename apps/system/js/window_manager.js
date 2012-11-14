@@ -282,6 +282,7 @@ var WindowManager = (function() {
 
         setOpenFrame(null);
       } else {
+        console.log('++checking++: to remove frame from windows ' + frame.className);
         windows.removeChild(frame);
       }
 

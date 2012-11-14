@@ -1,6 +1,54 @@
 'use strict';
 
 var KeyboardManager = (function() {
+
+  function getStyle(el, styleProp) {
+      var x = el; //document.getElementById(el);
+
+      if (window.getComputedStyle)
+      {
+	  var y = document.defaultView.getComputedStyle(x,null).getPropertyValue(styleProp); 
+      }  
+      else if (x.currentStyle)
+      {
+	  var y = x.currentStyle[styleProp];
+      }                     
+
+      return y;
+  }
+
+  function printClassList (classList) {
+      for (var i in classList) {
+	  console.warn('++check++: ' + classList[i]);
+      }
+  }
+	  
+  function checkZIndex() {
+    var windowContainer = document.querySelector('#screen > [data-z-index-level="app"] > iframe');
+    if (windowContainer) {
+	console.warn('++zIndex checking windows ++: ' + getStyle(windowContainer, 'z-index') +  'className' +
+                      windowContainer.className);
+
+		  printClassList(windowContainer.classList);
+    } else 
+	console.warn('++zIndex checking windows ++: no container');
+
+    var container = document.getElementById('keyboard-frame');
+    if (container)
+	console.warn('++zIndex checking++: ' + getStyle(container, 'z-index'));
+    else 
+	console.warn('++zIndex checking++: no container');
+
+    var screen = document.getElementById('screen');
+    if (screen) {
+	console.warn('++zIndex checking++: ' + getStyle(screen, 'z-index'));
+	console.warn('++class checking++: '  + screen.className);
+		  printClassList(screen.classList);
+    } else  {
+	console.warn('++zIndex checking++: no screen');
+    }
+  }
+
   function getKeyboardURL() {
     // TODO: Retrieve it from Settings, allowing 3rd party keyboards
     var host = document.location.host;
@@ -53,15 +101,21 @@ var KeyboardManager = (function() {
           overlay.style.height = height + 'px';
           container.classList.add('visible');
 
+	  console.log('check 2');
+	  checkZIndex();
+
           var detail = {
             'detail': {
               'height': size
             }
           };
           dispatchEvent(new CustomEvent('keyboardchange', detail));
+
+	  checkZIndex();
         }
 
         if (container.classList.contains('hide')) {
+	  checkZIndex();
           container.classList.remove('hide');
           container.addEventListener('transitionend', updateHeight);
           return;
