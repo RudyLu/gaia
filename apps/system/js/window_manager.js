@@ -618,6 +618,11 @@ var WindowManager = (function() {
     evt.initCustomEvent('appwillopen', true, false, { origin: origin });
     app.frame.dispatchEvent(evt);
 
+
+    app.frame.addEventListener('mozbrowserlocationchange', function(evt) {
+      console.log('app-' + origin + 'loc change: ' + evt.detail);
+    });
+
     // Set the frame to be visible.
     if ('setVisible' in openFrame)
       openFrame.setVisible(true);

@@ -326,6 +326,7 @@ var Browser = {
         break;
 
       case 'mozbrowserlocationchange':
+        console.log('browser loc change: ' + evt.detail);
         if (evt.detail === 'about:blank') {
           return;
         }

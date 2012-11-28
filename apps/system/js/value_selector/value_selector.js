@@ -104,6 +104,7 @@ var ValueSelector = {
 
     window.addEventListener('appopen', this);
     window.addEventListener('appwillclose', this);
+    window.addEventListener('mozbrowserlocationchange', this);
   },
 
   handleEvent: function vs_handleEvent(evt) {
@@ -111,6 +112,10 @@ var ValueSelector = {
       case 'appopen':
       case 'appwillclose':
         this.hide();
+        break;
+
+      case 'mozbrowserlocationchange':
+        console.log('locationchange: ' + JSON.stringify(evt.detail));
         break;
 
       case 'click':
