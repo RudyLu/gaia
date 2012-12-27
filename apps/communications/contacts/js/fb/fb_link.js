@@ -24,6 +24,8 @@ if (!fb.link) {
     // The uid of the friend to be linked
     var friendUidToLink;
 
+    var linkProposalElement = document.querySelector('#linkProposal');
+
     // Base query to search for contacts
     var SEARCH_QUERY = ['SELECT uid, name, email from user ',
     ' WHERE uid IN (SELECT uid1 FROM friend WHERE uid2=me() ORDER BY rank) ',
@@ -57,6 +59,7 @@ if (!fb.link) {
     // State can be proposal or view All
     var state;
     var _ = navigator.mozL10n.get;
+    var imgLoader;
 
     // Builds the first query for finding a contact to be linked to
     function buildQuery(contact) {
@@ -65,7 +68,7 @@ if (!fb.link) {
       if (contact.name && contact.name.length > 0 &&
                                       contact.name[0].length > 0) {
         // First the name condition is put there
-        NAME_COND[2] = contact.name[0].toLowerCase();
+        NAME_COND[2] = contact.name[0].trim().toLowerCase();
       }
       else {
          // The condition will be false by definition
@@ -77,7 +80,7 @@ if (!fb.link) {
       if (contact.tel && contact.tel.length > 0) {
         contact.tel.forEach(function(tel) {
           filter.push(' OR ');
-          CELL_COND[2] = tel.value;
+          CELL_COND[2] = tel.value.trim();
           filter.push(CELL_COND.join(''));
         });
       }
@@ -85,7 +88,7 @@ if (!fb.link) {
       if (contact.email && contact.email.length > 0) {
         contact.email.forEach(function(email) {
           filter.push(' OR ');
-          MAIL_COND[2] = email.value;
+          MAIL_COND[2] = email.value.trim();
           filter.push(MAIL_COND.join(''));
         });
       }
@@ -102,7 +105,7 @@ if (!fb.link) {
       if (contact.givenName && contact.givenName.length > 0 &&
                                contact.givenName[0].length > 0) {
         // First the name condition is put there
-        FIRST_NAME_COND[2] = contact.givenName[0].toLowerCase();
+        FIRST_NAME_COND[2] = contact.givenName[0].trim().toLowerCase();
       }
       else {
          // The condition will be false by definition
@@ -115,7 +118,7 @@ if (!fb.link) {
       if (contact.familyName && contact.familyName.length > 0 &&
                                 contact.familyName[0].length > 0) {
         // First the name condition is put there
-        LAST_NAME_COND[2] = contact.familyName[0].toLowerCase();
+        LAST_NAME_COND[2] = contact.familyName[0].trim().toLowerCase();
       }
       else {
          // The condition will be false by definition
@@ -146,11 +149,11 @@ if (!fb.link) {
           doGetRemoteProposal(acc_tk, cdata, buildQuery(cdata));
         }
         else {
-          throw ('FB: Contact to be linked not found' + contactId);
+          throw ('FB: Contact to be linked not found: ', cid);
         }
       }
       req.onerror = function() {
-        throw ('FB: Error while retrieving contact data');
+        throw ('FB: Error while retrieving contact data: ', cid);
       }
     }
 
@@ -166,7 +169,6 @@ if (!fb.link) {
 
     // Performs all the work to obtain the remote proposal
     function doGetRemoteProposal(acc_tk, contactData, query) {
-
       /*
         Phone.lookup was analysed but we were not happy about how it worked
 
@@ -252,6 +254,7 @@ if (!fb.link) {
         var data = response.data;
         currentRecommendation = data;
 
+        var numFriendsProposed = response.data.length;
         data.forEach(function(item) {
           if (!item.email) {
             item.email = '';
@@ -260,13 +263,18 @@ if (!fb.link) {
 
         if (numQueries === 3) {
           mainSection.classList.add('no-proposal');
+          numFriendsProposed = 0;
         } else {
           viewButton.textContent = _('viewAll');
           viewButton.onclick = UI.viewAllFriends;
         }
 
+        linkProposalElement.textContent = _('linkProposal', {
+          numFriends: numFriendsProposed
+        });
+
         utils.templates.append('#friends-list', data);
-        ImageLoader.reload();
+        imgLoader.reload();
 
         Curtain.hide(sendReadyEvent);
       }
@@ -339,9 +347,8 @@ if (!fb.link) {
       friendsList.appendChild(template);
     }
 
-
     link.friendsReady = function(response) {
-      if (typeof response.error === 'undefined') {
+      if (typeof response.error === 'undefined' && response.data) {
         viewButton.textContent = _('viewRecommend');
         viewButton.onclick = UI.viewRecommended;
 
@@ -356,9 +363,12 @@ if (!fb.link) {
         });
 
         clearList();
+        
+        var fragment = document.createDocumentFragment();
+        utils.templates.append(friendsList, response.data, fragment);
+        friendsList.appendChild(fragment);
 
-        utils.templates.append(friendsList, response.data);
-        ImageLoader.reload();
+        imgLoader.reload();
 
         Curtain.hide();
       }
@@ -390,7 +400,8 @@ if (!fb.link) {
 
       setCurtainHandlers();
       clearList();
-      ImageLoader.init('#mainContent', "li:not([data-uuid='#uid#'])");
+      imgLoader = new ImageLoader('#mainContent',
+                                  "li:not([data-uuid='#uid#'])");
 
       if (!acc_tk) {
         fb.oauth.getAccessToken(function proposal_new_token(new_acc_tk) {
@@ -418,6 +429,10 @@ if (!fb.link) {
       var cb = function() {
         allFriends = null;
         link.start(contactid);
+        parent.postMessage({
+          type: 'token_error',
+          data: ''
+        }, fb.CONTACTS_APP_ORIGIN);
       }
       window.asyncStorage.removeItem(fb.utils.TOKEN_DATA_KEY, cb);
     }
@@ -425,7 +440,7 @@ if (!fb.link) {
     UI.selected = function(event) {
       Curtain.show('message', 'linking');
 
-      var element = event.target;
+      var element = event.target.parentNode;
       friendUidToLink = element.dataset.uuid;
 
       // First it is needed to check whether is an already imported friend
@@ -508,6 +523,8 @@ if (!fb.link) {
       else {
         link.friendsReady(allFriends);
       }
+
+      return false;
     }
 
     UI.viewRecommended = function(event) {
@@ -517,7 +534,9 @@ if (!fb.link) {
 
       clearList();
       utils.templates.append(friendsList, currentRecommendation);
-      ImageLoader.reload();
+      imgLoader.reload();
+
+      return false;
     }
 
   })(document);

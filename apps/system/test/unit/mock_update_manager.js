@@ -1,3 +1,5 @@
+'use strict';
+
 var MockUpdateManager = {
   addToUpdatesQueue: function mum_addtoUpdateQueue(updatable) {
     this.mLastUpdatesAdd = updatable;
@@ -15,6 +17,14 @@ var MockUpdateManager = {
     this.mLastDownloadsRemoval = updatable;
   },
 
+  downloadProgressed: function mum_downloadProgressed(bytes) {
+    this.mProgressCalledWith = bytes;
+  },
+
+  startedUncompressing: function mum_startedUncompressing() {
+    this.mStartedUncompressingCalled = true;
+  },
+
   requestErrorBanner: function mum_requestErrorBanner() {
     this.mErrorBannerRequested = true;
   },
@@ -24,11 +34,15 @@ var MockUpdateManager = {
   mLastUpdatesRemoval: null,
   mLastDownloadsAdd: null,
   mLastDownloadsRemoval: null,
+  mProgressCalledWith: null,
+  mStartedUncompressingCalled: false,
   mTeardown: function mum_mTeardown() {
     this.mErrorBannerRequested = false;
     this.mLastUpdatesAdd = null;
     this.mLastUpdatesRemoval = null;
     this.mLastDownloadsAdd = null;
     this.mLastDownloadsRemoval = null;
+    this.mProgressCalledWith = null;
+    this.mStartedUncompressingCalled = false;
   }
 };

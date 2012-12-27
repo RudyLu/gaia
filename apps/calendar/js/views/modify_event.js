@@ -1,6 +1,6 @@
 Calendar.ns('Views').ModifyEvent = (function() {
 
-  var InputParser = Calendar.InputParser;
+  var InputParser = Calendar.Utils.InputParser;
 
   function ModifyEvent(options) {
     Calendar.View.apply(this, arguments);
@@ -127,6 +127,16 @@ Calendar.ns('Views').ModifyEvent = (function() {
     _updateCalendarId: function(id, calendar) {
       var element = this.getField('calendarId');
       var option = element.querySelector('[value="' + id + '"]');
+      var store = this.app.store('Calendar');
+      var provider = store.providerFor(calendar);
+      var caps = provider.calendarCapabilities(
+        calendar
+      );
+
+      if (!caps.canCreateEvent) {
+        this._removeCalendarId(id);
+        return;
+      }
 
       if (option) {
         option.text = calendar.name;
@@ -142,9 +152,9 @@ Calendar.ns('Views').ModifyEvent = (function() {
     _addCalendarId: function(id, calendar) {
       var store = this.app.store('Calendar');
       var provider = store.providerFor(calendar);
-
-      if (!provider.canCreateEvent)
-        return;
+      var caps = provider.calendarCapabilities(
+        calendar
+      );
 
       var option;
       var element = this.getField('calendarId');
@@ -200,14 +210,6 @@ Calendar.ns('Views').ModifyEvent = (function() {
       return this._findElement('cancelButton');
     },
 
-    get status() {
-      return this._findElement('status');
-    },
-
-    get errors() {
-      return this._findElement('errors');
-    },
-
     /**
      * Gets form field by name
      */
@@ -238,35 +240,6 @@ Calendar.ns('Views').ModifyEvent = (function() {
     },
 
     /**
-     * Displays a list of errors
-     *
-     * @param {Array} list error list
-     *  (see Event.validaitonErrors).
-     */
-    displayErrors: function(list) {
-      var _ = navigator.mozL10n.get;
-      var errors = '';
-
-      var i = 0;
-      var len = list.length;
-
-      for (; i < len; i++) {
-        var name = list[i].name;
-        errors += _(this.ERROR_PREFIX + name) || name;
-      }
-
-      // populate error and display it.
-      this.errors.textContent = errors;
-      this.status.classList.add(this.activeClass);
-
-      var self = this;
-      this.status.addEventListener('animationend', function displayError() {
-        self.status.classList.remove(self.activeClass);
-        self.status.removeEventListener('animationend', displayError);
-      });
-    },
-
-    /**
      * Ask the provider to an event:
      *
      *  1. update the model with form data
@@ -289,7 +262,7 @@ Calendar.ns('Views').ModifyEvent = (function() {
 
       var errors = this.event.validationErrors();
       if (errors) {
-        this.displayErrors(errors);
+        this.showErrors(errors);
         return;
       }
 

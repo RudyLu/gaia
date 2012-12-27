@@ -29,16 +29,21 @@
 
   <!-- Shared code -->
   <script type="text/javascript" src="shared/js/l10n.js"></script>
+  <script type="text/javascript" src="shared/js/l10n_date.js"></script>
+  <script type="text/javascript" src="shared/js/async_storage.js"></script>
 
   <!-- Specific code -->
   <script type="text/javascript" src="js/utils/debug.js"></script>
   <script type="text/javascript" src="js/utils/formatting.js"></script>
 
-  <script type="text/javascript" src="js/service/service_utils.js"></script>
-
-  <script type="text/javascript" defer src="js/views/view_manager.js"></script>
-  <script type="text/javascript" defer src="js/views/autosettings.js"></script>
-  <script type="text/javascript" defer src="js/views/fte.js"></script>
+  <script type="text/javascript" defer src="js/utils/toolkit.js"></script>
+  <script type="text/javascript" defer src="js/common.js"></script>
+  <script type="text/javascript" defer src="js/costcontrol.js"></script>
+  <script type="text/javascript" defer src="js/config_manager.js"></script>
+  <script type="text/javascript" defer src="js/view_manager.js"></script>
+  <script type="text/javascript" defer src="js/settings/limitdialog.js"></script>
+  <script type="text/javascript" defer src="js/settings/autosettings.js"></script>
+  <script type="text/javascript" defer src="js/fte.js"></script>
 </head>
 
 <body role="application" class="skin-organic">
@@ -54,26 +59,26 @@
     <!-- Step 1 -->
     <section role="region" class="view step" data-viewport="" id="step-1">
       <header>
-        <h1>Select your plan type</h1>
+        <h1 data-l10n-id="select-plan-type">Select your plan type</h1>
       </header>
       <ul class="content choices">
         <li>
           <label for="prepaid-plan">
             <input type="radio" name="plan" id="prepaid-plan" value="prepaid">
-            <span>I'm Pre-paid</span>
+            <span data-l10n-id="im-prepaid">I’m Pre-paid</span>
           </label>
         </li>
         <li>
           <label for="postpaid-plan">
             <input type="radio" name="plan" id="postpaid-plan" value="postpaid">
-            <span>I'm Post-paid</span>
+            <span data-l10n-id="im-postpaid">I’m Post-paid</span>
           </label>
         </li>
       </ul>
       <menu>
         <button id="to-step-2" class="recommend" data-navigation="next">
           <span></span>
-          Next
+          <span data-l10n-id="next">Next</span>
         </button>
       </menu>
     </section>
@@ -81,32 +86,32 @@
     <!-- Prepaid step 2 -->
     <section role="region" class="view step" data-viewport="right" id="prepaid-step-2">
       <header>
-        <h1>Set balance reminders</h1>
+        <h1 data-l10n-id="set-balance-reminders">Set balance reminders</h1>
       </header>
       <ul class="content settings">
         <li>
           <label class="end">
-            <input class="localsetting" data-option="lowlimit" type="checkbox" checked="checked" data-type="switch">
+            <input class="settings-option" data-option="lowLimit" type="checkbox" checked="checked" data-type="switch">
             <span></span>
           </label>
-          <p>Low Balance alert</p>
+          <p data-l10n-id="low-balance-alert">Low Balance alert</p>
         </li>
         <li>
           <label class="end" for="ft-balance-alert-value">
             R$
-            <input class="localsetting" data-option="lowlimit_threshold" data-disable-on="lowlimit=false" type="number" id="ft-balance-alert-value">
+            <input class="settings-option" data-option="lowLimitThreshold" data-disable-on="lowLimit=false" type="number" id="ft-balance-alert-value">
           </label>
-          <p>Alert me when I’m under</p>
+          <p data-l10n-id="low-balance-explanation">Alert me when I’m under</p>
         </li>
       </ul>
       <menu data-items="2">
         <button data-navigation="back">
           <span></span>
-          Back
+          <span data-l10n-id="back">Back</span>
         </button>
         <button class="recommend" data-navigation="next">
           <span></span>
-          Next
+          <span data-l10n-id="next">Next</span>
         </button>
       </menu>
     </section>
@@ -114,43 +119,43 @@
     <!-- Prepaid step 3 -->
     <section role="region" class="view step" data-viewport="right" id="prepaid-step-3">
       <header>
-        <h1>Set internet report and reminders</h1>
+        <h1 data-l10n-id="set-data-report-and-reminder">Set data report and reminder</h1>
       </header>
       <ul class="content settings">
         <li>
           <div class="end buttons-list">
-            <button class="localsetting icon icon-dialog" data-option="tracking_period" data-selectdialog="selectdialog-tracking-period">
+            <button class="settings-option icon icon-dialog" data-option="trackingPeriod" data-selectdialog="selectdialog-tracking-period">
               <span class="tag"></span>
             </button>
           </div>
-          <p>Reset tracking</p>
+          <p data-l10n-id="reset-tracking">Reset tracking</p>
         </li>
         <li>
           <div class="end buttons-list">
-            <button class="localsetting icon icon-dialog" data-option="reset_time" data-selectdialog="selectdialog-weekday" data-hide-on="tracking_period!=weekly" data-disable-on="tracking_period!=weekly">
+            <button class="settings-option icon icon-dialog" data-option="resetTime" data-selectdialog="selectdialog-weekday" data-hide-on="trackingPeriod!=weekly" data-disable-on="trackingPeriod!=weekly">
               <span class="tag"></span>
             </button>
           </div>
-          <p>Starting on</p>
+          <p data-l10n-id="starting-on">Starting on</p>
         </li>
         <li>
           <div class="end buttons-list">
-            <button class="localsetting icon icon-dialog" data-option="reset_time" data-selectdialog="selectdialog-monthday" data-hide-on="tracking_period!=monthly" data-disable-on="tracking_period!=monthly">
+            <button class="settings-option icon icon-dialog" data-option="resetTime" data-selectdialog="selectdialog-monthday" data-hide-on="trackingPeriod!=monthly" data-disable-on="trackingPeriod!=monthly">
               <span class="tag"></span>
             </button>
           </div>
-          <p>Starting on</p>
+          <p data-l10n-id="starting-on">Starting on</p>
         </li>
         <li>
           <label class="end">
-            <input class="localsetting" data-option="data_limit" type="checkbox" data-type="switch">
+            <input class="settings-option" data-option="dataLimit" type="checkbox" data-type="switch">
             <span></span>
           </label>
-          <p>Data use alert</p>
+          <p data-l10n-id="data-limit-alert">Data use alert</p>
         </li>
         <li>
           <div class="end buttons-list">
-            <button class="localsetting icon icon-dialog" data-option="data_limit_value" data-inputdialog="data-limit-dialog" data-formatter="dataUnit" data-disable-on="data_limit=false" data-hide-on="data_limit=false">
+            <button class="settings-option icon icon-dialog" data-widget-type="data-limit"  data-disable-on="dataLimit=false" data-hide-on="dataLimit=false">
               <span class="tag"></span>
             </button>
           </div>
@@ -160,11 +165,11 @@
       <menu data-items="2">
         <button data-navigation="back">
           <span></span>
-          Back
+          <span data-l10n-id="back">Back</span>
         </button>
         <button class="recommend" data-navigation="finish">
           <span></span>
-          Let's go!
+          <span data-l10n-id="lets-go">Let’s go!</span>
         </button>
       </menu>
     </section>
@@ -177,37 +182,37 @@
        <ul class="content settings">
         <li>
           <div class="end buttons-list">
-            <button class="localsetting icon icon-dialog" data-option="tracking_period" data-selectdialog="selectdialog-tracking-period">
+            <button class="settings-option icon icon-dialog" data-option="trackingPeriod" data-selectdialog="selectdialog-tracking-period">
               <span class="tag"></span>
             </button>
           </div>
-          <p>Reset tracking</p>
+          <p data-l10n-id="reset-tracking">Reset tracking</p>
         </li>
         <li>
           <div class="end buttons-list">
-            <button class="localsetting icon icon-dialog" data-option="reset_time" data-selectdialog="selectdialog-weekday" data-hide-on="tracking_period!=weekly" data-disable-on="tracking_period!=weekly">
+            <button class="settings-option icon icon-dialog" data-option="resetTime" data-selectdialog="selectdialog-weekday" data-hide-on="trackingPeriod!=weekly" data-disable-on="trackingPeriod!=weekly">
               <span class="tag"></span>
             </button>
           </div>
-          <p>Starting on</p>
+          <p data-l10n-id="starting-on">Starting on</p>
         </li>
         <li>
           <div class="end buttons-list">
-            <button class="localsetting icon icon-dialog" data-option="reset_time" data-selectdialog="selectdialog-monthday" data-hide-on="tracking_period!=monthly" data-disable-on="tracking_period!=monthly">
+            <button class="settings-option icon icon-dialog" data-option="resetTime" data-selectdialog="selectdialog-monthday" data-hide-on="trackingPeriod!=monthly" data-disable-on="trackingPeriod!=monthly">
               <span class="tag"></span>
             </button>
           </div>
-          <p>Starting on</p>
+          <p data-l10n-id="starting-on">Starting on</p>
         </li>
       </ul>
       <menu data-items="2">
         <button data-navigation="back">
           <span></span>
-          Back
+          <span data-l10n-id="back">Back</span>
         </button>
         <button class="recommend" data-navigation="next">
           <span></span>
-          Next
+          <span data-l10n-id="next">Next</span>
         </button>
       </menu>
     </section>
@@ -215,19 +220,19 @@
     <!-- Postpaid step 3 -->
     <section role="region" class="view step" data-viewport="right" id="postpaid-step-3">
       <header>
-        <h1>Set internet reminders</h1>
+        <h1 data-l10n-id="set-internet-reminders">Set internet reminders</h1>
       </header>
       <ul class="content settings">
         <li>
           <label class="end">
-            <input class="localsetting" data-option="data_limit" type="checkbox" data-type="switch">
+            <input class="settings-option" data-option="data_limit" type="checkbox" data-type="switch">
             <span></span>
           </label>
-          <p>Data use alert</p>
+          <p data-l10n-id="data-limit-alert">Data use alert</p>
         </li>
         <li>
           <div class="end buttons-list">
-            <button class="localsetting icon icon-dialog" data-option="data_limit_value" data-inputdialog="data-limit-dialog" data-formatter="dataUnit" data-disable-on="data_limit=false" data-hide-on="data_limit=false">
+            <button class="settings-option icon icon-dialog" data-widget-type="data-limit" data-disable-on="dataLimit=false" data-hide-on="dataLimit=false">
               <span class="tag"></span>
             </button>
           </div>
@@ -237,11 +242,11 @@
       <menu data-items="2">
         <button data-navigation="back">
           <span></span>
-          Back
+          <span data-l10n-id="back">Back</span>
         </button>
         <button class="recommend" data-navigation="finish">
           <span></span>
-          Let's go!
+          <span data-l10n-id="lets-go">Let’s go!</span>
         </button>
       </menu>
     </section>
@@ -249,38 +254,38 @@
     <!-- Non VIVO step 1 -->
     <section role="region" class="view step" data-viewport="right" id="non-vivo-step-1">
       <header>
-        <h1>Set internet daata report</h1>
+        <h1 data-l10n-id="set-internet-data-report">Set internet data report</h1>
       </header>
       <ul class="content settings">
         <li>
           <div class="end buttons-list">
-            <button class="localsetting icon icon-dialog" data-option="tracking_period" data-selectdialog="selectdialog-tracking-period">
+            <button class="settings-option icon icon-dialog" data-option="trackingPeriod" data-selectdialog="selectdialog-tracking-period">
               <span class="tag"></span>
             </button>
           </div>
-          <p>Reset report</p>
+          <p data-l10n-id="reset-report">Reset report</p>
         </li>
         <li>
           <div class="end buttons-list">
-            <button class="localsetting icon icon-dialog" data-option="reset_time" data-selectdialog="selectdialog-weekday" data-hide-on="tracking_period!=weekly" data-disable-on="tracking_period!=weekly">
+            <button class="settings-option icon icon-dialog" data-option="resetTime" data-selectdialog="selectdialog-weekday" data-hide-on="trackingPeriod!=weekly" data-disable-on="trackingPeriod!=weekly">
               <span class="tag"></span>
             </button>
           </div>
-          <p>Starting on</p>
+          <p data-l10n-id="starting-on">Starting on</p>
         </li>
         <li>
           <div class="end buttons-list">
-            <button class="localsetting icon icon-dialog" data-option="reset_time" data-selectdialog="selectdialog-monthday" data-hide-on="tracking_period!=monthly" data-disable-on="tracking_period!=monthly">
+            <button class="settings-option icon icon-dialog" data-option="resetTime" data-selectdialog="selectdialog-monthday" data-hide-on="trackingPeriod!=monthly" data-disable-on="trackingPeriod!=monthly">
               <span class="tag"></span>
             </button>
           </div>
-          <p>Starting on</p>
+          <p data-l10n-id="starting-on">Starting on</p>
         </li>
       </ul>
       <menu data-items="1">
         <button class="recommend" data-navigation="next">
           <span></span>
-          Next
+          <span data-l10n-id="next">Next</span>
         </button>
       </menu>
     </section>
@@ -288,19 +293,19 @@
     <!-- Non VIVO step 2 -->
     <section role="region" class="view step" data-viewport="right" id="non-vivo-step-2">
       <header>
-        <h1>Set internet reminders</h1>
+        <h1 data-l10n-id="set-internet-reminders">Set internet reminders</h1>
       </header>
       <ul class="content settings">
         <li>
           <label class="end">
-            <input class="localsetting" data-option="data_limit" type="checkbox" data-type="switch">
+            <input class="settings-option" data-option="dataLimit" type="checkbox" data-type="switch">
             <span></span>
           </label>
-          <p>Data use alert</p>
+          <p data-l10n-id="data-limit-alert">Data use alert</p>
         </li>
         <li>
           <div class="end buttons-list">
-            <button class="localsetting icon icon-dialog" data-option="data_limit_value" data-inputdialog="data-limit-dialog" data-formatter="dataUnit" data-disable-on="data_limit=false" data-hide-on="data_limit=false">
+            <button class="settings-option icon icon-dialog" data-widget-type="data-limit" data-disable-on="dataLimit=false" data-hide-on="dataLimit=false">
               <span class="tag"></span>
             </button>
           </div>
@@ -310,11 +315,11 @@
       <menu data-items="2">
         <button data-navigation="back">
           <span></span>
-          Back
+          <span data-l10n-id="back">Back</span>
         </button>
         <button class="recommend" data-navigation="finish">
           <span></span>
-          Let's go!
+          <span data-l10n-id="lets-go">Let’s go!</span>
         </button>
       </menu>
     </section>
@@ -325,23 +330,23 @@
   <section role="region" id="data-limit-dialog" class="view" data-viewport="bottom">
     <header>
       <menu type="toolbar">
-         <button id="data-usage-done-button" data-l10n-id="Done" class="recommend">Done</button>
+        <button id="data-usage-done-button" data-l10n-id="done" class="recommend">Done</button>
       </menu>
       <a class="cancel"><span id="data-usage-close-button" class="icon icon-close">close</span></a>
-      <h1 data-l10n-id="datalimit-title">Data usage limit</h1>
+      <h1 data-l10n-id="data-limit-header">Data usage limit</h1>
     </header>
     <section class="content">
       <div class="info">
-        <h2 data-l10n-id="data-limit-dialog-title">Enter a mobile data usage limit</h2>
-        <p data-l10n-id="data-limit-dialog-explanation">
-          Enter a mobile data limit alert. Connection speeds reduces after limit. It will be used as a reference to check against actual mobile data usage.
+        <h2 data-l10n-id="data-limit-dialog-title2">Enter a mobile data limit alert</h2>
+        <p data-l10n-id="data-limit-dialog-explanation2">
+          Connection speeds reduce after the limit is reached. Check with your data provider to set an appropriate alert level.
         </p>
       </div>
     </section>
     <form>
       <ul class="buttons-list">
         <li>
-          <button id="switch-unit-button" type="button" class="icon icon-dialog">
+          <button type="button" class="icon icon-dialog switch-unit-button">
             <span class="tag"></span>
           </button>
         </li>
@@ -637,5 +642,6 @@
     </menu>
   </section>
 
+  <iframe id="message-handler" src="message_handler.html"></iframe>
 </body>
 </html>

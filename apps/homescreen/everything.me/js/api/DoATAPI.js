@@ -1,5 +1,5 @@
-Evme.DoATAPI = new function() {
-    var _name = "DoATAPI", _this = this,
+Evme.DoATAPI = new function Evme_DoATAPI() {
+    var NAME = "DoATAPI", self = this,
         requestRetry = null,
         cached = [],
         
@@ -15,7 +15,6 @@ Evme.DoATAPI = new function() {
         userLat = undefined,
         userLon = undefined,
         appVersion = undefined,
-        testStats = undefined,
         manualCredentials = null,
         manualCampaignStats = null,
         requestingSession = false,
@@ -39,8 +38,15 @@ Evme.DoATAPI = new function() {
             "Session.init": true,
             "Search.trending": true
         };
+      
+    this.ERROR_CODES = {
+        "SUCCESS": 1,
+        "AUTH": -9,
+        "INVALID_PARAMS": -14,
+        "TIMEOUT": -19
+    };
     
-    this.init = function(options){
+    this.init = function init(options){
         apiKey = options.apiKey,
         appVersion = options.appVersion || "";
         authCookieName = options.authCookieName;
@@ -50,17 +56,10 @@ Evme.DoATAPI = new function() {
         
         setClientInfoCookie();
         
-        _this.Session.init();
-    };
-      
-    this.ERROR_CODES = {
-        "SUCCESS": 1,
-        "AUTH": -9,
-        "INVALID_PARAMS": -14,
-        "TIMEOUT": -19
+        self.Session.init();
     };
     
-    this.search = function(_options, callback, noSession) {
+    this.search = function search(_options, callback, noSession) {
         !_options && (_options = {});
         
         var options = {
@@ -87,8 +86,8 @@ Evme.DoATAPI = new function() {
         }, _options._NOCACHE);
     };
     
-    this.User = new function() {
-        this.apps = function(_options, callback) {
+    this.User = new function User() {
+        this.apps = function apps(_options, callback) {
             !_options && (_options = {});
             
             var options = {
@@ -106,7 +105,7 @@ Evme.DoATAPI = new function() {
             });
         };
         
-        this.clearApps = function(callback) {
+        this.clearApps = function clearApps(callback) {
             return request({
                 "methodNamespace": "User",
                 "methodName": "clearApps",
@@ -116,7 +115,7 @@ Evme.DoATAPI = new function() {
         };
     };
     
-    this.suggestions = function(_options, callback) {
+    this.suggestions = function suggestions(_options, callback) {
         !_options && (_options = {});
     
         var options = {
@@ -131,7 +130,7 @@ Evme.DoATAPI = new function() {
         }, _options._NOCACHE);
     };
     
-    this.icons = function(_options, callback) {
+    this.icons = function icons(_options, callback) {
         !_options && (_options = {});
         
         var options = {
@@ -147,7 +146,7 @@ Evme.DoATAPI = new function() {
         }, _options._NOCACHE);
     };
     
-    this.bgimage = function(_options, callback) {
+    this.bgimage = function bgimage(_options, callback) {
         !_options && (_options = {});
 
         var options = {
@@ -169,7 +168,7 @@ Evme.DoATAPI = new function() {
         }, _options._NOCACHE);
     };
     
-    this.getDisambiguations = function(_options, callback) {
+    this.getDisambiguations = function getDisambiguations(_options, callback) {
         !_options && (_options = {});
 
         var options = {
@@ -184,13 +183,13 @@ Evme.DoATAPI = new function() {
         }, _options._NOCACHE);
     };
     
-    this.Shortcuts = new function() {
-        var _this = this,
+    this.Shortcuts = new function Shortcuts() {
+        var self = this,
             STORAGE_KEY_SHORTCUTS = "localShortcuts",
             STORAGE_KEY_ICONS = "localShortcutsIcons",
             queriesToAppIds = {};
         
-        this.get = function(_options, callback) {
+        this.get = function get(_options, callback) {
             var shortcuts = Evme.Storage.get(STORAGE_KEY_SHORTCUTS),
                 icons = Evme.Storage.get(STORAGE_KEY_ICONS);
                 
@@ -204,7 +203,7 @@ Evme.DoATAPI = new function() {
             callback && callback(createResponse(shortcuts, icons));
         };
         
-        this.set = function(_options, callback) {
+        this.set = function set(_options, callback) {
             !_options && (_options = {});
             
             var shortcuts = _options.shortcuts || [],
@@ -226,11 +225,11 @@ Evme.DoATAPI = new function() {
             callback && callback();
         };
         
-        this.add = function(_options, callback) {
+        this.add = function add(_options, callback) {
             var shortcuts = (Array.isArray(_options.shortcuts))? _options.shortcuts : [_options.shortcuts],
                 icons = _options.icons;
 
-            _this.get(null, function(data) {
+            self.get(null, function onGetSuccess(data) {
                 var currentShortcuts = data.response.shortcuts,
                     currentIcons = data.response.icons;
                 
@@ -244,7 +243,7 @@ Evme.DoATAPI = new function() {
                     currentIcons[appId] = icons[appId];
                 }
                 
-                _this.set({
+                self.set({
                     "shortcuts": currentShortcuts,
                     "icons": currentIcons
                 }, callback);
@@ -252,10 +251,10 @@ Evme.DoATAPI = new function() {
             
         }
         
-        this.remove = function(shortcutToRemove) {
+        this.remove = function remove(shortcutToRemove) {
             shortcutToRemove = shortcutToRemove.toLowerCase();
             
-            _this.get({}, function(data){
+            self.get({}, function onGetSuccess(data){
                 var shortcuts = data.response.shortcuts,
                     icons = data.response.icons,
                     allAppIds = {};
@@ -287,14 +286,14 @@ Evme.DoATAPI = new function() {
                     }
                 }
                 
-                _this.set({
+                self.set({
                     "shortcuts": shortcuts,
                     "icons": icons
                 });
             });
         };
         
-        this.suggest = function(_options, callback) {
+        this.suggest = function suggest(_options, callback) {
             !_options && (_options = {});
             
             var options = {
@@ -305,7 +304,7 @@ Evme.DoATAPI = new function() {
                 "methodNamespace": "Shortcuts",
                 "methodName": "suggestions",
                 "params": options,
-                "callback": function(data) {
+                "callback": function onRequestSuccess(data) {
                     saveAppIds(data.response.shortcuts);
                     callback && callback(data);
                 }
@@ -321,14 +320,14 @@ Evme.DoATAPI = new function() {
         function createResponse(shortcuts, icons) {
             return {
                 "response": {
-                    "shortcuts": JSON.parse(JSON.stringify(shortcuts)),
+                    "shortcuts": Evme.Utils.cloneObject(shortcuts),
                     "icons": icons
                 }
             };
         }
     };
     
-    this.trending = function(_options, callback) {
+    this.trending = function trending(_options, callback) {
         !_options && (_options = {});
         
         var options = {
@@ -348,12 +347,12 @@ Evme.DoATAPI = new function() {
         }, _options._NOCACHE);
     }
     
-    this.Logger = new function(){
-        var _this = this,
+    this.Logger = new function Logger(){
+        var self = this,
             methodArr = ["error", "warn", "info"];
         
-        methodArr.forEach(function(method){
-            _this[method] = function(options, callback){
+        methodArr.forEach(function oggerMethodIteration(method){
+            self[method] = function report(options, callback){
                 options = addGlobals(options);
                 
                 return request({
@@ -366,7 +365,7 @@ Evme.DoATAPI = new function() {
         });
     };
     
-    this.report = function(_options, callback) {
+    this.report = function report(_options, callback) {
         _options = addGlobals(_options);
         
         return request({
@@ -390,7 +389,7 @@ Evme.DoATAPI = new function() {
         return options;
     }
     
-    this.searchLocations = function(_options, callback) {
+    this.searchLocations = function searchLocations(_options, callback) {
         !_options && (_options = {});
         
         var options = {
@@ -406,21 +405,21 @@ Evme.DoATAPI = new function() {
         }, _options._NOCACHE);
     };
     
-    this.setLocation = function(lat, lon, callback) {
+    this.setLocation = function setLocation(lat, lon, callback) {
         userLat = lat;
         userLon = lon;
         
-        Evme.EventHandler.trigger(_name, "setLocation", {
+        Evme.EventHandler.trigger(NAME, "setLocation", {
             "lat": lat,
             "lon": lon
         });
     };
     
-    this.hasLocation = function() {
+    this.hasLocation = function hasLocation() {
         return (userLat && userLon);
     };
     
-    _this.request = function(methodNamespace, methodName, params, callback) {
+    this.request = function request(methodNamespace, methodName, params, callback) {
         return request({
             "methodNamespace": methodNamespace,
             "methodName": methodName,
@@ -430,11 +429,11 @@ Evme.DoATAPI = new function() {
     };
     
     
-    this.initSession = function(_options, callback) {
+    this.initSession = function initSession(_options, callback) {
         !_options && (_options = {});
         
         var options = {
-            "id": _this.Session.get().id,
+            "id": self.Session.get().id,
             "deviceId": deviceId,
             "cachedIcons": _options.cachedIcons,
             "stats": {
@@ -460,14 +459,14 @@ Evme.DoATAPI = new function() {
             "methodNamespace": "Session",
             "methodName": "init",
             "params": options,
-            "callback": function(data, url) {
+            "callback": function onSessionInitSuccess(data, url) {
                 requestingSession = false;
                 
                 if (data && data.response) {
-                    _this.Session.update(data.response.ttl);
+                    self.Session.update(data.response.ttl);
                     
                     // in case the API says it wrote a cookie, but it doesn't match the user's
-                    if (data.response.credentials && data.response.credentials != _this.Session.creds()) {
+                    if (data.response.credentials && data.response.credentials != self.Session.creds()) {
                         // send the creds with each request
                         manualCredentials = data.response.credentials;
                         
@@ -488,10 +487,10 @@ Evme.DoATAPI = new function() {
             return;
         }
         
-        sessionInitRequest = _this.initSession({
+        sessionInitRequest = self.initSession({
             "cause": initCause,
             "source": "DoATAPI.reInitSession"
-        }, function(){
+        }, function onInitSession(){
             for (var key in requestsQueue) {
                 request(requestsQueue[key], false, true);
             }
@@ -501,12 +500,12 @@ Evme.DoATAPI = new function() {
         });
     }
     
-    this.getSessionId = function() {
-        return _this.Session.get().id;
+    this.getSessionId = function getSessionId() {
+        return self.Session.get().id;
     };
     
-    this.Session = new function() {
-        var _this = this, _key = "session", _session = null;
+    this.Session = new function Session() {
+        var self = this, _key = "session", _session = null;
         var SESSION_PREFIX = "id",
             DEFAULT_TTL = -1;
             
@@ -519,7 +518,7 @@ Evme.DoATAPI = new function() {
             "CACHE_ERROR": "cache error"
         };
         
-        this.init = function() {
+        this.init = function init() {
             var sessionFromCache = Evme.Storage.get(_key),
                 createCause;
                 
@@ -527,28 +526,28 @@ Evme.DoATAPI = new function() {
                 try {
                     sessionFromCache = JSON.parse(sessionFromCache);
                     
-                    if (!_this.expired(sessionFromCache)) {
+                    if (!self.expired(sessionFromCache)) {
                         _session = sessionFromCache;
                     } else {
-                        createCause = _this.INIT_CAUSE.EXPIRED;
+                        createCause = self.INIT_CAUSE.EXPIRED;
                     }
                 } catch(ex) {
-                    createCause = _this.INIT_CAUSE.CACHE_ERROR;
+                    createCause = self.INIT_CAUSE.CACHE_ERROR;
                 }
             } else {
-                createCause = _this.INIT_CAUSE.NOT_IN_CACHE;
+                createCause = self.INIT_CAUSE.NOT_IN_CACHE;
             }
             
             if (!_session) {
-                _this.create(null, null, createCause);
+                self.create(null, null, createCause);
             }
         };
         
-        this.shouldInit = function() {
+        this.shouldInit = function shouldInit() {
             if (!_session) {
                 return {
                     "should": true,
-                    "cause": _this.INIT_CAUSE.ABSENT
+                    "cause": self.INIT_CAUSE.ABSENT
                 };
             }
             if (_session.ttl == DEFAULT_TTL) {
@@ -557,23 +556,23 @@ Evme.DoATAPI = new function() {
                     "cause": _session.createCause
                 };
             }
-            if (!_this.creds()) {
+            if (!self.creds()) {
                 return {
                     "should": true,
-                    "cause": _this.INIT_CAUSE.NO_CREDS
+                    "cause": self.INIT_CAUSE.NO_CREDS
                 };
             }
             
             return { "should": false };
         };
         
-        this.get = function() {
+        this.get = function get() {
             return _session;
         };
         
-        this.create = function(id, ttl, cause) {
+        this.create = function create(id, ttl, cause) {
             _session = {
-                "id": id || _this.generateId(),
+                "id": id || self.generateId(),
                 "ttl": ttl || DEFAULT_TTL,
                 "createCause": cause
             };
@@ -581,7 +580,7 @@ Evme.DoATAPI = new function() {
             save();
         };
         
-        this.update = function(ttl) {
+        this.update = function update(ttl) {
             if (!ttl) {
                 return;
             }
@@ -590,15 +589,15 @@ Evme.DoATAPI = new function() {
             save();
         };
         
-        this.generateId = function() {
+        this.generateId = function generateId() {
             return SESSION_PREFIX + Math.round(Math.random()*1234567890);
         };
         
-        this.creds = function() {
+        this.creds = function creds() {
             return Evme.Utils.Cookies.get(authCookieName) || manualCredentials || null;
         };
         
-        this.expired = function(sessionToTest) {
+        this.expired = function expired(sessionToTest) {
             !sessionToTest && (sessionToTest = _session);
             
             var timeNow = (new Date()).getTime();
@@ -614,7 +613,7 @@ Evme.DoATAPI = new function() {
         }
     };
     
-    this.cancelQueue = function() {
+    this.cancelQueue = function cancelQueue() {
         for (var i=0; i<requestsToPerformOnOnline.length; i++) {
             requestsToPerformOnOnline[i].abort();
         }
@@ -622,7 +621,7 @@ Evme.DoATAPI = new function() {
         requestsToPerformOnOnline = [];
     };
     
-    this.backOnline = function() {
+    this.backOnline = function backOnline() {
         if (requestsToPerformOnOnline.length == 0) return;
         
         for (var i=0; i<requestsToPerformOnOnline.length; i++) {
@@ -696,16 +695,10 @@ Evme.DoATAPI = new function() {
             }
         }
         if (!noSession) {
-            params["sid"] = _this.Session.get().id;
+            params["sid"] = self.Session.get().id;
         }
         if (!params.stats) {
             params.stats = {};
-        }
-        var tests = getTestsReporting();
-        if (tests) {
-            for (var test in tests) {
-                params.stats["test_" + test] = tests[test];
-            }
         }
         /* ---------------- */
        
@@ -730,13 +723,13 @@ Evme.DoATAPI = new function() {
         if (requestsThatDontNeedConnection[methodNamespace+"."+methodName]) {
             _request.request();
         } else {
-            Evme.Utils.isOnline(function(isOnline){
+            Evme.Utils.isOnline(function isOnlineCallback(isOnline){
                 if (isOnline) {
                     _request.request();
                 } else {
                     requestsToPerformOnOnline.push(_request);
                     
-                    Evme.EventHandler.trigger(_name, "cantSendRequest", {
+                    Evme.EventHandler.trigger(NAME, "cantSendRequest", {
                         "request": request,
                         "queue": requestsToPerformOnOnline
                     });
@@ -747,24 +740,9 @@ Evme.DoATAPI = new function() {
         return _request;
     }
     
-    function getTestsReporting() {
-        if (testStats != undefined) {
-            return testStats;
-        }
-        
-        var tests = (typeof Tests !== "undefined")? Tests.getAll() : [];
-        
-        testStats = {};
-        for (var i=0; i<tests.length; i++) {
-            testStats[tests[i].testName] = tests[i].testGroup;
-        }
-        
-        return testStats;
-    }
-    
     function shouldRetry(data) {
         // If the parameters sent are incorrect, retrying won't help
-        return data.errorCode !== _this.ERROR_CODES.INVALID_PARAMS;
+        return data.errorCode !== self.ERROR_CODES.INVALID_PARAMS;
     }
     
     function getCacheKey(methodNamespace, methodName, params) {
@@ -785,7 +763,7 @@ Evme.DoATAPI = new function() {
         return cached;
     }
     
-    this.insertToCache = function(cacheKey, data, cacheTTL) {
+    this.insertToCache = function insertToCache(cacheKey, data, cacheTTL) {
         if (!data || !data.response) { return false; }
         
         // don't cache images that aren't ready (~)
@@ -796,14 +774,14 @@ Evme.DoATAPI = new function() {
         }
         
         // don't cache errors
-        if (data.errorCode != _this.ERROR_CODES.SUCCESS) {
+        if (data.errorCode != self.ERROR_CODES.SUCCESS) {
             return false;
         }
         
         // this causes data to be a copy of the original.
         // without this, any changes to the data object will affect the original object (that's sent to the API callbacks)
         try {
-            data = JSON.parse(JSON.stringify(data));
+            data = Evme.Utils.cloneObject(data);
         } catch(ex) {
             return false;
         }
@@ -837,13 +815,9 @@ Evme.DoATAPI = new function() {
         return true;
     };
     
-    this.removeFromCache = function(cacheKey) {
+    this.removeFromCache = function removeFromCache(cacheKey) {
         Evme.Storage.remove(cacheKey);
     };
-    
-    function updateCacheItems() {
-        
-    }
     
     function cacheCleanUpParams(params) {
         var retParams = [];
@@ -867,18 +841,18 @@ Evme.DoATAPI = new function() {
         return _deviceId;
     }
     
-    this.getDeviceId = function(){
+    this.getDeviceId = function getDeviceId(){
         return deviceId;
     };
     
     function generateDeviceId() {
         var queryString = {};
-        (location.search || '').replace(/(?:[?&]|^)([^=]+)=([^&]*)/g, function(ig, k, v) {queryString[k] = v;})
+        (location.search || '').replace(/(?:[?&]|^)([^=]+)=([^&]*)/g, function regexmatch(ig, k, v) {queryString[k] = v;})
         return queryString["did"] || "web_" + (new Date()).getTime() + "" + Math.round(Math.random()*1234567890);
     }
 
     function cbRequest(methodNamespace, method, params, retryNumber) {
-        Evme.EventHandler.trigger(_name, "request", {
+        Evme.EventHandler.trigger(NAME, "request", {
             "method": methodNamespace + "/" + method,
             "params": params,
             "retryNumber": retryNumber
@@ -886,7 +860,7 @@ Evme.DoATAPI = new function() {
     }
     
     function cbSuccess(methodNamespace, method, url, params, retryNumber, data, requestDuration) {
-        Evme.EventHandler.trigger(_name, "success", {
+        Evme.EventHandler.trigger(NAME, "success", {
             "method": methodNamespace + "/" + method,
             "params": params,
             "retryNumber": retryNumber,
@@ -897,7 +871,7 @@ Evme.DoATAPI = new function() {
     }
     
     function cbClientError(methodNamespace, method, url, params, data, ex) {
-        Evme.EventHandler.trigger(_name, "clientError", {
+        Evme.EventHandler.trigger(NAME, "clientError", {
             "method": methodNamespace + "/" + method,
             "params": params,
             "url": url,
@@ -907,7 +881,7 @@ Evme.DoATAPI = new function() {
     }
     
     function cbError(methodNamespace, method, url, params, retryNumber, data, callback, retryCallback) {
-        Evme.EventHandler.trigger(_name, "error", {
+        Evme.EventHandler.trigger(NAME, "error", {
             "method": methodNamespace + "/" + method,
             "params": params,
             "retryNumber": retryNumber,
@@ -920,7 +894,7 @@ Evme.DoATAPI = new function() {
         // return false so the request won't automatically retry
         // and do a sessionInit, and retry at the end of it
         if ((data && data.errorCode == Evme.DoATAPI.ERROR_CODES.AUTH && !manualCredentials) || (methodNamespace == "Session" && method == "init")) {
-            _this.initSession({
+            self.initSession({
                 "cause": Evme.DoATAPI.Session.INIT_CAUSE.AUTH_ERROR,
                 "source": "DoATAPI.cbError"
             }, retryCallback);
@@ -931,8 +905,8 @@ Evme.DoATAPI = new function() {
     }
 };
 
-Evme.Request = function() {
-    var _this = this,
+Evme.Request = function Evme_Request() {
+    var self = this,
         
         methodNamespace = "",
         methodName = "",
@@ -961,7 +935,7 @@ Evme.Request = function() {
         cbClientError = null;
         
         
-    this.init = function(options) {
+    this.init = function init(options) {
         methodNamespace = options.methodNamespace;
         methodName = options.methodName;
         params = options.params;
@@ -979,10 +953,10 @@ Evme.Request = function() {
         cacheKey = options.cacheKey;
         cacheTTL = options.cacheTTL;
         
-        return this;
+        return self;
     };
     
-    this.request = function() {
+    this.request = function request() {
         if (aborted) return false;
         
         requestSentTime = (new Date()).getTime();
@@ -1003,7 +977,7 @@ Evme.Request = function() {
         return request;
     };
     
-    this.abort = function() {
+    this.abort = function abort() {
         aborted = true;
         clearTimeouts();
         request && request.abort();
@@ -1069,9 +1043,9 @@ Evme.Request = function() {
         
         var retryTimeout = Math.round(Math.random()*(timeoutBetweenRetries.to - timeoutBetweenRetries.from)) + timeoutBetweenRetries.from;
         
-        requestRetry = window.setTimeout(function(){
+        requestRetry = window.setTimeout(function retryTimeout(){
             retryNumber++;
-            _this.request();
+            self.request();
         }, retryTimeout);
     }
 };

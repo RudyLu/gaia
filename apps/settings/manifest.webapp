@@ -9,7 +9,6 @@
   },
   "permissions": {
     "mobileconnection":{},
-    "mozBluetooth":{},
     "bluetooth":{},
     "device-storage:pictures":{ "access": "readonly" },
     "device-storage:music":{ "access": "readonly" },
@@ -19,11 +18,11 @@
     "permissions":{},
     "settings":{ "access": "readwrite" },
     "wifi-manage":{},
-    "wifi":{},
     "attention":{},
     "time":{},
     "desktop-notification":{},
-    "power":{}
+    "power":{},
+    "telephony":{}
   },
   "activities": {
     "configure": {
@@ -31,14 +30,6 @@
         "target": "device"
        },
       "disposition": "window"
-    },
-    "unlock": {
-      "filters": {
-        "target": "sim"
-       },
-      "disposition": "inline",
-      "href": "unlock_simpin.html",
-      "returnValue": true
     }
   },
   "messages": ["bluetooth-requestconfirmation",
@@ -47,8 +38,7 @@
                "bluetooth-authorize",
                "bluetooth-cancel",
                "bluetooth-pairedstatuschanged",
-               "bluetooth-hfp-status-changed",
-               "icc-stkcommand"],
+               "bluetooth-hfp-status-changed"],
   "locales": {
     "ar": {
       "name": "الضبط",

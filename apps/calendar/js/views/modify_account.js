@@ -6,6 +6,12 @@
     this.save = this.save.bind(this);
     this.deleteRecord = this.deleteRecord.bind(this);
     this.cancel = this.cancel.bind(this);
+
+    this.accountHandler = new Calendar.Utils.AccountCreation(
+      this.app
+    );
+
+    this.accountHandler.on('authorizeError', this);
   }
 
   ModifyAccount.prototype = {
@@ -19,6 +25,7 @@
       deleteButton: '#modify-account-view .delete-confirm',
       cancelDeleteButton: '#modify-account-view .delete-cancel',
       backButton: '#modify-account-view .cancel',
+      status: '#modify-account-view section[role="status"]',
       errors: '#modify-account-view .errors'
     },
 
@@ -38,10 +45,6 @@
 
     get saveButton() {
       return this._findElement('saveButton');
-    },
-
-    get errors() {
-      return this._findElement('errors');
     },
 
     get form() {
@@ -67,12 +70,16 @@
       return this._fields;
     },
 
-    _clearErrors: function() {
-      this.errors.textContent = '';
-    },
+    handleEvent: function(event) {
+      var type = event.type;
+      var data = event.data;
 
-    _displayError: function(err) {
-      this.errors.textContent = err.message;
+      switch (type) {
+        case 'authorizeError':
+          // we only expect one argument an error object.
+          this.showErrors(data[0]);
+          break;
+      }
     },
 
     updateForm: function() {
@@ -111,7 +118,11 @@
       });
     },
 
-    cancel: function() {
+    cancel: function(event) {
+      if (event) {
+        event.preventDefault();
+      }
+
       window.back();
     },
 
@@ -121,33 +132,14 @@
 
       list.add(this.progressClass);
 
-      this._persistForm(function(err) {
+      this.errors.textContent = '';
+      this.updateModel();
+
+      this.accountHandler.send(this.model, function(err) {
         list.remove(self.progressClass);
         if (!err) {
           self.app.go(self.completeUrl);
         }
-      });
-    },
-
-    /**
-     * Persist the form
-     *
-     * @param {Function} callback node style.
-     */
-    _persistForm: function(callback) {
-      var self = this;
-      var store = self.app.store('Account');
-
-      this._clearErrors();
-      this.updateModel();
-
-      store.verifyAndPersist(this.model, function(err, id, model) {
-        if (err) {
-          self._displayError(err);
-          callback(err);
-          return;
-        }
-        callback(null, model);
       });
     },
 

@@ -36,6 +36,21 @@ if (typeof fb.oauth === 'undefined') {
         state: state
       };
 
+      // Enables simple access to test tokens for hacking up the app
+      // This code will need to be deleted once we have a final product
+      fb.testToken = fb.testToken || parent.fb.testToken;
+      if (typeof fb.testToken === 'string' && fb.testToken.trim().length > 0) {
+        window.console.warn('Facebook. A test token will be used!');
+        tokenDataReady({
+          data: {
+            access_token: fb.testToken,
+            expires_in: 0,
+            state: state
+          }
+        });
+        return;
+      }
+
       asyncStorage.getItem(STORAGE_KEY,
                            function getAccessToken(tokenData) {
         if (!tokenData || !tokenData.access_token) {
@@ -63,11 +78,6 @@ if (typeof fb.oauth === 'undefined') {
      *
      */
     function startOAuth(state) {
-      parent.postMessage({
-        type: 'authenticating',
-        data: ''
-      }, fb.oauthflow.params.contactsAppOrigin);
-
       clearStorage();
 
       // This page will be in charge of handling authorization
@@ -94,11 +104,15 @@ if (typeof fb.oauth === 'undefined') {
 
         var end = parameters.expires_in;
 
-        // Don't wait for callback because it's not necessary
         window.asyncStorage.setItem(STORAGE_KEY, {
           access_token: access_token,
           expires: end * 1000,
           token_ts: Date.now()
+        }, function notify_parent() {
+              parent.postMessage({
+                type: 'token_stored',
+                data: ''
+              },fb.oauthflow.params.contactsAppOrigin);
         });
       },0);
     } // tokenReady

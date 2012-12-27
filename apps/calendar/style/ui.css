@@ -89,7 +89,6 @@ ol.link-list a {
 
 #time-header h1 {
   max-width: calc(100% - 5rem);
-  direction:rtl;
 }
 
 #progress-indicator {
@@ -169,25 +168,6 @@ ol.link-list a {
 #create-account-view > ol,
 #create-account-view > p {
   margin: 0 2rem;
-}
-
-/* modify account view */
-
-#modify-account-view.preset-google .full-url,
-#modify-account-view.preset-yahoo .full-url {
-  display: none;
-}
-
-#modify-account-view.create .delete-record {
-  display: none;
-}
-
-:target#remove-account-dialog {
-  display: block;
-}
-
-#remove-account-dialog {
-  display: none;
 }
 
 .fullscreen-view.active {
@@ -535,6 +515,27 @@ body[data-path="/month/"] #view-selector .month a {
   width: 34%;
 }
 
+@keyframes fade-status {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+section[role="status"] {
+  display: none;
+}
+
+section[role="status"].active {
+  display: block;
+  animation-name: fade-status;
+  animation-delay: 2.5s;
+  animation-duration: 1.5s;
+}
+
 @media screen and (min-width: 481px) {
   html, body {
     font-size: 12px;
@@ -545,4 +546,9 @@ body[data-path="/month/"] #view-selector .month a {
   html, body {
     font-size: 10px;
   }
+}
+
+/* Hide on initial render to prevent flashing */
+#settings {
+  visibility: hidden;
 }

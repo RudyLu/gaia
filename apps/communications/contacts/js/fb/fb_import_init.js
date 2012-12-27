@@ -1,7 +1,6 @@
 'use strict';
 
 (function(document) {
-  var isContactsMode = window.location.search.indexOf('contacts') !== -1;
   var allowedOrigin = fb.oauthflow.params.contactsAppOrigin;
 
   function cancelCb() {
@@ -14,13 +13,6 @@
   }
 
   function tokenReady(access_token) {
-    // The curtain is only shown when we are launched from contacts
-    if (!isContactsMode) {
-      Curtain.show('wait', 'friends', {
-        oncancel: cancelCb
-      });
-    }
-
     if (document.readyState === 'complete') {
       onLoad(access_token);
     }
@@ -43,20 +35,19 @@
       '#import-close': fb.importer.ui.end,
       '#import-action': fb.importer.ui.importAll,
       '#done-search': contacts.Search.exitSearchMode,
-      '#search-contact': [
+      '#groups-list': fb.importer.ui.selection,
+      '#search-start': [
         {
-          event: 'focus',
+          event: 'click',
           handler: contacts.Search.enterSearchMode
-        },
-        {
-          event: 'keyup',
-          handler: contacts.Search.search
         }
       ]
     });
 
     // This is done through onclick as it is going to be changed it dynamically
     document.querySelector('#select-all').onclick = fb.importer.ui.selectAll;
+    document.querySelector('#deselect-all').onclick =
+        fb.importer.ui.unSelectAll;
 
     fb.contacts.init(function fb_init() {
       fb.importer.ui.init();
@@ -69,20 +60,15 @@
     document.documentElement.dir = navigator.mozL10n.language.direction;
   });
 
-  if (isContactsMode) {
-    window.addEventListener('message', function getAccessToken(e) {
-      window.removeEventListener('message', getAccessToken);
-      if (e.data.type === 'token') {
-        tokenReady(e.data.data);
-      }
-    });
+  window.addEventListener('message', function getAccessToken(e) {
+    window.removeEventListener('message', getAccessToken);
+    if (e.data.type === 'token') {
+      tokenReady(e.data.data);
+    }
+  });
 
-    parent.postMessage({
-      type: 'messaging_ready',
-      data: ''
-    }, allowedOrigin);
-  } else {
-    fb.oauth.getAccessToken(tokenReady, 'friends');
-  }
-
+  parent.postMessage({
+    type: 'messaging_ready',
+    data: ''
+  }, allowedOrigin);
 })(document);

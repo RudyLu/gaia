@@ -49,46 +49,21 @@ var NotificationScreen = {
   _toasterGD: null,
 
   lockscreenPreview: true,
-
-  get container() {
-    delete this.container;
-
-    var id = 'desktop-notifications-container';
-    return this.container = document.getElementById(id);
-  },
-
-  get lockScreenContainer() {
-    delete this.lockScreenContainer;
-
-    var id = 'notifications-lockscreen-container';
-    return this.lockScreenContainer = document.getElementById(id);
-  },
-
-  get toaster() {
-    delete this.toaster;
-    return this.toaster = document.getElementById('notification-toaster');
-  },
-
-  get toasterIcon() {
-    delete this.toasterIcon;
-    return this.toasterIcon = document.getElementById('toaster-icon');
-  },
-  get toasterTitle() {
-    delete this.toasterTitle;
-    return this.toasterTitle = document.getElementById('toaster-title');
-  },
-  get toasterDetail() {
-    delete this.toasterDetail;
-    return this.toasterDetail = document.getElementById('toaster-detail');
-  },
-
-  get clearAllButton() {
-    delete this.clearAllButton;
-    return this.clearAllButton = document.getElementById('notification-clear');
-  },
+  silent: false,
+  alerts: true,
+  vibrates: true,
 
   init: function ns_init() {
     window.addEventListener('mozChromeEvent', this);
+    this.container =
+      document.getElementById('desktop-notifications-container');
+    this.lockScreenContainer =
+      document.getElementById('notifications-lockscreen-container');
+    this.toaster = document.getElementById('notification-toaster');
+    this.toasterIcon = document.getElementById('toaster-icon');
+    this.toasterTitle = document.getElementById('toaster-title');
+    this.toasterDetail = document.getElementById('toaster-detail');
+    this.clearAllButton = document.getElementById('notification-clear');
 
     this._toasterGD = new GestureDetector(this.toaster);
     ['tap', 'mousedown', 'swipe'].forEach(function(evt) {
@@ -98,8 +73,20 @@ var NotificationScreen = {
 
     this.clearAllButton.addEventListener('click', this.clearAll.bind(this));
 
+    // will hold the count of external contributors to the notification
+    // screen
+    this.externalNotificationsCount = 0;
+
     window.addEventListener('utilitytrayshow', this);
     window.addEventListener('unlock', this.clearLockScreen.bind(this));
+    window.addEventListener('mozvisibilitychange', this);
+
+    this._sound = 'style/notifications/ringtones/notifier_exclamation.ogg';
+
+    var self = this;
+    SettingsListener.observe('notification.ringtone', '', function(value) {
+      self._sound = value;
+    });
   },
 
   handleEvent: function ns_handleEvent(evt) {
@@ -122,7 +109,14 @@ var NotificationScreen = {
         this.swipe(evt);
         break;
       case 'utilitytrayshow':
+        this.updateTimestamps();
         StatusBar.updateNotificationUnread(false);
+        break;
+      case 'mozvisibilitychange':
+        //update timestamps in lockscreen notifications
+        if (!document.mozHidden) {
+          this.updateTimestamps();
+        }
         break;
     }
   },
@@ -201,6 +195,14 @@ var NotificationScreen = {
     }
   },
 
+  updateTimestamps: function ns_updateTimestamps() {
+    var timestamps = document.getElementsByClassName('timestamp');
+    for (var i = 0, l = timestamps.length; i < l; i++) {
+      timestamps[i].textContent = navigator.mozL10n.DateTimeFormat()
+        .fromNow(new Date(timestamps[i].dataset.timestamp), true);
+    }
+  },
+
   addNotification: function ns_addNotification(detail) {
     var notificationNode = document.createElement('div');
     notificationNode.className = 'notification';
@@ -211,9 +213,16 @@ var NotificationScreen = {
       var icon = document.createElement('img');
       icon.src = detail.icon;
       notificationNode.appendChild(icon);
-
       this.toasterIcon.src = detail.icon;
     }
+
+    var time = document.createElement('span');
+    var timestamp = new Date();
+    time.classList.add('timestamp');
+    time.dataset.timestamp = timestamp;
+    time.textContent = navigator.mozL10n.DateTimeFormat()
+      .fromNow(timestamp, true);
+    notificationNode.appendChild(time);
 
     var title = document.createElement('div');
     title.textContent = detail.title;
@@ -264,6 +273,28 @@ var NotificationScreen = {
                                this.lockScreenContainer.firstElementChild);
     }
 
+    if (this.alerts && !this.silent) {
+      var ringtonePlayer = new Audio();
+      ringtonePlayer.src = this._sound;
+      ringtonePlayer.mozAudioChannelType = 'notification';
+      ringtonePlayer.play();
+      window.setTimeout(function smsRingtoneEnder() {
+        ringtonePlayer.pause();
+        ringtonePlayer.src = '';
+      }, 2000);
+    }
+
+    if (this.vibrates) {
+      if (document.mozHidden) {
+        window.addEventListener('mozvisibilitychange', function waitOn() {
+          window.removeEventListener('mozvisibilitychange', waitOn);
+          navigator.vibrate([200, 200, 200, 200]);
+        });
+      } else {
+        navigator.vibrate([200, 200, 200, 200]);
+      }
+    }
+
     return notificationNode;
   },
 
@@ -302,11 +333,27 @@ var NotificationScreen = {
   },
 
   updateStatusBarIcon: function ns_updateStatusBarIcon(unread) {
-    StatusBar.updateNotification(this.container.children.length);
+    var nbTotalNotif = this.container.children.length +
+      this.externalNotificationsCount;
+    StatusBar.updateNotification(nbTotalNotif);
 
     if (unread)
       StatusBar.updateNotificationUnread(true);
+  },
+
+  incExternalNotifications: function ns_incExternalNotifications() {
+    this.externalNotificationsCount++;
+    this.updateStatusBarIcon(true);
+  },
+
+  decExternalNotifications: function ns_decExternalNotifications() {
+    this.externalNotificationsCount--;
+    if (this.externalNotificationsCount < 0) {
+      this.externalNotificationsCount = 0;
+    }
+    this.updateStatusBarIcon();
   }
+
 };
 
 NotificationScreen.init();
@@ -315,4 +362,16 @@ SettingsListener.observe(
     'lockscreen.notifications-preview.enabled', true, function(value) {
 
   NotificationScreen.lockscreenPreview = value;
+});
+
+SettingsListener.observe('alert-sound.enabled', true, function(value) {
+  NotificationScreen.alerts = value;
+});
+
+SettingsListener.observe('ring.enabled', true, function(value) {
+  NotificationScreen.silent = !value;
+});
+
+SettingsListener.observe('alert-vibration.enabled', true, function(value) {
+  NotificationScreen.vibrates = value;
 });

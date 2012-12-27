@@ -4,7 +4,7 @@ var FbLauncher = (function(document) {
     var extensionFrame = document.querySelector('#fb-extensions');
     var oauthFrame = document.querySelector('#fb-oauth');
 
-    var currentURI = '/contacts/fb_import.html?contacts=1',
+    var currentURI = '/contacts/fb_import.html?ftu=1',
         access_token;
 
 
@@ -13,7 +13,6 @@ var FbLauncher = (function(document) {
     }
 
     function load() {
-      extensionFrame.dataset.animFrom = 'left';
       window.addEventListener('message', messageHandler);
       oauthFrame.contentWindow.postMessage({
         type: 'start',
@@ -61,10 +60,6 @@ var FbLauncher = (function(document) {
 
         case 'window_close':
           close();
-          break;
-
-        case 'authenticating':
-          extensionFrame.dataset.animFrom = 'bottom';
           break;
 
         case 'authenticated':

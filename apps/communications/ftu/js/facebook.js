@@ -50,7 +50,7 @@ var FacebookIntegration = {
       if (total == null) {
         self.fbImportFeedback.textContent = _('notImportedYet');
       } else {
-        self.fbImportFeedback.textContent = _('facebook-stats', {
+        self.fbImportFeedback.textContent = _('facebook-import-msg', {
           'imported': imported,
           'total': total
         });
@@ -69,10 +69,10 @@ var FacebookIntegration = {
         }
       };
       fb.utils.numFbFriendsData(callbackListener);
-    }
+    };
     req.onerror = function() {
       console.error('Could not get number of local contacts');
-    }
+    };
   }
 };
 

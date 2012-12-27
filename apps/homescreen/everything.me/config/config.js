@@ -9,7 +9,8 @@ Evme.__config = {
     "timeoutBeforeSessionInit": 0,
     "apps": {
         "appHeight": 89,
-        "widthForFiveApps": 400
+        "widthForFiveApps": 400,
+        "displayInstalledApps": true
     },
     "timeBeforeAllowingDialogsRemoval": 2000,
     "numberOfAppsToLoad": 16,
@@ -154,9 +155,6 @@ Evme.__config = {
         }
     ],
     "design": {
-        "shortcuts": {
-            "itemsPerRow": 4
-        },
         "apps": {
             "defaultIconUrl": {
                 "20": [
@@ -216,7 +214,6 @@ Evme.__config = {
         }
     },
     "categoriesDialogs": {},
-    "tests": [],
     "_localShortcuts": [
         {"query":"social","appIds":[693,588,694]},
         {"query":"games","appIds":[1251,807,1883]},

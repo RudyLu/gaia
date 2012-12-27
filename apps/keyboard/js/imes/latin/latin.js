@@ -53,9 +53,8 @@
   var idleTimer;          // Used by deactivate
   var suggestionsTimer;   // Used by updateSuggestions;
 
-  // Tell the worker to release the dictionary memory when the keyboard
-  // is inactive for this long.
-  const releaseDictionaryTimeout = 30000;  // 30 seconds of idle time
+  // Terminate the worker when the keyboard is inactive for this long.
+  const workerTimeout = 30000;  // 30 seconds of idle time
 
   // If we get an autorepeating key is sent to us, don't offer suggestions
   // for this long, until we're pretty certain that the autorepeat
@@ -144,12 +143,14 @@
   }
 
   function deactivate() {
-    if (!worker)
+    if (!worker || idleTimer)
       return;
     idleTimer = setTimeout(function onIdleTimeout() {
-      language = null;
-      worker.postMessage({cmd: 'idle', args: []});
-    }, releaseDictionaryTimeout);
+      // Let's terminate the worker.
+      worker.terminate();
+      worker = null;
+      idleTimer = null;
+    }, workerTimeout);
   }
 
   function displaysCandidates() {

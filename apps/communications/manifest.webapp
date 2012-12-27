@@ -12,16 +12,52 @@
       "launch_path": "/dialer/index.html#keyboard-view",
       "name": "Phone",
       "icons": {
-        "120": "/style/icons/Dialer.png",
-        "60": "/style/icons/60/Dialer.png"
+        "120": "/dialer/style/icons/Dialer.png",
+        "60": "/dialer/style/icons/60/Dialer.png"
+      },
+      "locales": {
+        "ar": {
+          "name": "هاتف",
+          "description": "Gaia هاتف"
+        },
+        "en-US": {
+          "name": "Phone",
+          "description": "Gaia Phone"
+        },
+        "fr": {
+          "name": "téléphone",
+          "description": "téléphone Gaia"
+        },
+        "zh-TW": {
+          "name": "電話",
+          "description": "Gaia 電話"
+        }
       }
     },
     "contacts": {
       "launch_path": "/contacts/index.html",
       "name": "Contacts",
       "icons": {
-        "120": "/style/icons/Contacts.png",
-        "60": "/style/icons/60/Contacts.png"
+        "120": "/contacts/style/icons/Contacts.png",
+        "60": "/contacts/style/icons/60/Contacts.png"
+      },
+      "locales": {
+        "ar": {
+          "name": "اتصالات",
+          "description": "Gaia اتصالات"
+        },
+        "en-US": {
+          "name": "Contacts",
+          "description": "Gaia Contacts"
+        },
+        "fr": {
+          "name": "Contacts",
+          "description": "Contacts Gaia"
+        },
+        "zh-TW": {
+          "name": "聯絡人",
+          "description": "Gaia 聯絡人"
+        }
       }
     },
     "ftu": {
@@ -36,17 +72,15 @@
     "contacts":{ "access": "readwrite" },
     "mobileconnection":{},
     "attention":{},
-    "settings":{ "access": "readonly" },
+    "settings":{ "access": "readwrite" },
     "desktop-notification":{},
     "alarms": {},
     "systemXHR": {},
     "wifi-manage":{},
-    "wifi":{},
-    "time": {}
-  },
-  "icons": {
-    "120": "/dialer/style/icons/Dialer.png",
-    "60": "/dialer/style/icons/60/Dialer.png"
+    "time": {},
+    "audio-channel-telephony":{},
+    "audio-channel-ringer":{},
+    "browser":{}
   },
   "orientation": "portrait-primary",
   "activities": {
@@ -62,7 +96,7 @@
       "filters": {
         "type": "webcontacts/contact"
       },
-      "disposition": "window",
+      "disposition": "inline",
       "href": "/contacts/index.html?new",
       "returnValue": true
     },
@@ -75,8 +109,11 @@
     }
   },
   "messages": [
-     { "telephony-new-call": "/dialer/index.html#keyboard-view" },
+     { "alarm": "/facebook/fb_sync.html" },
      { "bluetooth-dialer-command": "/dialer/index.html#keyboard-view" },
-     { "alarm": "/facebook/fb_sync.html" }
+     { "headset-button": "/dialer/index.html#keyboard-view" },
+     { "notification": "/dialer/index.html#keyboard-view" },
+     { "telephony-new-call": "/dialer/index.html#keyboard-view" },
+     { "ussd-received": "/dialer/index.html#keyboard-view" }
   ]
 }

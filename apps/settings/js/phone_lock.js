@@ -28,6 +28,7 @@ var PhoneLock = {
   _passcodeBuffer: '',
 
   getAllElements: function pl_getAllElements() {
+    this.phonelockDesc = document.getElementById('phoneLock-desc');
     this.lockscreenEnable = document.getElementById('lockscreen-enable');
     this.passcodeInput = document.getElementById('passcode-input');
     this.passcodeDigits = document.querySelectorAll('.passcode-digit');
@@ -51,6 +52,7 @@ var PhoneLock = {
   },
 
   fetchSettings: function pl_fetchSettings() {
+    var _ = navigator.mozL10n.get;
     var settings = navigator.mozSettings;
 
     var lock = settings.createLock();
@@ -61,6 +63,8 @@ var PhoneLock = {
       var enable = reqLockscreenEnable.result['lockscreen.enabled'];
       self.phonelockPanel.dataset.lockscreenEnabled = enable;
       self.lockscreenEnable.checked = enable;
+      self.phonelockDesc.textContent = enable ? _('enabled') : _('disabled');
+      self.phonelockDesc.dataset.l10nId = enable ? 'enabled' : 'disabled';
     };
 
     var reqCode = lock.get('lockscreen.passcode-lock.code');
@@ -79,7 +83,10 @@ var PhoneLock = {
 
     settings.addObserver('lockscreen.enabled',
       function onLockscreenEnabledChange(event) {
-        self.phonelockPanel.dataset.lockscreenEnabled = event.settingValue;
+        var enable = event.settingValue;
+        self.phonelockPanel.dataset.lockscreenEnabled = enable;
+        self.phonelockDesc.textContent = enable ? _('enabled') : _('disabled');
+        self.phonelockDesc.dataset.l10nId = enable ? 'enabled' : 'disabled';
     });
 
     settings.addObserver('lockscreen.passcode-lock.enabled',
@@ -111,14 +118,21 @@ var PhoneLock = {
     this.hideErrorMessage();
     this.MODE = mode;
     this.passcodePanel.dataset.mode = mode;
-    document.location.hash = 'phoneLock-passcode'; // show dialog box
-    this.passcodeInput.focus();
+    if (document.location.hash != 'phoneLock-passcode') {
+      var self = this;
+      document.location.hash = 'phoneLock-passcode'; // show dialog box
+      this.passcodePanel.addEventListener('transitionend', function ontransitionend() {
+        self.passcodePanel.removeEventListener('transitionend', ontransitionend);
+        self.passcodeInput.focus();
+      });
+    }
     this.updatePassCodeUI();
   },
 
   handleEvent: function pl_handleEvent(evt) {
     // Prevent mousedown event to avoid the keypad losing focus.
     if (evt.type == 'mousedown') {
+      this.passcodeInput.focus();
       evt.preventDefault();
       return;
     }
@@ -126,6 +140,7 @@ var PhoneLock = {
     switch (evt.target) {
       case this.passcodeEnable:
         evt.preventDefault();
+        this._passcodeBuffer = '';
         if (this.settings.passcodeEnable) {
           this.changeMode('confirm');
         } else {
@@ -137,7 +152,11 @@ var PhoneLock = {
         if (this._passcodeBuffer === '')
           this.hideErrorMessage();
 
-        var key = String.fromCharCode(evt.charCode);
+        var code = evt.charCode;
+        if (code !== 0 && (code < 0x30 || code > 0x39))
+          return;
+
+        var key = String.fromCharCode(code);
         if (evt.charCode === 0) {
           if (this._passcodeBuffer.length > 0) {
             this._passcodeBuffer = this._passcodeBuffer.substring(0,
@@ -239,5 +258,8 @@ var PhoneLock = {
   }
 };
 
-PhoneLock.init();
+// startup
+onLocalized(function() {
+  PhoneLock.init();
+});
 

@@ -9,6 +9,7 @@ manifest.appcache
 /apps/system/camera
 /apps/settings/resources/gaia_commit.txt
 /apps/homescreen/js/init.json
+/apps/homescreen/js/hiddenapps.js
 /apps/costcontrol/js/config.json
 /apps/sms/js/blacklist.json
 /test_apps/test-agent/test/config.json
@@ -30,7 +31,8 @@ manifest.appcache
 /tools/test-agent/node_modules
 /test-output.xml
 /mocha-test-results.html
-/custom-prefs.js
+/build/custom-prefs.js
+/build/custom-settings.json
 /local.mk
 
 /tools/xpcwindow/vendor/

@@ -17,7 +17,7 @@ var Launcher = (function() {
   var BUTTONBAR_TIMEOUT = 5000;
   var BUTTONBAR_INITIAL_OPEN_TIMEOUT = 1500;
 
-  var footer = document.querySelector('#wrapper');
+  var footer = document.querySelector('#wrapper-footer');
   window.addEventListener('appopen', function onAppOpen(e) {
     if ('wrapper' in currentAppFrame().dataset) {
       window.addEventListener('mozbrowserlocationchange', onLocationChange);
@@ -53,7 +53,7 @@ var Launcher = (function() {
 
   var buttonBarTimeout;
 
-  var isButtonBarDisplayed = true;
+  var isButtonBarDisplayed = false;
   function toggleButtonBar(time) {
     clearTimeout(buttonBarTimeout);
     footer.classList.toggle('closed');
@@ -140,21 +140,14 @@ var Launcher = (function() {
       if (value === 'origin') {
         name = dataset.originName;
         url = dataset.originURL;
-        delete currentAppFrame().dataset.originURL;
       }
 
       if (value === 'search') {
         name = dataset.searchName;
         url = dataset.searchURL;
-        delete currentAppFrame().dataset.searchURL;
       }
 
-      if (!currentAppFrame().dataset.originURL &&
-          !currentAppFrame().dataset.searchURL) {
-        bookmarkButton.dataset.disabled = true;
-      }
-
-      new MozActivity({
+      var activity = new MozActivity({
         name: 'save-bookmark',
         data: {
           type: 'url',
@@ -163,6 +156,21 @@ var Launcher = (function() {
           icon: dataset.icon
         }
       });
+
+      activity.onsuccess = function onsuccess() {
+        if (value === 'origin') {
+          delete currentAppFrame().dataset.originURL;
+        }
+
+        if (value === 'search') {
+          delete currentAppFrame().dataset.searchURL;
+        }
+
+        if (!currentAppFrame().dataset.originURL &&
+          !currentAppFrame().dataset.searchURL) {
+          bookmarkButton.dataset.disabled = true;
+        }
+      }
     }
 
     var data = {

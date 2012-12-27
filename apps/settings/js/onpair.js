@@ -20,16 +20,12 @@ var PairView = {
   _passkey: '',
 
   pairView: document.getElementById('pair-view'),
-  alertView: document.getElementById('alert-view'),
 
-  title: document.getElementById('pair-title'),
   deviceInfo: document.getElementById('device-info'),
   nameLabel: document.getElementById('label-name'),
-  addressLabel: document.getElementById('label-address'),
   pairDescription: document.getElementById('pair-description'),
   pairButton: document.getElementById('button-pair'),
   closeButton: document.getElementById('button-close'),
-  okButton: document.getElementById('button-ok'),
 
   comfirmationItem: document.getElementById('confirmation-method'),
   pinInputItem: document.getElementById('pin-input-method'),
@@ -39,18 +35,14 @@ var PairView = {
   pinInput: document.getElementById('pin-input'),
   passkeyInput: document.getElementById('passkey-input'),
 
-  init: function pv_init() {
+  show: function pv_show() {
     var _ = navigator.mozL10n.get;
     this.pairButton.addEventListener('click', this);
     this.closeButton.addEventListener('click', this);
-    this.okButton.addEventListener('click', this);
 
-    this.title.textContent = _(this._pairMode + '-pair');
     this.nameLabel.textContent = this._device.name;
-    this.addressLabel.textContent = this._device.address;
     this.deviceInfo.className = this._device.icon;
     this.pairView.hidden = false;
-    this.alertView.hidden = true;
 
     var stringName = this._pairMode + '-pair-' + this._pairMethod;
     this.pairDescription.textContent =
@@ -80,7 +72,7 @@ var PairView = {
     }
   },
 
-  setUp: function pv_setDeviceInfo(mode, method, device, passkey) {
+  init: function pv_init(mode, method, device, passkey) {
     this._pairMode = mode;
     this._pairMethod = method;
     this._device = device;
@@ -89,6 +81,9 @@ var PairView = {
       var zeros = (len < 6) ? (new Array((6 - len) + 1)).join('0') : '';
       this._passkey = zeros + passkey;
     }
+
+    // show() only until the page is localized.
+    onLocalized(PairView.show.bind(PairView));
   },
 
   handleEvent: function pv_handleEvent(evt) {
@@ -104,7 +99,7 @@ var PairView = {
         this.closeButton.disabled = true;
         switch (this._pairMethod) {
           case 'confirmation':
-            window.opener.gDeviceList.setConfirmation(this._device.address);
+            window.opener.gDeviceList.setConfirmation(this._device.address, true);
             break;
           case 'pincode':
             var value = this.pinInput.value;
@@ -115,18 +110,14 @@ var PairView = {
             window.opener.gDeviceList.setPasskey(this._device.address, value);
             break;
         }
+        window.close();
         break;
 
       case 'button-close':
-      case 'button-ok':
+        window.opener.gDeviceList.setConfirmation(this._device.address, false);
         window.close();
         break;
     }
-  },
-
-  pairFailed: function pv_showFailed() {
-    this.pairView.hidden = true;
-    this.alertView.hidden = false;
   }
 };
 
@@ -137,12 +128,11 @@ var PairView = {
  */
 
 function onLocalized(callback) {
-  if (navigator.mozL10n.readyState == 'complete') {
+  if (navigator.mozL10n.readyState == 'complete' ||
+      navigator.mozL10n.readyState == 'interactive') {
     callback();
   } else {
     window.addEventListener('localized', callback);
   }
 }
-
-onLocalized(PairView.init.bind(PairView));
 

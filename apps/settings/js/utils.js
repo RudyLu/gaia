@@ -4,6 +4,24 @@
 'use strict';
 
 /**
+ * Constants
+ */
+var DEBUG = false;
+
+/**
+ * Debug method
+ */
+function debug(msg, optObject) {
+  if (DEBUG) {
+    var output = '[DEBUG # Settings] ' + msg;
+    if (optObject) {
+      output += JSON.stringify(optObject);
+    }
+    console.log(output);
+  }
+}
+
+/**
  * Open a link with a web activity
  */
 
@@ -28,6 +46,9 @@ function openLink(url) {
  */
 
 function openDialog(dialogID, onSubmit, onReset) {
+  if('#' + dialogID == document.location.hash)
+    return;
+
   var origin = document.location.hash;
   var dialog = document.getElementById(dialogID);
 
@@ -57,15 +78,17 @@ function openDialog(dialogID, onSubmit, onReset) {
  * First click = play, second click = pause.
  */
 
-function audioPreview(element) {
+function audioPreview(element, type) {
   var audio = document.querySelector('#sound-selection audio');
   var source = audio.src;
   var playing = !audio.paused;
-  var newSource = element.querySelector('input').value;
 
-  audio.src = (newSource == 'disabled') ? null : 'resources/ringtones/' + newSource; 
-  if (source == audio.src && playing) {
-    audio.stop();
+  var url = '/shared/resources/media/' + type + '/' +
+            element.querySelector('input').value;
+  audio.src = url;
+  if (source === audio.src && playing) {
+    audio.pause();
+    audio.src = '';
   } else {
     audio.play();
   }
@@ -249,7 +272,8 @@ function bug344618_polyfill() {
  */
 
 function onLocalized(callback) {
-  if (navigator.mozL10n.readyState == 'complete') {
+  if (navigator.mozL10n.readyState == 'complete' ||
+      navigator.mozL10n.readyState == 'interactive') {
     callback();
   } else {
     window.addEventListener('localized', callback);
