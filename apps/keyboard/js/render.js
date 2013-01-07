@@ -122,6 +122,9 @@ const IMERender = (function() {
         }
 
         var className = isSpecialKey(key) ? 'special-key' : 'normal-key';
+        if (code == 32)
+          className = '';
+
         var ratio = key.ratio || 1;
 
         var keyWidth = placeHolderWidth * ratio;
@@ -351,6 +354,8 @@ const IMERender = (function() {
     _altContainer.innerHTML = key.innerHTML;
     _altContainer.className = key.className;
     _altContainer.classList.add('kbr-menu-on');
+    _altContainer.classList.remove('normal-key');
+
     _menuKey = key;
     key.parentNode.replaceChild(_altContainer, key);
 
@@ -382,6 +387,7 @@ const IMERender = (function() {
 
   // Hide the alternative menu
   var hideAlternativesCharMenu = function km_hideAlternativesCharMenu() {
+    return;
     this.menu = document.getElementById('keyboard-accent-char-menu');
     this.menu.innerHTML = '';
     this.menu.className = '';

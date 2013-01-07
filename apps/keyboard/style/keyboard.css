@@ -70,9 +70,10 @@ button::-moz-focus-inner {
   -moz-box-sizing: border-box;
   padding: 0 0.1rem;
   border: none;
+  background: url(images/key-shadow.png) no-repeat center -1px;
+  background-size: 100% 100%;
   min-width: 2.6rem;
   display: inline-block;
-  background: transparent;
 }
 
 /* Visible keys */
@@ -82,7 +83,9 @@ button::-moz-focus-inner {
   width: 100%;
   -moz-box-sizing: border-box;
   position: relative;
-
+  border: solid 1px #000;
+  background: #252220 url(images/key-bg.png) no-repeat center bottom;
+  background-size: 100% 100%;
 }
 
 /* Standard key styles. */
@@ -91,25 +94,17 @@ button::-moz-focus-inner {
     top - begin | top - end
     bottom - begin  | bottom - end
   */
-
-  /*
-  background:
+  background: 
     url(images/key-radius-tb.png) no-repeat left top,
     url(images/key-radius-te.png) no-repeat right top,
     url(images/key-radius-bb.png) no-repeat left bottom,
     url(images/key-radius-be.png) no-repeat right bottom,
     url(images/key-light.png) repeat-x left 1px;
-    top: -1px;
-    bottom: -1px;
-    left: -1px;
-    right: -1px;
-  */
-
-  top: 0px;
-  bottom: 0px;
-  left: 0px;
-  right: 0px;
   position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: -1px;
+  right: -1px;
   font: 2.4rem/3.5rem MozTT, Sans-serif;
   font-weight: 500;
   text-align: center;
@@ -121,19 +116,15 @@ button::-moz-focus-inner {
   position: relative;
   z-index: 100;
 }
-
 .keyboard-key:not(.special-key).highlighted > .visual-wrapper {
-    /*
   background: #6ec5d5;
   border-radius: 0 0  0.3rem 0.3rem;
   border: solid 1px #8BD1DD;
   border-top: none;
-  */
   margin: -0.5rem 0 0;
   height: 4.3rem;
 }
 
-/*
 .keyboard-key:not(.special-key).highlighted > .visual-wrapper:after {
   content: "";
   position: absolute;
@@ -145,25 +136,10 @@ button::-moz-focus-inner {
   background: url(images/dark-alpha.png) repeat left top;
   border-radius: 0.6rem;
 }
-    */
-
-.keyboard-key:not(.special-key) > .visual-wrapper > img {
-    display: none;
-}
-
-.keyboard-key:not(.special-key).highlighted > .visual-wrapper > img {
-    display: inherit;
-    position: absolute;
-    bottom: -7px;
-    left: -19px;
-}
-
 .keyboard-key:not(.special-key).highlighted:last-child > .visual-wrapper:after {
   right: -0.2rem;
   border-radius: 0.6rem 0 0 0.6rem; 
 }
-
-/*
 .keyboard-key:not(.special-key).highlighted > .visual-wrapper:before {
   content: "";
   position: absolute;
@@ -174,26 +150,20 @@ button::-moz-focus-inner {
   background: #6ec5d5;
   z-index: 1;
 } 
-*/
 
 .keyboard-key:not(.special-key).highlighted > .visual-wrapper > span {
   font: 3.8rem/4.5rem MozTT, Sans-serif;
   font-weight: 500;
-  /*
   background: #6ec5d5;
-  */
   color: #1a3f46;
-  /*
   border: solid 1px #8BD1DD;
   border-radius: 0.3rem;
-  */
   height: 5.2rem;
   top: -5.3rem;
   left: -0.8rem;
   right: -0.8rem;
 }
 
-/*
 .keyboard-key:not(.special-key).highlighted > .visual-wrapper > span:after {
   content: "";
   position: absolute;
@@ -205,8 +175,6 @@ button::-moz-focus-inner {
   background: url(images/dark-alpha.png) repeat left top;
   border-radius: 0.6rem;
 }
-    */
-
 .keyboard-key:not(.special-key).highlighted:last-child > .visual-wrapper > span:after {
   right: -0.2rem;
   border-radius: 0.6rem 0 0 0.6rem;
@@ -229,18 +197,12 @@ button::-moz-focus-inner {
   left: -1px;
 }
 
+
 /*  Special keys */
-.keyboard-key.special-key {
-  background: url(images/key-shadow.png) no-repeat center -1px;
-  background-size: 100% 100%;
-}
-
-
 .keyboard-key.special-key > .visual-wrapper {
-  border: solid 1px #2a2c2e;
+  border-color: #2a2c2e;
   background: #43474a;
 }
-
 .keyboard-key.special-key > .visual-wrapper > span {
    /*
     top - begin | top - end
@@ -252,12 +214,6 @@ button::-moz-focus-inner {
     url(images/key-radius-special-bb.png) no-repeat left bottom,
     url(images/key-radius-special-be.png) no-repeat right bottom,
     url(images/key-light-special.png) repeat-x left 1px;
-
-
-  top: -1px;
-  bottom: -1px;
-  left: -1px;
-  right: -1px;
   font-size: 1.5rem;
   line-height: 4rem;
   font-family: 'Keyboard Symbols', sans-serif;
@@ -288,9 +244,7 @@ button::-moz-focus-inner {
 
 /* Spacebar exceptions */
 .keyboard-key[data-keycode="32"] > .visual-wrapper {
-  border: solid 1px #000;
-  background: #252220 url(images/key-bg.png) no-repeat center 2.2rem;
-  background-size: 100% 100%;
+background-position: center 2.2rem; 
 }
 
 .keyboard-key.highlighted[data-keycode="32"] > .visual-wrapper {
@@ -301,19 +255,6 @@ button::-moz-focus-inner {
   opacity: 0.5;
   margin: 0;
   height: 4rem;
-}
-
-.keyboard-key[data-keycode="32"] > .visual-wrapper  > span {
-  background:
-    url(images/key-radius-tb.png) no-repeat left top,
-    url(images/key-radius-te.png) no-repeat right top,
-    url(images/key-radius-bb.png) no-repeat left bottom,
-    url(images/key-radius-be.png) no-repeat right bottom,
-    url(images/key-light.png) repeat-x left 1px;
-    top: -1px;
-    bottom: -1px;
-    left: -1px;
-    right: -1px;
 }
 
 .keyboard-key.highlighted[data-keycode="32"] > .visual-wrapper > span  {
@@ -329,6 +270,9 @@ button::-moz-focus-inner {
   height: 100%;
 }
 
+.normal-key.highlighted > .visual-wrapper:after,
+.normal-key.highlighted > .visual-wrapper:before,
+.normal-key.highlighted > .visual-wrapper > span:after,
 .keyboard-key.highlighted[data-keycode="32"] > .visual-wrapper:after,
 .keyboard-key.highlighted[data-keycode="32"] > .visual-wrapper:before,
 .keyboard-key.highlighted[data-keycode="32"] > .visual-wrapper > span:after {
@@ -358,11 +302,6 @@ button::-moz-focus-inner {
   border-top: none;
   height: 4.5rem;
 }
-
-.keyboard-key.highlighted.kbr-menu-on > .visual-wrapper > img {
-    display: none;
-}
-
 .keyboard-key.highlighted.kbr-menu-on > .visual-wrapper > span:after {
   display: none;
 }
@@ -473,10 +412,6 @@ and displays the list of alternatives. */
   -moz-box-sizing: content-box;
   border-top: solid 1px #8BD1DD;
   border-bottom: solid 1px #6ec5d5;
-}
-
-#keyboard-accent-char-menu .keyboard-key.highlighted > .visual-wrapper > img {
-  display: none;
 }
 
 /* Highlighted special accent characters. These keys appear in the popover
@@ -758,8 +693,41 @@ bubble above the key when you tap and hold. */
   visibility: hidden;
 }
 
+.normal-key {
+  background: transparent;
+}
+
 .normal-key > .visual-wrapper {
   background: url(images/key_full_bg.png) content-box no-repeat;
   background-size: 100% 100%;
+  border: none;
+}
+
+.normal-key > .visual-wrapper > span {
+  top: 0px;
+  bottom: 0px;
+  left: 0px;
+  right: 0px;
+}
+
+.keyboard-key.normal-key.highlighted > .visual-wrapper {
+  background: transparent;
+  border: none;
+}
+
+.keyboard-key.normal-key.highlighted > .visual-wrapper > span {
+  background: transparent;
+  border: none;
+}
+
+.normal-key > .visual-wrapper > img {
+    display: none;
+}
+
+.normal-key.highlighted > .visual-wrapper > img {
+    display: inherit;
+    position: absolute;
+    bottom: -7px;
+    left: -19px;
 }
 
