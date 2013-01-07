@@ -121,7 +121,7 @@ const IMERender = (function() {
           code = key.keyCode || keyChar.charCodeAt(0);
         }
 
-        var className = isSpecialKey(key) ? 'special-key' : '';
+        var className = isSpecialKey(key) ? 'special-key' : 'normal-key';
         var ratio = key.ratio || 1;
 
         var keyWidth = placeHolderWidth * ratio;
@@ -490,14 +490,15 @@ const IMERender = (function() {
       altNoteHTML = '<div class="alt-note">' + altNote + '</div>';
     }
 
-
     var content = '<button class="keyboard-key ' + className + '"';
     dataset.forEach(function(data) {
       content += ' data-' + data.key + '="' + data.value + '" ';
     });
     content += ' style="width: ' + width + '"';
-    content += '><span class="visual-wrapper"><span>' +
-               label + '</span>' + altNoteHTML + '</span></button>';
+    content += '><span class="visual-wrapper">' +
+               '<img hidden src="style/images/highlighted_bg.png"/><span>' +
+               label + '</span>' + altNoteHTML + '</span>' +
+               ' </button>';
     return content;
   };
 
