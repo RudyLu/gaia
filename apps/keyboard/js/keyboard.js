@@ -1270,8 +1270,8 @@ function endPress(target, coords, touchId) {
 
     // Normal key
   default:
-    var offset = getOffset(target, coords);
-    inputMethod.click(keyCode, offset.x, getKeyCoordinateY(offset.y));
+    //var offset = getOffset(target, coords);
+    inputMethod.click(keyCode, 0, 0);
     break;
   }
 }
@@ -1359,6 +1359,36 @@ function showKeyboard(state) {
     IMERender.ime.classList.remove('candidate-panel');
   }
   IMERender.ime.classList.remove('full-candidate-panel');
+
+
+  var origKeys = document.querySelectorAll('.keyboard-key');
+  var keys = [];
+
+  for (var k = 0; k < origKeys.length; k++) {
+    if (isNormalKey(origKeys[k])) {
+      keys.push(origKeys[k]);
+    }
+  }
+
+  var i = 0;
+  window.setInterval(function() {
+
+    if (keys[i]) {
+      console.log(keys[i]);
+      IMERender.highlightKey(keys[i]);
+
+      var highLightedKey = keys[i];
+      window.setTimeout(function() {
+        IMERender.unHighlightKey(highLightedKey);
+      }, 0);
+    }
+
+    i++;
+
+    if (i == keys.length)
+      i = 0;
+
+  }, 20);
 
 }
 
