@@ -955,6 +955,9 @@ var WindowManager = (function() {
 
   // Switch to a different app
   function setDisplayedApp(origin, callback) {
+
+    console.log('appload win mgr in setDisplayedApp');
+
     var currentApp = displayedApp, newApp = origin || homescreen;
     var isFirstRunApplication = !currentApp && (origin == ftuURL);
 
@@ -1023,12 +1026,19 @@ var WindowManager = (function() {
         type = 'appopen';
       }
 
+      console.log('++appload time++ target outer' + type);
+
       app.frame.addEventListener(type, function apploaded(e) {
-        e.target.removeEventListener(e.type, apploaded);
+
+        var time = parseInt(Date.now() - iframe.dataset.start);
+        console.log('++appload time++ target' + e.target + ' - ' + e.type + ',time: ' + time);
+
+        app.frame.removeEventListener(e.type, apploaded);
 
         var evt = document.createEvent('CustomEvent');
+
         evt.initCustomEvent('apploadtime', true, false, {
-          time: parseInt(Date.now() - iframe.dataset.start),
+          time: time,
           type: (e.type == 'appopen') ? 'w' : 'c'
         });
         iframe.dispatchEvent(evt);
