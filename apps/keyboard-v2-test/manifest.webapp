@@ -1,0 +1,30 @@
+{
+  "name": "Keyboard V2",
+  "description": "Gaia Keyboard V2",
+  "type": "certified",
+  "launch_path": "/index.html",
+  "developer": {
+    "name": "The Gaia Team",
+    "url": "https://github.com/mozilla-b2g/gaia"
+  },
+  "permissions": {
+    "settings":{ "access": "readwrite" },
+    "keyboard": {}
+  },  
+  "locales": {
+    "en-US": {
+      "name": "Keyboard V2",
+      "description": "Gaia Keyboard V2"
+    },
+    "zh-TW": {
+      "name": "鍵盤 V2",
+      "description": "Gaia 鍵盤 V2"
+    }
+  },
+  "default_locale": "en-US",
+  "icons": {
+    "120": "/style/icons/Keyboard.png",
+    "60": "/style/icons/60/Keyboard.png"
+  },
+  "orientation": "portrait-primary"
+}
