@@ -93,6 +93,12 @@ ifneq ($(GAIA_OUTOFTREE_APP_SRCDIRS),)
   GAIA_APP_SRCDIRS += outoftree_apps
 endif
 
+# Add apps from customization package
+ifneq ($(CUSTOMIZE),)
+GAIA_APP_SRCDIRS+=$(CUSTOMIZE)/apps
+endif
+
+
 GAIA_LOCALES_PATH?=locales
 LOCALES_FILE?=shared/resources/languages.json
 GAIA_LOCALE_SRCDIRS=shared $(GAIA_APP_SRCDIRS)
@@ -381,6 +387,7 @@ endif
 endif # USE_LOCAL_XULRUNNER_SDK
 
 define run-js-command
+        echo $(GAIA_APP_SRCDIRS);
 	echo "run-js-command $1";                                                   \
 	JS_CONSTS='                                                                 \
 	const GAIA_DIR = "$(CURDIR)"; const PROFILE_DIR = "$(CURDIR)$(SEP)profile"; \

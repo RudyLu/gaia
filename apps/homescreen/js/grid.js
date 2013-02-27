@@ -44,7 +44,13 @@ const GridManager = (function() {
                      function(e) { return e.pageX };
   })();
 
+  var getY = (function getYWrapper() {
+    return isTouch ? function(e) { return e.touches[0].pageY } :
+                     function(e) { return e.pageY };
+  })();
+
   function addActive(target) {
+
     if ('isIcon' in target.dataset) {
       target.classList.add('active');
       removeActive = function _removeActive() {
@@ -72,17 +78,22 @@ const GridManager = (function() {
         break;
 
       case touchmove:
-        if (evt.preventPanning === true) {
-          return;
-        }
-
         // Start panning immediately but only disable
         // the tap when we've moved far enough.
         var startX = startEvent.pageX;
+        var startY = startEvent.pageY;
         var currentX = getX(evt);
         deltaX = currentX - startX;
         if (deltaX === 0)
           return;
+
+        var deltaY = getY(evt) - startY;
+        console.log('event - deltaX: ' + deltaX);
+        console.log('event - deltaY: ' + deltaY);
+
+        if (evt.preventPanning === true) {
+          return;
+        }
 
         document.body.dataset.transitioning = 'true';
 
@@ -256,6 +267,7 @@ const GridManager = (function() {
     var page = currentPage;
     // If movement over 25% of the screen size or
     // fast movement over threshold for tapping, then swipe
+    console.log('in onTouchEnd event - deltaX: ' + deltaX);
     if (Math.abs(deltaX) > panningThreshold ||
         (Math.abs(deltaX) > tapThreshold &&
         touchEndTimestamp - touchStartTimestamp < kPageTransitionDuration)) {
@@ -667,6 +679,7 @@ const GridManager = (function() {
     container = document.querySelector(selector);
     container.addEventListener('contextmenu', handleEvent);
     container.addEventListener(touchstart, handleEvent, true);
+    container.addEventListener('touchmove', function() { console.log('touchmove');} , true);
 
     limits.left = container.offsetWidth * 0.05;
     limits.right = container.offsetWidth * 0.95;

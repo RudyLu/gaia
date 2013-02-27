@@ -38,6 +38,11 @@ var SpinDatePicker = (function SpinDatePicker() {
 
     for (var i = 0; i < 12; i++) {
       date.setMonth(i);
+
+      var str = dateTimeFormat.localeFormat(date, '%B');
+
+      console.log('++rudy++ getMonth: '  + date + ' i = ' + i, ' *** ' + str);
+
       monthText.push(dateTimeFormat.localeFormat(date, '%B'));
     }
 

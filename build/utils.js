@@ -12,7 +12,10 @@ function isSubjectToBranding(path) {
 
 function getSubDirectories(directory) {
   let appsDir = new FileUtils.File(GAIA_DIR);
-  appsDir.append(directory);
+
+  directory.split('/').forEach(function (name) {
+    appsDir.append(name);
+  });
 
   let dirs = [];
   let files = appsDir.directoryEntries;
@@ -94,7 +97,10 @@ function getFile() {
     let file = new FileUtils.File(arguments[0]);
     if (arguments.length > 1) {
       for (let i = 1; i < arguments.length; i++) {
-        file.append(arguments[i]);
+        let dir = arguments[i];
+        dir.split('/').forEach(function (name) {
+          file.append(name);
+        });
       }
     }
     return file;
