@@ -381,29 +381,8 @@ function initKeyboard() {
   // Show or hide the keyboard when we get an focuschange event
   // from the keyboard
   var focusChangeTimeout = 0;
-  navigator.mozKeyboard.onfocuschange = function onfocuschange(evt) {
-    var state = evt.detail;
-    var type = state.type;
-
-    // Skip the <select> element and inputs with type of date/time,
-    // handled in system app for now
-    if (!type || type in ignoredFormElementTypes)
-      return;
-
-    // We can get multiple focuschange events in rapid succession
-    // so wait a bit before responding to see if we get another.
-    clearTimeout(focusChangeTimeout);
-    focusChangeTimeout = setTimeout(function switchKeyboard() {
-      if (type === 'blur') {
-        hideKeyboard();
-      } else {
-        showKeyboard(state);
-      }
-    }, FOCUS_CHANGE_DELAY);
-  };
   
   showKeyboard({'type': 'text'});
-  console.log('evanxd: showKeyboard');
 
   // Handle resize events
   window.addEventListener('resize', onResize);
