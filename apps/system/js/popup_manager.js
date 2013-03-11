@@ -167,6 +167,7 @@ var PopupManager = {
         var openerType = evt.target.dataset.frameType;
         var openerOrigin = evt.target.dataset.frameOrigin;
 
+        console.log('browseropenwindow');
         // Only app frame is allowed to launch popup
         if (openerType !== 'window')
           return;

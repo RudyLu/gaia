@@ -2,6 +2,7 @@
   "name": "Keyboard V2",
   "description": "Gaia Keyboard V2",
   "type": "certified",
+  "role": "keyboard",
   "launch_path": "/index.html",
   "developer": {
     "name": "The Gaia Team",
@@ -10,7 +11,14 @@
   "permissions": {
     "settings":{ "access": "readwrite" },
     "keyboard": {}
-  },  
+  },
+  "entry_points": {
+    "english": {
+      "launch_path": "/index.html",
+      "description": "English layout",
+      "types": ["text", "url", "number"]
+    } 
+  },
   "locales": {
     "en-US": {
       "name": "Keyboard V2",

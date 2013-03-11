@@ -1390,6 +1390,7 @@ var WindowManager = (function() {
   // XXX: this event is fired twice:
   // https://bugzilla.mozilla.org/show_bug.cgi?id=814583
   window.addEventListener('mozbrowserclose', function(e) {
+    dump('==== [window manager] APP CLOSED: ' + e.target.dataset.frameOrigin);
     if (!'frameType' in e.target.dataset)
       return;
 
