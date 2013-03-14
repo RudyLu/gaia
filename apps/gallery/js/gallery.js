@@ -117,8 +117,11 @@ function init() {
   MouseEventShim.trackMouseMoves = false;
 
   // Clicking on the select button goes to thumbnail select mode
-  $('thumbnails-select-button').onclick =
-    setView.bind(null, thumbnailSelectView);
+  $('thumbnails-select-button').onclick = function() {
+    setView(thumbnailSelectView);
+
+    onSelectAll();
+  };
 
   // Clicking on the cancel button goes from thumbnail select mode
   // back to thumbnail list mode
@@ -142,7 +145,13 @@ function init() {
 
   // Clicking on the delete button in thumbnail select mode deletes all
   // selected items
-  $('thumbnails-delete-button').onclick = deleteSelectedItems;
+  $('thumbnails-delete-button').onclick = function() {
+
+    var d = Date.now();
+    deleteSelectedItems();
+
+    console.log('delete takes: ' + (Date.now() - d));
+  };
 
   // Clicking on the share button in select mode shares all selected images
   $('thumbnails-share-button').onclick = shareSelectedItems;
@@ -253,6 +262,10 @@ function initDB(include_videos) {
     // Hide the scanning indicator
     $('progress').classList.add('hidden');
     $('throbber').classList.remove('throb');
+
+    // to test deleting all the files
+    $('thumbnails-select-button').click();
+    $('thumbnails-delete-button').click();
   };
 
   // One or more files was created (or was just discovered by a scan)
@@ -836,8 +849,11 @@ function deleteSelectedItems() {
   if (selected.length === 0)
     return;
 
+
+  console.log('++gallery crash++' + selected.length);
+
   var msg = navigator.mozL10n.get('delete-n-items?', {n: selected.length});
-  if (confirm(msg)) {
+  //if (confirm(msg)) {
     // XXX
     // deleteFile is O(n), so this loop is O(n*n). If used with really large
     // selections, it might have noticably bad performance.  If so, we
@@ -847,7 +863,7 @@ function deleteSelectedItems() {
       deleteFile(parseInt(selected[i].dataset.index));
     }
     clearSelection();
-  }
+  //}
 }
 
 
@@ -916,6 +932,16 @@ function share(blobs) {
   };
 }
 
+function onSelectAll() {
+  var list = $('thumbnails').getElementsByTagName('li');
+  var n = list.length;
+  for (var i = 0; i < n; i++) {
+    var image = list[i];
+    if (!image.classList.contains('selected')) {
+      updateSelection(image);
+    }
+  }
+}
 // This happens when the user rotates the phone.
 // When we used mozRequestFullscreen, it would also happen
 // when we entered or left fullscreen mode.
