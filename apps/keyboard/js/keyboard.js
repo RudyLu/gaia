@@ -704,7 +704,7 @@ function renderKeyboard(keyboardName) {
 
   // And draw the layout
   IMERender.draw(currentLayout, {
-    uppercase: isUpperCase,
+    uppercase: true, // always draw uppercase key
     inputType: currentInputType,
     showCandidatePanel: Keyboards[keyboardName].needsCandidatePanel
   });
@@ -721,6 +721,7 @@ function renderKeyboard(keyboardName) {
 
 function setUpperCase(upperCase, upperCaseLocked) {
 
+  console.log('keyboard - setUpperCase' + upperCase + ' - ' + upperCaseLocked);
   upperCaseLocked = (typeof upperCaseLocked == 'undefined') ?
                      isUpperCaseLocked : upperCaseLocked;
 
@@ -735,11 +736,11 @@ function setUpperCase(upperCase, upperCaseLocked) {
   // When case changes we have to re-render the keyboard.
   // But note that we don't have to relayout the keyboard, so
   // we call draw() directly instead of renderKeyboard()
-  IMERender.draw(currentLayout, {
-    uppercase: isUpperCaseLocked || isUpperCase,
-    inputType: currentInputType,
-    showCandidatePanel: Keyboards[keyboardName].needsCandidatePanel
-  });
+  //IMERender.draw(currentLayout, {
+  //  uppercase: isUpperCaseLocked || isUpperCase,
+  //  inputType: currentInputType,
+  //  showCandidatePanel: Keyboards[keyboardName].needsCandidatePanel
+  //});
   // And make sure the caps lock key is highlighted correctly
   IMERender.setUpperCaseLock(isUpperCaseLocked ? 'locked' : isUpperCase);
 }
@@ -1328,7 +1329,17 @@ function endPress(target, coords, touchId) {
     // Normal key
   default:
     var offset = getOffset(target, coords);
-    inputMethod.click(keyCode, offset.x, getKeyCoordinateY(offset.y));
+
+    var keyCodeToSend = keyCode;
+    if (!isUpperCase && !isUpperCaseLocked) {
+      var lowerCaseKey = String.fromCharCode(keyCode);
+      if (lowerCaseKey) {
+        lowerCaseKey = lowerCaseKey.toLowerCase();
+        keyCodeToSend = lowerCaseKey.charCodeAt(0);
+      }
+    }
+
+    inputMethod.click(keyCodeToSend, offset.x, getKeyCoordinateY(offset.y));
     break;
   }
 }
@@ -1383,7 +1394,8 @@ function sendKey(keyCode) {
     break;
 
   default:
-    window.navigator.mozKeyboard.sendKey(0, keyCode);
+    var keyCodeToSend = keyCode;
+    window.navigator.mozKeyboard.sendKey(0, keyCodeToSend);
     break;
   }
 }
