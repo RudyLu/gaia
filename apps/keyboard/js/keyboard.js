@@ -1410,8 +1410,11 @@ function showKeyboard(state) {
 
   IMERender.showIME();
 
-  currentInputMode = state.inputmode;
-  currentInputType = mapInputType(state.type);
+  // currentInputMode = state.inputmode;
+  // currentInputType = mapInputType(state.type);
+
+  currentInputMode = 'text';
+  currentInputType = 'text';
 
   // reset the flag for candidate show/hide workaround
   candidatePanelEnabled = false;
@@ -1631,3 +1634,8 @@ function getSettings(settings, callback) {
     }
   }
 }
+
+setTimeout( function(){
+  showKeyboard();
+},1000);
+
