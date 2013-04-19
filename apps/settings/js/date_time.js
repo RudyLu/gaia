@@ -111,7 +111,7 @@ navigator.mozL10n.ready(function SettingsDateAndTime() {
       if (userSelTimezone) {
         settings.createLock().set({'time.timezone': userSelTimezone});
       }
-    }
+    };
   }
 
   settings.addObserver(kTimeAutoEnabled, function(event) {
