@@ -43,7 +43,9 @@
       name: 'my calendar',
       color: '#333',
       description: 'description',
-      syncToken: '1'
+      syncToken: '1',
+      // read, write, delete
+      privilegeSet: ['read', 'write-content', 'unbind']
     },
 
     onbuild: function(obj) {
@@ -59,7 +61,10 @@
   Factory.define('remote.event', {
     properties: {
       location: 'location',
-      isRecurring: false
+      isRecurring: false,
+      alarms: [
+        {action: 'DISPLAY', trigger: 60000}
+      ]
       //XXX: raw data
     },
 
@@ -91,7 +96,12 @@
       name: 'name',
       color: '#333',
       ctag: 'token',
-      description: '1'
+      description: '1',
+      privilegeSet: [
+        'read',
+        'write',
+        'write-content'
+      ]
     }
 
   });
@@ -101,7 +111,8 @@
       user: 'user',
       password: 'password',
       domain: 'http://google.com',
-      url: '/'
+      entrypoint: '/dav/',
+      calendarHome: '/dav/my/foobar'
     }
   });
 
@@ -124,7 +135,7 @@
       user: 'user',
       password: 'password',
       domain: 'http://google.com',
-      url: '/',
+      entrypoint: '/',
       preset: 'local'
     }
   });
@@ -184,9 +195,21 @@
 
   Factory.define('alarm', {
     oncreate: function(obj) {
-      if (obj.trigger && obj.trigger instanceof Date) {
-        obj.trigger = Calc.dateToTransport(obj.trigger);
+      if (obj.startDate && obj.startDate instanceof Date) {
+        obj.startDate = Calc.dateToTransport(obj.startDate);
       }
+    }
+  });
+
+  Factory.define('icalComponent', {
+    oncreate: function(obj) {
+      if (obj.lastRecurrenceId && obj.lastRecurrenceId instanceof Date) {
+        obj.lastRecurrenceId = Calc.dateToTransport(obj.lastRecurrenceId);
+      }
+    },
+
+    properties: {
+      ical: 'fooo!'
     }
   });
 

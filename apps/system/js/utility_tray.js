@@ -27,12 +27,14 @@ var UtilityTray = {
 
     window.addEventListener('screenchange', this);
     window.addEventListener('home', this);
+    window.addEventListener('attentionscreenshow', this);
 
     this.overlay.addEventListener('transitionend', this);
   },
 
   handleEvent: function ut_handleEvent(evt) {
     switch (evt.type) {
+      case 'attentionscreenshow':
       case 'home':
         if (this.shown) {
           this.hide();
@@ -85,15 +87,21 @@ var UtilityTray = {
   },
 
   onTouchStart: function ut_onTouchStart(touch) {
-    this.startX = touch.pageX;
     this.startY = touch.pageY;
+
     this.screen.classList.add('utility-tray');
     this.onTouchMove({ pageY: touch.pageY + this.statusbar.offsetHeight });
   },
 
   onTouchMove: function ut_onTouchMove(touch) {
     var screenHeight = this.overlay.getBoundingClientRect().height;
-    var dy = -(this.startY - touch.pageY);
+    var y = touch.pageY;
+    if (y > this.lastY)
+      this.opening = true;
+    else if (y < this.lastY)
+      this.opening = false;
+    this.lastY = y;
+    var dy = -(this.startY - y);
     if (this.shown)
       dy += screenHeight;
     dy = Math.min(screenHeight, dy);
@@ -104,19 +112,7 @@ var UtilityTray = {
   },
 
   onTouchEnd: function ut_onTouchEnd(touch) {
-    var screenHeight = this.overlay.getBoundingClientRect().height;
-    var dy = -(this.startY - touch.pageY);
-    var offset = Math.abs(dy);
-
-    if (!this.shown && offset == 0)
-      this.hide(true);
-
-    if ((!this.shown && offset > screenHeight / 4) ||
-        (this.shown && offset < 10)) {
-      this.show();
-    } else {
-      this.hide();
-    }
+    this.opening ? this.show() : this.hide();
   },
 
   hide: function ut_hide(instant) {
@@ -125,6 +121,8 @@ var UtilityTray = {
     style.MozTransition = instant ? '' : '-moz-transform 0.2s linear';
     style.MozTransform = 'translateY(0)';
     this.shown = false;
+    this.lastY = undefined;
+    this.startY = undefined;
     if (instant)
       this.screen.classList.remove('utility-tray');
 

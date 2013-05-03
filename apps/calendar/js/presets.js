@@ -4,20 +4,23 @@
       providerType: 'Caldav',
       group: 'remote',
       options: {
-        providerType: 'Caldav',
         domain: 'https://calendar.google.com',
-        url: '/calendar/dav/',
-        user: '@gmail.com'
+        entrypoint: '/calendar/dav/',
+        providerType: 'Caldav',
+        user: '@gmail.com',
+        usernameType: 'email'
       }
     },
+
     'yahoo': {
       providerType: 'Caldav',
       group: 'remote',
       options: {
         domain: 'https://caldav.calendar.yahoo.com',
+        entrypoint: '/',
         providerType: 'Caldav',
-        url: '/',
-        user: '@yahoo.com'
+        user: '@yahoo.com',
+        usernameType: 'email'
       }
     },
 
@@ -26,8 +29,8 @@
       group: 'remote',
       options: {
         domain: '',
-        providerType: 'Caldav',
-        url: ''
+        entrypoint: '',
+        providerType: 'Caldav'
       }
     },
 
@@ -38,19 +41,7 @@
       options: {
         providerType: 'Local'
       }
-    },
-
-    'mozilla': {
-      providerType: 'Caldav',
-      group: 'testing',
-      options: {
-        domain: 'https://mail.mozilla.com',
-        providerType: 'Caldav',
-        url: '',
-        user: '@mozilla.com'
-      }
     }
-
   };
 
   Calendar.Presets = Presets;

@@ -22,9 +22,10 @@ Calendar.ns('Views').Day = (function() {
     _initEvents: function() {
       Parent.prototype._initEvents.call(this);
 
+      var delegateParent = this.delegateParent || this.frameContainer;
       this.delegate(
-        this.frameContainer, 'click', '[data-id]', function(e, target) {
-          Calendar.App.router.show('/event/' + target.dataset.id + '/');
+        delegateParent, 'click', '[data-id]', function(e, target) {
+          Calendar.App.router.show('/event/show/' + target.dataset.id + '/');
         }
       );
     },
@@ -87,7 +88,17 @@ Calendar.ns('Views').Day = (function() {
       var controller = this.app.timeController;
       controller.on('dayChange', this);
       controller.on('selectedDayChange', this);
+
       controller.moveToMostRecentDay();
+
+      // ensure we change the date, if this is already
+      // the selected date the cost here is very small.
+      this.changeDate(controller.position);
+
+      if (!this.frames || !this.frames.length) {
+        console.error('(Calendar: render error) no child frames');
+        console.trace();
+      }
     }
   };
 

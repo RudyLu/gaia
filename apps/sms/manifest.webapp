@@ -9,10 +9,11 @@
   },
   "permissions": {
     "sms":{},
-    "contacts":{},
-    "backgroundservice":{},
+    "storage":{},
+    "contacts":{ "access": "readonly" },
     "mobileconnection":{},
-    "settings":{},
+    "settings":{ "access": "readonly" },
+    "audio-channel-notification":{},
     "desktop-notification":{}
   },
   "locales": {
@@ -20,45 +21,13 @@
       "name": "رسائل",
       "description": "Gaia رسائل"
     },
-    "ca": {
-      "name": "Missatges",
-      "description": "Missatges del Gaia"
-    },
-    "de": {
-      "name": "Nachrichten",
-      "description": "Gaia Nachrichten"
-    },
-    "el": {
-      "name": "Μηνύματα",
-      "description": "Μηνύματα Gaia"
-    },
     "en-US": {
       "name": "Messages",
       "description": "Gaia Messages"
     },
-    "es": {
-      "name": "Mensajes",
-      "description": "Mensajes de Gaia"
-    },
     "fr": {
       "name": "Messages",
       "description": "Messages Gaia"
-    },
-    "it": {
-      "name": "Messaggi",
-      "description": "Messaggi di Gaia"
-    },
-    "pt-BR": {
-      "name": "Mensagens",
-      "description": "Mensagens do Gaia"
-    },
-    "ru": {
-      "name": "Сообщения",
-      "description": "Сообщения Gaia"
-    },
-    "tr": {
-      "name": "Messages",
-      "description": "Gaia Messages"
     },
     "zh-TW": {
       "name": "訊息",
@@ -75,9 +44,14 @@
   "activities": {
     "new": {
       "filters": {
-        "type": "websms/sms"
+        "type": "websms/sms",
+        "number": { "regexp":"/^[\\w\\s+#*().-]{0,50}$/" }
        },
       "disposition": "window"
     }
-  }
+  },
+  "messages": [
+     { "sms-received": "/index.html" },
+     { "notification": "/index.html" }
+  ]
 }

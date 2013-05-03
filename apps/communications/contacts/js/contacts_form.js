@@ -27,10 +27,42 @@ contacts.Form = (function() {
       formView,
       nonEditableValues,
       deviceContact,
+      fbContact,
       currentPhoto;
 
   var REMOVED_CLASS = 'removed';
   var FB_CLASS = 'facebook';
+
+  // Remove icon button id
+  var IMG_DELETE_ID = 'img-delete-button';
+
+  // The size we want our contact photos to be
+  var PHOTO_WIDTH = 320;
+  var PHOTO_HEIGHT = 320;
+
+  var touchstart = 'ontouchstart' in window ? 'touchstart' : 'mousedown';
+
+  var textFieldsCache = {
+    _textFields: null,
+
+    get: function textFieldsCache_get() {
+      if (!this._textFields) {
+        var form = dom.getElementById('contact-form');
+        var fields = form.querySelectorAll('input.textfield');
+        var removedFields =
+          Array.slice(form.querySelectorAll('.removed input.textfield'));
+        this._textFields = Array.filter(fields, function(field) {
+          return removedFields.indexOf(field) == -1;
+        });
+      }
+
+      return this._textFields;
+    },
+
+    clear: function textFieldsCache_clear() {
+      this._textFields = null;
+    }
+  };
 
   var initContainers = function cf_initContainers() {
     deleteContactButton = dom.querySelector('#delete-contact');
@@ -84,7 +116,7 @@ contacts.Form = (function() {
         container: noteContainer
       }
     };
-  }
+  };
 
   var init = function cf_init(tags, currentDom) {
     dom = currentDom || document;
@@ -96,41 +128,68 @@ contacts.Form = (function() {
       checkDisableButton();
     });
 
-    // When the cancel button inside the input is clicked
-    dom.addEventListener('cancelInput', function() {
-      checkDisableButton();
+    var form = dom.getElementById('contact-form');
+    form.addEventListener(touchstart, function click(event) {
+      var tgt = event.target;
+      if (tgt.tagName == 'BUTTON' && tgt.getAttribute('type') == 'reset') {
+        event.preventDefault();
+        var input = tgt.previousElementSibling;
+        input.value = '';
+        checkDisableButton();
+      }
     });
 
+    thumbAction.addEventListener(touchstart, function click(event) {
+      // Removing current photo
+      if (event.target.tagName == 'BUTTON')
+        saveButton.removeAttribute('disabled');
+    });
+
+    formView.addEventListener('ValueModified', function onValueModified(event) {
+      if (!event.detail) {
+        return;
+      }
+
+      if (event.detail.prevValue !== event.detail.newValue) {
+        saveButton.removeAttribute('disabled');
+      }
+    });
   };
 
-  var render = function cf_render(contact, callback, pFbContactData) {
+  var render = function cf_render(contact, callback, pFbContactData,
+                                  fromUpdateActivity) {
     var fbContactData = pFbContactData || [];
 
+    fbContact = fbContactData[2] || {};
     nonEditableValues = fbContactData[1] || {};
     deviceContact = contact;
     var renderedContact = fbContactData[0] || deviceContact;
 
     resetForm();
     (renderedContact && renderedContact.id) ?
-                        showEdit(renderedContact) : showAdd(renderedContact);
+       showEdit(renderedContact, fromUpdateActivity) : showAdd(renderedContact);
     if (callback) {
       callback();
     }
   };
 
-  var showEdit = function showEdit(contact) {
+  var showEdit = function showEdit(contact, fromUpdateActivity) {
     if (!contact || !contact.id) {
       return;
     }
-    formView.classList.add('skin-dark');
+    formView.classList.add('skin-organic');
+    if (!fromUpdateActivity)
+      saveButton.setAttribute('disabled', 'disabled');
+    saveButton.setAttribute('data-l10n-id', 'update');
     saveButton.textContent = _('update');
     currentContact = contact;
-    deleteContactButton.classList.remove('hide');
-    formTitle.innerHTML = _('editContact');
+    deleteContactButton.parentNode.classList.remove('hide');
+    formTitle.setAttribute('data-l10n-id', 'editContact');
+    formTitle.textContent = _('editContact');
     currentContactId.value = contact.id;
     givenName.value = contact.givenName || '';
     familyName.value = contact.familyName || '';
-    company.value = contact.org || '';
+    company.value = contact.org && contact.org.length > 0 ? contact.org[0] : '';
 
     if (nonEditableValues[company.value]) {
       var nodeClass = company.parentNode.classList;
@@ -138,17 +197,18 @@ contacts.Form = (function() {
       nodeClass.add(FB_CLASS);
     }
 
-    var photo = null;
     if (contact.photo && contact.photo.length > 0) {
-      photo = contact.photo[0];
-      // If the photo comes from FB it cannot be removed
+      currentPhoto = contact.photo[0];
       var button = addRemoveIconToPhoto();
-      if (nonEditableValues['hasPhoto']) {
-        thumbAction.classList.add(REMOVED_CLASS);
+      // Only can be removed a device contact photo
+      if (!(deviceContact.photo && deviceContact.photo.length > 0)) {
         button.classList.add('hide');
+        // Avoid saving the image to the Contacts DB
+        thumbAction.classList.add(REMOVED_CLASS);
+        thumbAction.classList.add(FB_CLASS);
       }
     }
-    Contacts.updatePhoto(photo, thumb);
+    Contacts.updatePhoto(currentPhoto, thumb);
     var toRender = ['tel', 'email', 'adr', 'note'];
     for (var i = 0; i < toRender.length; i++) {
       var current = toRender[i];
@@ -158,36 +218,39 @@ contacts.Form = (function() {
       var msg = _('deleteConfirmMsg');
       var yesObject = {
         title: _('remove'),
+        isDanger: true,
         callback: function onAccept() {
           deleteContact(currentContact);
-          CustomDialog.hide();
+          ConfirmDialog.hide();
         }
       };
 
       var noObject = {
         title: _('cancel'),
         callback: function onCancel() {
-          CustomDialog.hide();
+          ConfirmDialog.hide();
         }
       };
 
-      CustomDialog.show(null, msg, noObject, yesObject);
+      ConfirmDialog.show(null, msg, noObject, yesObject);
     };
   };
 
   var showAdd = function showAdd(params) {
-    formView.classList.remove('skin-dark');
+    formView.classList.remove('skin-organic');
     if (!params || params == -1 || !('id' in params)) {
       currentContact = {};
     }
     saveButton.setAttribute('disabled', 'disabled');
+    saveButton.setAttribute('data-l10n-id', 'done');
     saveButton.textContent = _('done');
-    deleteContactButton.classList.add('hide');
-    formTitle.innerHTML = _('addContact');
+    deleteContactButton.parentNode.classList.add('hide');
+    formTitle.setAttribute('data-l10n-id', 'addContact');
+    formTitle.textContent = _('addContact');
 
     params = params || {};
 
-    givenName.value = params.giveName || '';
+    givenName.value = params.givenName || '';
     familyName.value = params.lastName || '';
     company.value = params.company || '';
 
@@ -210,14 +273,15 @@ contacts.Form = (function() {
       var currentObj = object[i] || {};
       insertField(type, currentObj);
     }
-  }
+  };
 
   var onNewFieldClicked = function onNewFieldClicked(evt) {
     var type = evt.target.dataset['fieldType'];
     evt.preventDefault();
     contacts.Form.insertField(type);
+    textFieldsCache.clear();
     return false;
-  }
+  };
 
   var insertField = function insertField(type, object) {
     if (!type || !configs[type]) {
@@ -231,18 +295,33 @@ contacts.Form = (function() {
     var fields = config['fields'];
     var container = config['container'];
 
-    var default_type = tags[0].value || '';
+    var default_type = tags[0].type || '';
     var currField = {};
+    var infoFromFB = false;
+
     for (var j = 0; j < fields.length; j++) {
       var currentElem = fields[j];
       var def = (currentElem === 'type') ? default_type : '';
       var defObj = (typeof(obj) === 'string') ? obj : obj[currentElem];
-      currField[currentElem] = defObj || def;
+      var value = currField[currentElem] = defObj || def;
+      if (currentElem === 'type') {
+        currField['type_value'] = value;
+
+        // Do localizatiion for built-in types
+        if (isBuiltInType(value, tags)) {
+          currField['type_l10n_id'] = value;
+          value = _(value) || value;
+        }
+      }
+      currField[currentElem] = utils.text.escapeHTML(value, true);
+      if (!infoFromFB && value && nonEditableValues[value]) {
+        infoFromFB = true;
+      }
     }
     currField['i'] = counters[type];
     var rendered = utils.templates.render(template, currField);
 
-    if (currField.value && nonEditableValues[currField.value]) {
+    if (infoFromFB) {
       var nodeClass = rendered.classList;
       nodeClass.add(REMOVED_CLASS);
       nodeClass.add(FB_CLASS);
@@ -257,7 +336,7 @@ contacts.Form = (function() {
     // Add event listeners
     var boxTitle = rendered.querySelector('legend.action');
     if (boxTitle) {
-      boxTitle.addEventListener('mousedown', onGoToSelectTag);
+      boxTitle.addEventListener(touchstart, onGoToSelectTag);
     }
 
     container.appendChild(rendered);
@@ -273,10 +352,12 @@ contacts.Form = (function() {
 
   var deleteContact = function deleteContact(contact) {
     var deleteSuccess = function deleteSuccess() {
-      contacts.List.remove(contact.id);
-      Contacts.setCurrent({});
+      if (contacts.Search.isInSearchMode()) {
+        contacts.Search.invalidateCache();
+        contacts.Search.removeContact(contact.id);
+      }
       Contacts.navigation.home();
-    }
+    };
     var request;
 
     if (fb.isFbContact(contact)) {
@@ -291,7 +372,7 @@ contacts.Form = (function() {
     request.onerror = function errorDelete() {
       console.error('Error removing the contact');
     };
-  }
+  };
 
   var getCurrentPhoto = function cf_getCurrentPhoto() {
     var photo = [];
@@ -300,11 +381,30 @@ contacts.Form = (function() {
       photo = currentPhoto;
     }
     return photo;
+  };
+
+  var CATEGORY_WHITE_LIST = ['gmail', 'live'];
+  function updateCategoryForImported(contact) {
+    if (Array.isArray(contact.category)) {
+      var total = CATEGORY_WHITE_LIST.length;
+      var idx = -1;
+      for (var i = 0; i < total; i++) {
+        var idx = contact.category.indexOf(CATEGORY_WHITE_LIST[i]);
+        if (idx !== -1) {
+          break;
+        }
+      }
+      if (idx !== -1) {
+        contact.category[idx] = contact.category[idx] + '/updated';
+      }
+    }
   }
 
   var saveContact = function saveContact() {
     currentContact = currentContact || {};
     currentContact = deviceContact || currentContact;
+    var deviceGivenName = currentContact.givenName;
+    var deviceFamilyName = currentContact.familyName;
 
     saveButton.setAttribute('disabled', 'disabled');
     var myContact = {
@@ -338,14 +438,7 @@ contacts.Form = (function() {
     myContact['photo'] = currentContact['photo'] || [];
     myContact['photo'][0] = getCurrentPhoto();
 
-    if (myContact.givenName || myContact.familyName) {
-      var name = myContact.givenName || '';
-      name += ' ';
-      if (myContact.familyName) {
-        name += myContact.familyName;
-      }
-      myContact.name = [name];
-    }
+    createName(myContact);
 
     getPhones(myContact);
     getEmails(myContact);
@@ -375,12 +468,18 @@ contacts.Form = (function() {
       }
       contact = currentContact;
 
-      // If it is a FB Contact not linked it will be automatically linked
-      // As now there is additional contact data entered by the user
       if (fb.isFbContact(contact)) {
-        var fbContact = new fb.Contact(contact);
-        // Here the contact has been promoted to linked but not saved yet
-        fbContact.promoteToLinked();
+        // If it is a FB Contact not linked it will be automatically linked
+        // As now there is additional contact data entered by the user
+        if (!fb.isFbLinked(contact)) {
+          var fbContact = new fb.Contact(contact);
+          // Here the contact has been promoted to linked but not saved yet
+          fbContact.promoteToLinked();
+        } else {
+          setPropagatedFlag('givenName', deviceGivenName[0], contact);
+          setPropagatedFlag('familyName', deviceFamilyName[0], contact);
+          createName(contact);
+        }
       }
 
     } else {
@@ -388,40 +487,68 @@ contacts.Form = (function() {
       contact.init(myContact);
     }
 
+    updateCategoryForImported(contact);
     var request = navigator.mozContacts.save(contact);
 
     request.onsuccess = function onsuccess() {
       // Reloading contact, as it only allows to be updated once
-      var cList = contacts.List;
-      cList.getContactById(contact.id, function onSuccess(savedContact,
-                                        enrichedContact) {
-        var nextCurrent = enrichedContact || savedContact;
-
-        Contacts.setCurrent(savedContact);
-        myContact.id = savedContact.id;
-
-        myContact.photo = nextCurrent.photo;
-        myContact.org = nextCurrent.org;
-        myContact.category = nextCurrent.category;
-
-        cList.refresh(myContact);
-        if (ActivityHandler.currentlyHandling) {
-          ActivityHandler.postNewSuccess(savedContact);
-        } else {
-          contacts.Details.render(savedContact, TAG_OPTIONS);
-        }
-        Contacts.cancel();
-      }, function onError() {
-        console.error('Error reloading contact');
-        if (ActivityHandler.currentlyHandling) {
-          ActivityHandler.postCancel();
-        }
-      });
+      if (ActivityHandler.currentlyHandling) {
+        ActivityHandler.postNewSuccess(contact);
+      }
+      Contacts.cancel();
     };
 
     request.onerror = function onerror() {
       console.error('Error saving contact', request.error.name);
+    };
+  };
+
+  var createName = function createName(myContact) {
+    if (myContact.givenName || myContact.familyName) {
+      var name = myContact.givenName || '';
+      name += ' ';
+      if (myContact.familyName) {
+        name += myContact.familyName;
+      }
+      myContact.name = [name];
     }
+  };
+
+  var setPropagatedFlag = function setPropagatedFlag(field, value, contact) {
+    if (!Array.isArray(contact[field]) || !contact[field][0] ||
+        !contact[field][0].trim()) {
+      // Here the user is deleting completely the field then we get the
+      // original facebook field value
+      fb.setPropagatedFlag(field, contact);
+      contact[field] = fbContact[field];
+    } else if (contact[field][0] !== value) {
+      // The user is changing the value of the field then we have a local field.
+      // It implies not propagation
+      fb.removePropagatedFlag(field, contact);
+    }
+  };
+
+  function getNormalizedType(tag, tagList) {
+    // By default is the tag itself
+    var out = tag;
+
+    for (var j = 0; j < tagList.length; j++) {
+      if (tagList[j].value === tag) {
+        out = tagList[j].type;
+      }
+    }
+
+    return out;
+  }
+
+  function isBuiltInType(type, tagList) {
+    for (var j = 0; j < tagList.length; j++) {
+      if (tagList[j].type === type) {
+          return true;
+      }
+    }
+
+    return false;
   }
 
   var getPhones = function getPhones(contact) {
@@ -436,7 +563,7 @@ contacts.Form = (function() {
         continue;
 
       var selector = 'tel_type_' + arrayIndex;
-      var typeField = dom.getElementById(selector).textContent || '';
+      var typeField = dom.getElementById(selector).dataset.value || '';
       var carrierSelector = 'carrier_' + arrayIndex;
       var carrierField = dom.getElementById(carrierSelector).value || '';
       contact['tel'] = contact['tel'] || [];
@@ -446,7 +573,7 @@ contacts.Form = (function() {
         carrier: carrierField
       };
     }
-  }
+  };
 
   var getEmails = function getEmails(contact) {
     var selector = '#view-contact-form form div.email-template:not(.removed)';
@@ -457,7 +584,7 @@ contacts.Form = (function() {
       var emailField = dom.getElementById('email_' + arrayIndex);
       var emailValue = emailField.value;
       var selector = 'email_type_' + arrayIndex;
-      var typeField = dom.getElementById(selector).textContent || '';
+      var typeField = dom.getElementById(selector).dataset.value || '';
       if (!emailValue)
         continue;
 
@@ -467,7 +594,7 @@ contacts.Form = (function() {
         type: typeField
       };
     }
-  }
+  };
 
   var getAddresses = function getAddresses(contact) {
     var selector = '#view-contact-form form div.address-template:not(.removed)';
@@ -479,7 +606,8 @@ contacts.Form = (function() {
       var addressValue = addressField.value || '';
 
       var selector = 'address_type_' + arrayIndex;
-      var typeField = dom.getElementById(selector).textContent || '';
+      var typeField = dom.getElementById(selector).dataset.value || '';
+
       selector = 'locality_' + arrayIndex;
       var locality = dom.getElementById(selector).value || '';
       selector = 'postalCode_' + arrayIndex;
@@ -502,7 +630,7 @@ contacts.Form = (function() {
         type: typeField
       };
     }
-  }
+  };
 
   var getNotes = function getNotes(contact) {
     var selector = '#view-contact-form form div.note-template:not(.removed)';
@@ -519,11 +647,15 @@ contacts.Form = (function() {
       contact['note'] = contact['note'] || [];
       contact['note'].push(noteValue);
     }
-  }
+  };
 
   var resetForm = function resetForm() {
     currentPhoto = null;
     thumbAction.querySelector('p').classList.remove('hide');
+    var removeIcon = thumbAction.querySelector('button#' + IMG_DELETE_ID);
+    if (removeIcon) {
+      thumbAction.removeChild(removeIcon);
+    }
     saveButton.removeAttribute('disabled');
     resetRemoved();
     currentContactId.value = '';
@@ -536,17 +668,18 @@ contacts.Form = (function() {
     var emails = dom.querySelector('#contacts-form-emails');
     var addresses = dom.querySelector('#contacts-form-addresses');
     var notes = dom.querySelector('#contacts-form-notes');
-    phones.innerHTML = '';
-    emails.innerHTML = '';
-    addresses.innerHTML = '';
-    notes.innerHTML = '';
+
+    [phones, emails, addresses, notes].forEach(utils.dom.removeChildNodes);
+
     counters = {
       'tel': 0,
       'email': 0,
       'adr': 0,
       'note': 0
     };
-  }
+    textFieldsCache.clear();
+    formView.scrollTop = 0;
+  };
 
   var resetRemoved = function cf_resetRemoved() {
     var removedFields = dom.querySelectorAll('.removed');
@@ -558,38 +691,44 @@ contacts.Form = (function() {
     if (removeButton) {
       thumbAction.removeChild(removeButton);
     }
-  }
+  };
 
-  var checkDisableButton = function checkDisable() {
+  var checkDisableButton = function checkDisableButton() {
     var saveButton = dom.getElementById('save-button');
-    if (emptyForm('contact-form')) {
+    if (emptyForm()) {
       saveButton.setAttribute('disabled', 'disabled');
     } else {
       saveButton.removeAttribute('disabled');
     }
   };
 
-  var emptyForm = function emptyForm(id) {
-    var form = dom.getElementById(id);
-    var inputs = form.querySelectorAll('input.textfield');
-    for (var i = 0; i < inputs.length; i++) {
-      if (inputs[i].value != '')
+  var emptyForm = function emptyForm() {
+    var textFields = textFieldsCache.get();
+    for (var i = textFields.length - 1; i >= 0; i--) {
+      if (textFields[i].value)
         return false;
     }
     return true;
-  }
+  };
 
   var removeFieldIcon = function removeFieldIcon(selector) {
     var delButton = document.createElement('button');
+    delButton.id = IMG_DELETE_ID;
     delButton.className = 'fillflow-row-action';
     var delIcon = document.createElement('span');
     delIcon.setAttribute('role', 'button');
     delIcon.className = 'icon-delete';
     delButton.appendChild(delIcon);
     delButton.onclick = function removeElement(event) {
+      // Workaround until 809452 is fixed.
+      // What we are avoiding with this condition is removing / restoring
+      // a field when the event is simulated by a ENTER Keyboard click
+      if ((event.clientX === 0) && (event.clientY === 0))
+        return false;
       event.preventDefault();
       var elem = document.getElementById(selector);
       elem.classList.toggle(REMOVED_CLASS);
+      textFieldsCache.clear();
       checkDisableButton();
       return false;
     };
@@ -597,59 +736,82 @@ contacts.Form = (function() {
   };
 
   var addRemoveIconToPhoto = function cf_addRemIconPhoto() {
-    var out = removeFieldIcon(thumbAction.id);
-    thumbAction.appendChild(out);
+    // Ensure the removed and FB class names are conveniently reseted
+    thumbAction.classList.remove(REMOVED_CLASS);
+    thumbAction.classList.remove(FB_CLASS);
+
+    var out = thumbAction.querySelector('button#' + IMG_DELETE_ID);
+    if (!out) {
+      out = removeFieldIcon(thumbAction.id);
+      thumbAction.appendChild(out);
+    }
+    else {
+      // Ensure it is visible
+      out.classList.remove('hide');
+    }
     thumbAction.classList.add('with-photo');
 
     return out;
-  }
+  };
 
   var pickImage = function pickImage() {
     var activity = new MozActivity({
       name: 'pick',
       data: {
         type: 'image/jpeg',
-        width: 320, // The desired width of the image
-        height: 320 // The desired height of the image
+        width: PHOTO_WIDTH, // The desired width of the image
+        height: PHOTO_HEIGHT // The desired height of the image
       }
     });
 
-    var reopenApp = function reopen() {
-      navigator.mozApps.getSelf().onsuccess = function getSelfCB(evt) {
-        var app = evt.target.result;
-        var ep = window == top ? 'contacts' : 'dialer';
-        app.launch(ep);
-      };
+    activity.onsuccess = function success() {
+      addRemoveIconToPhoto();
+      saveButton.removeAttribute('disabled');
+      // XXX
+      // this.result.blob is valid now, but it won't stay valid
+      // (see https://bugzilla.mozilla.org/show_bug.cgi?id=806503)
+      // And it might not be the size we want, anyway, so we make
+      // our own copy that is at the right size.
+      resizeBlob(this.result.blob, PHOTO_WIDTH, PHOTO_HEIGHT,
+                 function(resized) {
+                   Contacts.updatePhoto(resized, thumb);
+                   currentPhoto = resized;
+                 });
     };
 
-    activity.onsuccess = function success() {
-      reopenApp();
-      addRemoveIconToPhoto();
-      var dataurl = this.result.url;  // A data URL for a 320x320 JPEG image
-      dataURLToBlob(dataurl, function(blob) {
-        Contacts.updatePhoto(blob, thumb);
-        currentPhoto = blob;
-      });
+    activity.onerror = function() {
+      window.console.error('Error in the activity', activity.error);
+    };
 
-      function dataURLToBlob(dataurl, callback) {
-        var img = new Image();
-        img.src = dataurl;
-        img.onload = function() {
-          var canvas = document.createElement('canvas');
-          var context = canvas.getContext('2d');
-          canvas.width = img.naturalWidth;
-          canvas.height = img.naturalHeight;
-          context.drawImage(img, 0, 0);
-          callback(canvas.mozGetAsFile('contact_' + new Date().getTime(),
-                                       'image/jpeg'));
-        }
-      }
-    }
-
-    activity.onerror = function error() {
-      reopenApp();
-    }
+    return false;
   };
+
+  function resizeBlob(blob, target_width, target_height, callback) {
+    var img = document.createElement('img');
+    var url = URL.createObjectURL(blob);
+    img.src = url;
+    img.onload = function() {
+      var image_width = img.width;
+      var image_height = img.height;
+      var scalex = image_width / target_width;
+      var scaley = image_height / target_height;
+      var scale = Math.min(scalex, scaley);
+
+      var w = target_width * scale;
+      var h = target_height * scale;
+      var x = (image_width - w) / 2;
+      var y = (image_height - h) / 2;
+
+      var canvas = document.createElement('canvas');
+      canvas.width = target_width;
+      canvas.height = target_height;
+      var context = canvas.getContext('2d');
+
+      context.drawImage(img, x, y, w, h, 0, 0, target_width, target_height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(callback, 'image/jpeg');
+    };
+  }
 
   return {
     'init': init,

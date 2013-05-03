@@ -13,25 +13,59 @@ Calendar.ns('Store').Setting = (function() {
      * Default option values.
      */
     defaults: {
-      syncFrequency: 15
+      standardAlarmDefault: -300,
+      alldayAlarmDefault: 32400,
+      syncFrequency: 15,
+      syncAlarm: {
+        alarmId: null,
+        start: null,
+        end: null
+      }
     },
 
+    /** disable caching */
+    _addToCache: function() {},
+    _removeFromCache: function() {},
+
     /**
-     * Frequency to sync the calendar.
-     * Accepted values:
+     * This method also will use the internal cache to ensure
+     * callers are in a consistent state and don't require round
+     * trips to the database. When the value does not exist defaults
+     * are used where possible...
      *
-     *  null (never)
-     *  numeric (in minutes)
      *
-     * @return {Null|Numeric} number of minutes.
+     *    settings.getValue('syncFrequency', function(err, value) {
+     *      // ...
+     *    });
+     *
+     *
+     * @param {String} key name of setting.
+     * @param {Function} callback usual [err, value] does not include metadata.
      */
-    get syncFrequency() {
-      var name = 'syncFrequency';
-      if (name in this.cached) {
-        return this.cached[name].value;
-      } else {
-        return this.defaults[name];
+    getValue: function(key, callback) {
+      var self = this;
+
+      if (key in this._cached) {
+        Calendar.nextTick(function handleCached() {
+          callback(null, self._cached[key].value);
+        });
+
+        // we have cached value exit...
+        return;
       }
+
+      this.get(key, function handleStored(err, value) {
+        if (err) {
+          return callback(err);
+        }
+
+        if (value === undefined && self.defaults[key] !== undefined) {
+          value = { value: self.defaults[key] };
+        }
+
+        self._cached[key] = value;
+        callback(null, value.value);
+      });
     },
 
     /**
@@ -69,16 +103,16 @@ Calendar.ns('Store').Setting = (function() {
         trans = null;
       }
 
-      var cached = this.cached[key];
+      var cached = this._cached[key];
       var record;
 
-      if (cached) {
+      if (cached && cached._id) {
         cached.value = value;
         cached.updatedAt = new Date();
         record = cached;
       } else {
         var created = new Date();
-        record = {
+        this._cached[key] = record = {
           _id: key,
           createdAt: created,
           updatedAt: created,

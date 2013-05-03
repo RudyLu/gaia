@@ -1,12 +1,7 @@
-requireApp('calendar/test/unit/helper.js', function() {
-  requireLib('provider/calendar/abstract.js');
-  requireLib('provider/calendar/local.js');
-  requireLib('provider/local.js');
+requireLib('provider/abstract.js');
+requireLib('provider/local.js');
 
-  requireLib('models/account.js');
-});
-
-suite('account', function() {
+suiteGroup('Models.Account', function() {
   var subject;
   var provider;
 
@@ -24,7 +19,7 @@ suite('account', function() {
   suite('fullUrl', function() {
     test('get', function() {
       subject.domain = 'http://google.com';
-      subject.url = '/foo';
+      subject.entrypoint = '/foo';
 
       assert.equal(subject.fullUrl, 'http://google.com/foo');
     });
@@ -33,29 +28,31 @@ suite('account', function() {
       subject.fullUrl = 'http://google.com/foo/bar';
 
       assert.equal(subject.domain, 'http://google.com');
-      assert.equal(subject.url, '/foo/bar');
+      assert.equal(subject.entrypoint, '/foo/bar');
     });
   });
 
   suite('#toJSON', function() {
     setup(function() {
       subject._id = '1';
-      subject.url = 'url';
+      subject.entrypoint = 'url';
       subject.domain = 'domain';
       subject.password = 'pass';
       subject.user = 'user';
       subject.providerType = 'local';
       subject.preset = 'google';
+      subject.calendarHome = '/foo/home';
     });
 
     test('output', function() {
       var expected = {
         _id: subject._id,
-        url: subject.url,
+        entrypoint: subject.entrypoint,
         domain: subject.domain,
         password: subject.password,
         user: subject.user,
         providerType: subject.providerType,
+        calendarHome: '/foo/home',
         preset: 'google'
       };
 

@@ -37,7 +37,7 @@
   window.requireApp = function(url, cb) {
     require(TestUrlResolver.resolve(url), cb);
   };
-  
+
 
   /**
    * require's a file from /common/ resources.
@@ -50,8 +50,8 @@
    */
   window.requireCommon = function(url, cb) {
     require(Common.url('/common/' + url), cb);
-  }
-  
+  };
+
   //template
   requireCommon('test/template.js');
 
@@ -69,9 +69,6 @@
       testSupport.mochaGenerators.overload(method);
     });
   });
-
-  //marionette utilities
-  window.requireCommon('test/marionette.js');
 
   //url utilities
   window.requireCommon('test/test_url_resolver.js');

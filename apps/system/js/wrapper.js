@@ -3,7 +3,9 @@
 
 'use strict';
 
-var Launcher = (function() {
+window.addEventListener('load', function onload_launcher_init() {
+  window.removeEventListener('load', onload_launcher_init);
+
   function log(str) {
     dump(' -+- Launcher -+-: ' + str + '\n');
   }
@@ -12,17 +14,22 @@ var Launcher = (function() {
     return WindowManager.getAppFrame(WindowManager.getDisplayedApp());
   }
 
+
+  function currentAppIframe() {
+    var frame = currentAppFrame();
+    return frame ? frame.firstChild : null;
+  }
+
   var _ = navigator.mozL10n.get;
 
   var BUTTONBAR_TIMEOUT = 5000;
-  var BUTTONBAR_INITIAL_OPEN_TIMEOUT = 800;
+  var BUTTONBAR_INITIAL_OPEN_TIMEOUT = 1500;
 
-  var footer = document.querySelector('#wrapper');
+  var footer = document.querySelector('#wrapper-footer');
   window.addEventListener('appopen', function onAppOpen(e) {
     if ('wrapper' in currentAppFrame().dataset) {
       window.addEventListener('mozbrowserlocationchange', onLocationChange);
       onLocationChange();
-      footer.classList.add('visible');
       onDisplayedApplicationChange();
     }
   });
@@ -30,7 +37,9 @@ var Launcher = (function() {
   window.addEventListener('appwillclose', function onAppClose(e) {
     if ('wrapper' in currentAppFrame().dataset) {
       window.removeEventListener('mozbrowserlocationchange', onLocationChange);
-      footer.classList.remove('visible');
+      clearTimeout(buttonBarTimeout);
+      footer.classList.add('closed');
+      isButtonBarDisplayed = false;
     }
   });
 
@@ -52,13 +61,13 @@ var Launcher = (function() {
 
   var buttonBarTimeout;
 
-  var isButtonBarDisplayed = true;
-  function toggleButtonBar() {
+  var isButtonBarDisplayed = false;
+  function toggleButtonBar(time) {
     clearTimeout(buttonBarTimeout);
     footer.classList.toggle('closed');
     isButtonBarDisplayed = !isButtonBarDisplayed;
     if (isButtonBarDisplayed) {
-      buttonBarTimeout = setTimeout(toggleButtonBar, BUTTONBAR_TIMEOUT);
+      buttonBarTimeout = setTimeout(toggleButtonBar, time || BUTTONBAR_TIMEOUT);
     }
   }
 
@@ -68,54 +77,60 @@ var Launcher = (function() {
   }
 
   document.getElementById('handler').
-    addEventListener('mousedown', toggleButtonBar);
+    addEventListener('mousedown', function open() { toggleButtonBar() });
 
   document.getElementById('close-button').
-    addEventListener('mousedown', toggleButtonBar);
+    addEventListener('mousedown', function close() { toggleButtonBar() });
 
   var reload = document.getElementById('reload-button');
   reload.addEventListener('click', function doReload(evt) {
     clearButtonBarTimeout();
-    currentAppFrame().reload(true);
+    currentAppIframe().reload(true);
   });
 
   var back = document.getElementById('back-button');
   back.addEventListener('click', function goBack() {
     clearButtonBarTimeout();
-    currentAppFrame().goBack();
+    currentAppIframe().goBack();
   });
 
   var forward = document.getElementById('forward-button');
   forward.addEventListener('click', function goForward() {
     clearButtonBarTimeout();
-    currentAppFrame().goForward();
+    currentAppIframe().goForward();
   });
 
   function onLocationChange() {
-    currentAppFrame().getCanGoForward().onsuccess = function forwardSuccess(e) {
-      if (e.target.result === true) {
-        delete forward.dataset.disabled;
-      } else {
-        forward.dataset.disabled = true;
-      }
-    }
+    currentAppIframe().getCanGoForward().onsuccess =
+      function forwardSuccess(e) {
+        if (e.target.result === true) {
+          delete forward.dataset.disabled;
+        } else {
+          forward.dataset.disabled = true;
+        }
+      };
 
-    currentAppFrame().getCanGoBack().onsuccess = function backSuccess(e) {
+    currentAppIframe().getCanGoBack().onsuccess = function backSuccess(e) {
       if (e.target.result === true) {
         delete back.dataset.disabled;
       } else {
         back.dataset.disabled = true;
       }
-    }
+    };
   }
 
-  window.addEventListener('mozbrowserlocationchange', onLocationChange);
+  window.addEventListener('mozbrowserlocationchange', function() {
+    var frame = currentAppFrame();
+    if (frame && 'wrapper' in frame.dataset) {
+      onLocationChange();
+    }
+  });
 
   var bookmarkButton = document.getElementById('bookmark-button');
   function onDisplayedApplicationChange() {
-    setTimeout(toggleButtonBar, BUTTONBAR_INITIAL_OPEN_TIMEOUT);
+    toggleButtonBar(BUTTONBAR_INITIAL_OPEN_TIMEOUT);
 
-    var dataset = currentAppFrame().dataset;
+    var dataset = currentAppIframe().dataset;
     if (dataset.originURL || dataset.searchURL) {
       delete bookmarkButton.dataset.disabled;
       return;
@@ -129,7 +144,7 @@ var Launcher = (function() {
       return;
 
     clearButtonBarTimeout();
-    var dataset = currentAppFrame().dataset;
+    var dataset = currentAppIframe().dataset;
 
     function selected(value) {
       if (!value)
@@ -139,29 +154,39 @@ var Launcher = (function() {
       if (value === 'origin') {
         name = dataset.originName;
         url = dataset.originURL;
-        delete currentAppFrame().dataset.originURL;
       }
 
       if (value === 'search') {
         name = dataset.searchName;
         url = dataset.searchURL;
-        delete currentAppFrame().dataset.searchURL;
       }
 
-      if (!currentAppFrame().dataset.originURL &&
-          !currentAppFrame().dataset.searchURL) {
-        bookmarkButton.dataset.disabled = true;
-      }
-
-      new MozActivity({
+      var activity = new MozActivity({
         name: 'save-bookmark',
         data: {
           type: 'url',
           url: url,
           name: name,
-          icon: dataset.icon
+          icon: dataset.icon,
+          useAsyncPanZoom: dataset.useAsyncPanZoom,
+          iconable: false
         }
       });
+
+      activity.onsuccess = function onsuccess() {
+        if (value === 'origin') {
+          delete currentAppIframe().dataset.originURL;
+        }
+
+        if (value === 'search') {
+          delete currentAppIframe().dataset.searchURL;
+        }
+
+        if (!currentAppIframe().dataset.originURL &&
+          !currentAppIframe().dataset.searchURL) {
+          bookmarkButton.dataset.disabled = true;
+        }
+      };
     }
 
     var data = {
@@ -179,4 +204,4 @@ var Launcher = (function() {
 
     ModalDialog.selectOne(data, selected);
   });
-}());
+});

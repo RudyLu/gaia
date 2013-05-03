@@ -1,35 +1,33 @@
-.fixed-title {
+.fixed-title,
+.fixed-title-import {
   position: absolute;
   top: 5rem;
-  width: 85%;
-  height: 2.3rem;
-  margin: 0 3rem;
+  left: 1.5rem;
+  right: 2.5rem;
+  height: 1.8rem;
+  padding: 0.5rem 1.5rem;
   z-index: 6;
   background-repeat: no-repeat;
   background-color: #f4f4f4;
   transform: translateY(-100%);
   text-align: left;
   color: #FF5F19;
-  font-size: 1.8rem;
-  border-bottom: 1px solid #FF5F19;
+  font-size: 1.6rem;
+  line-height: 1.8rem;
+  border-bottom: 0.1rem solid #FF5F19;
   pointer-events: none;
 }
 
-.fixed-title-fb {
-  position: absolute;
-  top: 5rem;
+.fixed-title-import {
+  position: fixed;
   left: 2.5rem;
-  width: -moz-calc(100% - 4.2rem);
-  z-index: 0;
-  border-bottom: 1px solid #4D77CF;
-  background: #f4f4f4;
-  transform: translateY(-100%);
-  color: #4D77CF;
-  font-size: 1.5rem;
-  text-align: left;
-  pointer-events: none;
+  right: 2.5rem;
+  z-index: 3;
+  padding-left: 0;
+  background: #fff;
 }
 
-body[data-state='waiting'] .fixed-title-fb {
-  visibility: hidden;
+.facebook .fixed-title-import {
+  border-bottom: 1px solid #4D77CF;
+  color: #4D77CF;
 }

@@ -5,7 +5,8 @@
 
 /**
  * Debug note: to test this app in a desktop browser, you'll have to set
- * the `dom.mozSettings.enabled' preference to false.
+ * the `dom.mozSettings.enabled' preference to false in order to avoid an
+ * `uncaught exception: 2147500033' message (= 0x80004001).
  */
 
 var Settings = {
@@ -17,17 +18,55 @@ var Settings = {
         settings : null;
   },
 
-  init: function settings_init() {
-    this.loadGaiaCommit();
-
+  // Early initialization of parts of the application that don't
+  // depend on the DOM being loaded.
+  preInit: function settings_preInit() {
     var settings = this.mozSettings;
     if (!settings)
       return;
 
-    // update <input> values when the corresponding setting is changed
-    settings.onsettingchange = function settingChanged(event) {
+    // Make a request for settings to warm the cache, since we need it
+    // very soon in startup after the DOM is available.
+    this.getSettings(null);
+
+    // update corresponding setting when it changes
+    settings.onsettingchange = (function settingChanged(event) {
       var key = event.settingName;
       var value = event.settingValue;
+
+      // Always update the cache if it's present, even if the DOM
+      // isn't loaded yet.
+      if (this._settingsCache) {
+        this._settingsCache[key] = value;
+      }
+
+      // DOM isn't ready so there's nothing to update.
+      if (!this._initialized) {
+        return;
+      }
+
+      // update <span> values when the corresponding setting is changed
+      var rule = '[data-name="' + key + '"]:not([data-ignore])';
+      var spanField = document.querySelector(rule);
+      if (spanField) {
+        // check whether this setting comes from a select option
+        var options = document.querySelector('select[data-setting="' +
+          key + '"]');
+        if (options) {
+          // iterate option matching
+          var max = options.length;
+          for (var i = 0; i < max; i++) {
+            if (options[i] && options[i].value === value) {
+              spanField.dataset.l10nId = options[i].dataset.l10nId;
+              spanField.textContent = options[i].textContent;
+            }
+          }
+        } else {
+          spanField.textContent = value;
+        }
+      }
+
+      // update <input> values when the corresponding setting is changed
       var input = document.querySelector('input[name="' + key + '"]');
       if (!input)
         return;
@@ -43,7 +82,9 @@ var Settings = {
           if (input.value == value)
             return;
           input.value = value;
-          input.refresh(); // XXX to be removed when bug344618 lands
+          if (input.refresh) {
+            input.refresh(); // XXX to be removed when bug344618 lands
+          }
           break;
         case 'select':
           for (var i = 0; i < input.options.length; i++) {
@@ -54,158 +95,310 @@ var Settings = {
           }
           break;
       }
-    };
+    }).bind(this);
+  },
+
+  _initialized: false,
+
+  init: function settings_init() {
+    this._initialized = true;
+
+    if (!this.mozSettings || !navigator.mozSetMessageHandler) {
+      return;
+    }
+
+    // register web activity handler
+    navigator.mozSetMessageHandler('activity', this.webActivityHandler);
 
     // preset all inputs that have a `name' attribute
-    var lock = settings.createLock();
+    this.presetPanel();
+  },
 
-    // preset all checkboxes
-    var rule = 'input[type="checkbox"]:not([data-ignore])';
-    var checkboxes = document.querySelectorAll(rule);
-    for (var i = 0; i < checkboxes.length; i++) {
-      (function(checkbox) {
-        var key = checkbox.name;
-        if (!key)
-          return;
+  loadPanel: function settings_loadPanel(panel) {
+    if (!panel)
+      return;
 
-        var request = lock.get(key);
-        request.onsuccess = function() {
-          if (request.result[key] != undefined) {
-            checkbox.checked = !!request.result[key];
-          }
-        };
-      })(checkboxes[i]);
+    this.loadPanelStylesheetsIfNeeded();
+
+    // apply the HTML markup stored in the first comment node
+    for (var i = 0; i < panel.childNodes.length; i++) {
+      if (panel.childNodes[i].nodeType == document.COMMENT_NODE) {
+        panel.innerHTML = panel.childNodes[i].nodeValue;
+        break;
+      }
     }
 
-    // preset all radio buttons
-    rule = 'input[type="radio"]:not([data-ignore])';
-    var radios = document.querySelectorAll(rule);
-    for (i = 0; i < radios.length; i++) {
-      (function(radio) {
-        var key = radio.name;
-        if (!key)
-          return;
+    // translate content
+    navigator.mozL10n.translate(panel);
 
-        var request = lock.get(key);
-        request.onsuccess = function() {
-          if (request.result[key] != undefined) {
-            radio.checked = (request.result[key] === radio.value);
-          }
-        };
-      })(radios[i]);
+    // activate all scripts
+    var scripts = panel.querySelectorAll('script');
+    for (var i = 0; i < scripts.length; i++) {
+      var src = scripts[i].getAttribute('src');
+      if (document.head.querySelector('script[src="' + src + '"]')) {
+        continue;
+      }
+
+      var script = document.createElement('script');
+      script.type = 'application/javascript';
+      script.src = src;
+      document.head.appendChild(script);
     }
 
-    // preset all text inputs
-    rule = 'input[type="text"]:not([data-ignore])';
-    var texts = document.querySelectorAll(rule);
-    for (i = 0; i < texts.length; i++) {
-      (function(text) {
-        var key = text.name;
-        if (!key)
-          return;
-
-        var request = lock.get(key);
-        request.onsuccess = function() {
-          if (request.result[key] != undefined) {
-            text.value = request.result[key];
-          }
+    // activate all links
+    var self = this;
+    var rule = 'a[href^="http"], a[href^="tel"], [data-href]';
+    var links = panel.querySelectorAll(rule);
+    for (i = 0; i < links.length; i++) {
+      var link = links[i];
+      if (!link.dataset.href) {
+        link.dataset.href = link.href;
+        link.href = '#';
+      }
+      if (!link.dataset.href.startsWith('#')) { // external link
+        link.onclick = function() {
+          openLink(this.dataset.href);
+          return false;
         };
-      })(texts[i]);
-    }
-
-    // preset all range inputs
-    rule = 'input[type="range"]:not([data-ignore])';
-    var ranges = document.querySelectorAll(rule);
-    for (i = 0; i < ranges.length; i++) {
-      (function(range) {
-        var key = range.name;
-        if (!key)
-          return;
-
-        var request = lock.get(key);
-        request.onsuccess = function() {
-          if (request.result[key] != undefined) {
-            range.value = parseFloat(request.result[key]);
-            range.refresh(); // XXX to be removed when bug344618 lands
-          }
+      } else if (!link.dataset.href.endsWith('Settings')) { // generic dialog
+        link.onclick = function() {
+          openDialog(this.dataset.href.substr(1));
+          return false;
         };
-      })(ranges[i]);
-    }
-
-    // handle web activity
-    var handler = navigator.mozSetMessageHandler;
-    if (handler && typeof(mozSetMessageHandler) == 'function') {
-      handler('activity', function settings_handleActivity(activityRequest) {
-        var name = activityRequest.source.name;
-        switch (name) {
-          case 'configure':
-            var section = activityRequest.source.data.section || 'root';
-
-            // Validate if the section exists
-            var actualSection = document.getElementById(section);
-            if (!actualSection || actualSection.tagName !== 'SECTION') {
-              var msg = 'Trying to open an unexistent section: ' + section;
-              console.warn(msg);
-              activityRequest.postError(msg);
-              return;
-            }
-
-            // Go to that section
-            setTimeout(function settings_goToSection() {
-              document.location.hash = section;
-            });
-            break;
-        }
-      });
-    }
-
-    // preset all select
-    var selects = document.querySelectorAll('select');
-    for (i = 0; i < selects.length; i++) {
-      (function(select) {
-        var key = select.name;
-        if (!key)
-          return;
-
-        var request = lock.get(key);
-        request.onsuccess = function() {
-          var value = request.result[key];
-          if (value != undefined) {
-            var option = 'option[value="' + value + '"]';
-            var selectOption = select.querySelector(option);
-            if (selectOption) {
-              selectOption.selected = true;
-            }
-          }
+      } else { // Settings-specific dialog box
+        link.onclick = function() {
+          self.openDialog(this.dataset.href.substr(1));
+          return false;
         };
-      })(selects[i]);
-    }
-
-    // preset all span with data-name fields
-    rule = 'span[data-name]:not([data-ignore])';
-    var spanFields = document.querySelectorAll(rule);
-    for (i = 0; i < spanFields.length; i++) {
-      (function(span) {
-        var key = span.dataset.name;
-        if (!key)
-          return;
-
-        var request = lock.get(key);
-        request.onsuccess = function() {
-          if (request.result[key] != undefined)
-            span.textContent = request.result[key];
-        };
-      })(spanFields[i]);
+      }
     }
   },
 
-  handleEvent: function settings_handleEvent(evt) {
-    var input = evt.target;
+  // Cache of all current settings values.  There's some large stuff
+  // in here, but not much useful can be done with the settings app
+  // without these, so we keep this around most of the time.
+  _settingsCache: null,
+
+  get settingsCache() {
+    return this._settingsCache;
+  },
+
+  // True when a request has already been made to fill the settings
+  // cache.  When this is true, no further get("*") requests should be
+  // made; instead, pending callbacks should be added to
+  // _pendingSettingsCallbacks.
+  _settingsCacheRequestSent: false,
+
+  // There can be race conditions in which we need settings values,
+  // but haven't filled the cache yet.  This array tracks those
+  // listeners.
+  _pendingSettingsCallbacks: [],
+
+  // Invoke |callback| with a request object for a successful fetch of
+  // settings values, when those values are ready.
+  getSettings: function(callback) {
+    var settings = this.mozSettings;
+    if (!settings)
+      return;
+
+    if (this._settingsCache && callback) {
+      // Fast-path that we hope to always hit: our settings cache is
+      // already available, so invoke the callback now.
+      callback(this._settingsCache);
+      return;
+    }
+
+    if (!this._settingsCacheRequestSent && !this._settingsCache) {
+      this._settingsCacheRequestSent = true;
+      var lock = settings.createLock();
+      var request = lock.get('*');
+      request.onsuccess = function(e) {
+        var result = request.result;
+        var cachedResult = {};
+        for (var attr in result) {
+          cachedResult[attr] = result[attr];
+        }
+        Settings._settingsCache = cachedResult;
+        var cbk;
+        while ((cbk = Settings._pendingSettingsCallbacks.pop())) {
+          cbk(result);
+        }
+      };
+    }
+    if (callback) {
+      this._pendingSettingsCallbacks.push(callback);
+    }
+  },
+
+  presetPanel: function settings_presetPanel(panel) {
+    this.getSettings(function(result) {
+      panel = panel || document;
+
+      // preset all checkboxes
+      var rule = 'input[type="checkbox"]:not([data-ignore])';
+      var checkboxes = panel.querySelectorAll(rule);
+      for (var i = 0; i < checkboxes.length; i++) {
+        var key = checkboxes[i].name;
+        if (key && result[key] != undefined) {
+          checkboxes[i].checked = !!result[key];
+        }
+      }
+
+      // remove initial class so the swich animation will apply
+      // on these toggles if user interact with it.
+      setTimeout(function() {
+        for (var i = 0; i < checkboxes.length; i++) {
+          if (checkboxes[i].classList.contains('initial')) {
+            checkboxes[i].classList.remove('initial');
+          }
+        }
+      }, 0);
+
+      // preset all radio buttons
+      rule = 'input[type="radio"]:not([data-ignore])';
+      var radios = panel.querySelectorAll(rule);
+      for (i = 0; i < radios.length; i++) {
+        var key = radios[i].name;
+        if (key && result[key] != undefined) {
+          radios[i].checked = (result[key] === radios[i].value);
+        }
+      }
+
+      // preset all text inputs
+      rule = 'input[type="text"]:not([data-ignore])';
+      var texts = panel.querySelectorAll(rule);
+      for (i = 0; i < texts.length; i++) {
+        var key = texts[i].name;
+        if (key && result[key] != undefined) {
+          texts[i].value = result[key];
+        }
+      }
+
+      // preset all range inputs
+      rule = 'input[type="range"]:not([data-ignore])';
+      var ranges = panel.querySelectorAll(rule);
+      for (i = 0; i < ranges.length; i++) {
+        var key = ranges[i].name;
+        if (key && result[key] != undefined) {
+          ranges[i].value = parseFloat(result[key]);
+          if (ranges[i].refresh) {
+            ranges[i].refresh(); // XXX to be removed when bug344618 lands
+          }
+        }
+      }
+
+      // use a <button> instead of the <select> element
+      var fakeSelector = function(select) {
+        var parent = select.parentElement;
+        var button = select.previousElementSibling;
+        // link the button with the select element
+        var index = select.selectedIndex;
+        if (index >= 0) {
+          var selection = select.options[index];
+          button.textContent = selection.textContent;
+          button.dataset.l10nId = selection.dataset.l10nId;
+        }
+        if (parent.classList.contains('fake-select')) {
+          select.addEventListener('change', function() {
+            var newSelection = this.options[this.selectedIndex];
+            button.textContent = newSelection.textContent;
+            button.dataset.l10nId = newSelection.dataset.l10nId;
+          });
+        }
+      };
+
+      // preset all select
+      var selects = panel.querySelectorAll('select');
+      for (var i = 0, count = selects.length; i < count; i++) {
+        var select = selects[i];
+        var key = select.name;
+        if (key && result[key] != undefined) {
+          var value = result[key];
+          var option = 'option[value="' + value + '"]';
+          var selectOption = select.querySelector(option);
+          if (selectOption) {
+            selectOption.selected = true;
+          }
+        }
+        fakeSelector(select);
+      }
+
+      // preset all span with data-name fields
+      rule = '[data-name]:not([data-ignore])';
+      var spanFields = panel.querySelectorAll(rule);
+      for (i = 0; i < spanFields.length; i++) {
+        var key = spanFields[i].dataset.name;
+
+        if (key && result[key] != undefined) {
+          // check whether this setting comes from a select option
+          // (it may be in a different panel, so query the whole document)
+          rule = '[data-setting="' + key + '"] ' +
+            '[value="' + result[key] + '"]';
+          var option = document.querySelector(rule);
+          if (option) {
+            spanFields[i].dataset.l10nId = option.dataset.l10nId;
+            spanFields[i].textContent = option.textContent;
+          } else {
+            spanFields[i].textContent = result[key];
+          }
+        } else { // result[key] is undefined
+          switch (key) {
+            //XXX bug 816899 will also provide 'deviceinfo.software' from Gecko
+            //  which is {os name + os version}
+            case 'deviceinfo.software':
+              var _ = navigator.mozL10n.get;
+              var text = _('brandShortName') + ' ' +
+                result['deviceinfo.os'];
+              spanFields[i].textContent = text;
+              break;
+
+            //XXX workaround request from bug 808892 comment 22
+            //  hide this field if it's undefined/empty.
+            case 'deviceinfo.firmware_revision':
+              spanFields[i].parentNode.hidden = true;
+              break;
+          }
+        }
+      }
+    });
+  },
+
+  webActivityHandler: function settings_handleActivity(activityRequest) {
+    var name = activityRequest.source.name;
+    switch (name) {
+      case 'configure':
+        var section = activityRequest.source.data.section || 'root';
+
+        // Validate if the section exists
+        var sectionElement = document.getElementById(section);
+        if (!sectionElement || sectionElement.tagName !== 'SECTION') {
+          var msg = 'Trying to open an unexistent section: ' + section;
+          console.warn(msg);
+          activityRequest.postError(msg);
+          return;
+        }
+
+        // Go to that section
+        setTimeout(function settings_goToSection() {
+          document.location.hash = section;
+        });
+        break;
+    }
+  },
+
+  handleEvent: function settings_handleEvent(event) {
+    var input = event.target;
     var type = input.dataset.type || input.type; // bug344618
     var key = input.name;
 
     var settings = window.navigator.mozSettings;
-    if (!key || !settings || evt.type != 'change')
+    if (!key || !settings || event.type != 'change')
+      return;
+
+    // Not touching <input> with data-setting attribute here
+    // because they would have to be committed with a explicit "submit"
+    // of their own dialog.
+    if (input.dataset.setting)
       return;
 
     var value;
@@ -221,56 +414,21 @@ var Settings = {
       case 'radio':
       case 'text':
       case 'password':
-        value = input.value; // text
+        value = input.value; // default as text
+        if (input.dataset.valueType === 'integer') // integer
+          value = parseInt(value);
         break;
     }
+
     var cset = {}; cset[key] = value;
     settings.createLock().set(cset);
-  },
-
-  loadGaiaCommit: function settings_loadGaiaCommit() {
-    var GAIA_COMMIT = 'gaia-commit.txt';
-
-    function dateToUTC(d) {
-      var arr = [];
-      [
-        d.getUTCFullYear(), (d.getUTCMonth() + 1), d.getUTCDate(),
-        d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds()
-      ].forEach(function(n) {
-        arr.push((n >= 10) ? n : '0' + n);
-      });
-      return arr.splice(0, 3).join('-') + ' ' + arr.join(':');
-    }
-
-    var req = new XMLHttpRequest();
-    req.onreadystatechange = (function(e) {
-      if (req.readyState === 4) {
-        if (req.status === 0 || req.status === 200) {
-          var data = req.responseText.split('\n');
-          var dispDate = document.getElementById('gaia-commit-date');
-          var disp = document.getElementById('gaia-commit-hash');
-          // XXX it would be great to pop a link to the github page
-          // showing the commit but there doesn't seem to be any way
-          // to tell the browser to do it.
-          var d = new Date(parseInt(data[1] + '000', 10));
-          dispDate.textContent = dateToUTC(d);
-          disp.textContent = data[0];
-        } else {
-          console.error('Failed to fetch gaia commit: ', req.statusText);
-        }
-      }
-    }).bind(this);
-
-    req.open('GET', GAIA_COMMIT, true); // async
-    req.responseType = 'text';
-    req.send();
   },
 
   openDialog: function settings_openDialog(dialogID) {
     var settings = this.mozSettings;
     var dialog = document.getElementById(dialogID);
     var fields =
-        dialog.querySelectorAll('input[data-setting]:not([data-ignore])');
+        dialog.querySelectorAll('[data-setting]:not([data-ignore])');
 
     /**
      * In Settings dialog boxes, we don't want the input fields to be preset
@@ -282,10 +440,13 @@ var Settings = {
      * explicitely when the dialog is shown.  If the dialog is validated
      * (submit), their values are stored into B2G settings.
      *
-     * XXX warning, this only supports text/password/radio input types.
+     * XXX warning:
+     * this only supports text/password/radio/select/radio input types.
      */
 
     // initialize all setting fields in the dialog box
+    // XXX for fields being added by lazily loaded script,
+    // it would have to initialize the fields again themselves.
     function reset() {
       if (settings) {
         var lock = settings.createLock();
@@ -294,7 +455,17 @@ var Settings = {
             var key = input.dataset.setting;
             var request = lock.get(key);
             request.onsuccess = function() {
-              input.value = request.result[key] || '';
+              switch (input.type) {
+                case 'radio':
+                  input.checked = (input.value == request.result[key]);
+                  break;
+                case 'checkbox':
+                  input.checked = request.result[key] || false;
+                  break;
+                default:
+                  input.value = request.result[key] || '';
+                  break;
+              }
             };
           })(fields[i]);
         }
@@ -304,6 +475,9 @@ var Settings = {
     // validate all settings in the dialog box
     function submit() {
       if (settings) {
+        // Update the fields node list to include dynamically added fields
+        fields = dialog.querySelectorAll('[data-setting]:not([data-ignore])');
+
         // mozSettings does not support multiple keys in the cset object
         // with one set() call,
         // see https://bugzilla.mozilla.org/show_bug.cgi?id=779381
@@ -312,7 +486,18 @@ var Settings = {
           var input = fields[i];
           var cset = {};
           var key = input.dataset.setting;
-          cset[key] = input.value;
+          switch (input.type) {
+            case 'radio':
+              if (input.checked)
+                cset[key] = input.value;
+              break;
+            case 'checkbox':
+                cset[key] = input.checked;
+              break;
+            default:
+              cset[key] = input.value;
+              break;
+          }
           lock.set(cset);
         }
       }
@@ -322,52 +507,306 @@ var Settings = {
     openDialog(dialogID, submit);
   },
 
-  checkForUpdates: function settings_checkForUpdates() {
-    var settings = this.mozSettings;
-    if (!settings) {
+  getSupportedLanguages: function settings_getLanguages(callback) {
+    var LANGUAGES = 'shared/resources/languages.json';
+
+    if (this._languages) {
+      callback(this._languages);
+    } else {
+      var self = this;
+      var xhr = new XMLHttpRequest();
+      xhr.onreadystatechange = function loadSupportedLocales() {
+        if (xhr.readyState === 4) {
+          if (xhr.status === 0 || xhr.status === 200) {
+            self._languages = xhr.response;
+            callback(self._languages);
+          } else {
+            console.error('Failed to fetch languages.json: ', xhr.statusText);
+          }
+        }
+      };
+      xhr.open('GET', LANGUAGES, true); // async
+      xhr.responseType = 'json';
+      xhr.send();
+    }
+  },
+
+  updateLanguagePanel: function settings_updateLanguagePanel() {
+    var panel = document.getElementById('languages');
+    if (panel) { // update the date and time samples in the 'languages' panel
+      var d = new Date();
+      var f = new navigator.mozL10n.DateTimeFormat();
+      var _ = navigator.mozL10n.get;
+      panel.querySelector('#region-date').textContent =
+          f.localeFormat(d, _('longDateFormat'));
+      panel.querySelector('#region-time').textContent =
+          f.localeFormat(d, _('shortTimeFormat'));
+    }
+  },
+
+  loadPanelStylesheetsIfNeeded: function settings_loadPanelStylesheetsIN() {
+    var self = this;
+    if (self._panelStylesheetsLoaded) {
       return;
     }
 
-    var lock = settings.createLock();
-    lock.set({
-      'gaia.system.checkForUpdates': true
+    LazyLoader.load(['shared/style/action_menu.css',
+                     'shared/style/buttons.css',
+                     'shared/style/confirm.css',
+                     'shared/style/input_areas.css',
+                     'shared/style_unstable/progress_activity.css',
+                     'style/apps.css',
+                     'style/phone_lock.css',
+                     'style/simcard.css',
+                     'style/updates.css'],
+    function callback() {
+      self._panelStylesheetsLoaded = true;
     });
   }
 };
 
-// apply user changes to 'Settings'
-window.addEventListener('load', function loadSettings(evt) {
+// apply user changes to 'Settings' + panel navigation
+window.addEventListener('load', function loadSettings() {
   window.removeEventListener('load', loadSettings);
   window.addEventListener('change', Settings);
-  window.addEventListener('click', Settings);
-  bug344618_polyfill(); // XXX to be removed when bug344618 is fixed
-  Settings.init();
 
-  // early way out if we're using a desktop build
-  var settings = Settings.mozSettings;
-  if (!settings)
-    return;
-
-  // brightness control
-  var manualBrightness = document.getElementById('brightness-manual');
-  var autoBrightnessSetting = 'screen.automatic-brightness';
-  settings.addObserver(autoBrightnessSetting, function(event) {
-    manualBrightness.hidden = event.settingValue;
+  navigator.addIdleObserver({
+    time: 3,
+    onidle: Settings.loadPanelStylesheetsIfNeeded.bind(Settings)
   });
-  var req = settings.createLock().get(autoBrightnessSetting);
-  req.onsuccess = function brightness_onsuccess() {
-    manualBrightness.hidden = req.result[autoBrightnessSetting];
-  };
 
-  // activate all external links
-  var links = document.querySelectorAll('a[href^="http"]');
-  for (var i = 0; i < links.length; i++) {
-    links[i].dataset.href = links[i].href;
-    links[i].href = '#';
-    links[i].onclick = function() {
-      openURL(this.dataset.href);
-      return false;
+  Settings.init();
+  handleRadioAndCardState();
+
+  setTimeout(function() {
+    var scripts = [
+      'js/utils.js',
+      'shared/js/mouse_event_shim.js',
+      'js/airplane_mode.js',
+      'js/battery.js',
+      'js/app_storage.js',
+      'js/media_storage.js',
+      'shared/js/mobile_operator.js',
+      'js/connectivity.js',
+      'js/security_privacy.js',
+      'js/icc_menu.js'
+    ];
+    scripts.forEach(function attachScripts(src) {
+      var script = document.createElement('script');
+      script.src = src;
+      document.head.appendChild(script);
+    });
+  });
+
+  // panel lazy-loading
+  function lazyLoad(panel) {
+    if (panel.children.length) // already initialized
+      return;
+
+    // load the panel and its sub-panels (dependencies)
+    // (load the main panel last because it contains the scripts)
+    var selector = 'section[id^="' + panel.id + '-"]';
+    var subPanels = document.querySelectorAll(selector);
+    for (var i = 0; i < subPanels.length; i++) {
+      Settings.loadPanel(subPanels[i]);
+    }
+    Settings.loadPanel(panel);
+
+    // panel-specific initialization tasks
+    switch (panel.id) {
+      case 'display':             // <input type="range"> + brightness control
+        bug344618_polyfill();     // XXX to be removed when bug344618 is fixed
+        var manualBrightness = panel.querySelector('#brightness-manual');
+        var autoBrightnessSetting = 'screen.automatic-brightness';
+        var settings = Settings.mozSettings;
+        if (!settings)
+          return;
+        settings.addObserver(autoBrightnessSetting, function(event) {
+          manualBrightness.hidden = event.settingValue;
+        });
+        var req = settings.createLock().get(autoBrightnessSetting);
+        req.onsuccess = function brightness_onsuccess() {
+          manualBrightness.hidden = req.result[autoBrightnessSetting];
+        };
+        break;
+      case 'sound':               // <input type="range">
+        bug344618_polyfill();     // XXX to be removed when bug344618 is fixed
+        break;
+      case 'languages':           // fill language selector
+        var langSel = document.querySelector('select[name="language.current"]');
+        langSel.innerHTML = '';
+        Settings.getSupportedLanguages(function fillLanguageList(languages) {
+          for (var lang in languages) {
+            var option = document.createElement('option');
+            option.value = lang;
+            // Right-to-Left (RTL) languages:
+            // (http://www.w3.org/International/questions/qa-scripts)
+            // Arabic, Hebrew, Farsi, Pashto, Urdu
+            var rtlList = ['ar', 'he', 'fa', 'ps', 'ur'];
+            // Use script direction control-characters to wrap the text labels
+            // since markup (i.e. <bdo>) does not work inside <option> tags
+            // http://www.w3.org/International/tutorials/bidi-xhtml/#nomarkup
+            var lEmbedBegin =
+                (rtlList.indexOf(lang) >= 0) ? '&#x202B;' : '&#x202A;';
+            var lEmbedEnd = '&#x202C;';
+            // The control-characters enforce the language-specific script
+            // direction to correctly display the text label (Bug #851457)
+            option.innerHTML = lEmbedBegin + languages[lang] + lEmbedEnd;
+            option.selected = (lang == document.documentElement.lang);
+            langSel.appendChild(option);
+          }
+        });
+        setTimeout(Settings.updateLanguagePanel);
+        break;
+      case 'mediaStorage':        // full media storage status + panel startup
+        MediaStorage.initUI();
+        break;
+      case 'deviceStorage':       // full device storage status
+        AppStorage.update();
+        break;
+      case 'battery':             // full battery status
+        Battery.update();
+        break;
+    }
+
+    // preset all inputs in the panel and subpanels.
+    for (var i = 0; i < subPanels.length; i++) {
+      Settings.presetPanel(subPanels[i]);
+    }
+    Settings.presetPanel(panel);
+  }
+
+  // panel navigation
+  var oldHash = window.location.hash || '#root';
+  function showPanel() {
+    var hash = window.location.hash;
+
+    if (hash === '#wifi') {
+      PerformanceTestingHelper.dispatch('start');
+    }
+
+    var oldPanel = document.querySelector(oldHash);
+    var newPanel = document.querySelector(hash);
+
+    // load panel (+ dependencies) if necessary -- this should be synchronous
+    lazyLoad(newPanel);
+
+    // switch previous/current/forward classes
+    // FIXME: The '.peek' is here to avoid an ugly white
+    // flickering when transitioning (gecko 18)
+    // the forward class helps us 'peek' in the right direction
+    oldPanel.className = newPanel.className ? 'peek' : 'peek previous forward';
+    newPanel.className = newPanel.className ?
+                           'current peek' : 'peek current forward';
+    oldHash = hash;
+
+    /**
+     * Most browsers now scroll content into view taking CSS transforms into
+     * account.  That's not what we want when moving between <section>s,
+     * because the being-moved-to section is offscreen when we navigate to its
+     * #hash.  The transitions assume the viewport is always at document 0,0.
+     * So add a hack here to make that assumption true again.
+     * https://bugzilla.mozilla.org/show_bug.cgi?id=803170
+     */
+    if ((window.scrollX !== 0) || (window.scrollY !== 0)) {
+      window.scrollTo(0, 0);
+    }
+
+    window.addEventListener('transitionend', function paintWait() {
+      window.removeEventListener('transitionend', paintWait);
+
+      // We need to wait for the next tick otherwise gecko gets confused
+      setTimeout(function nextTick() {
+        oldPanel.classList.remove('peek');
+        oldPanel.classList.remove('forward');
+        newPanel.classList.remove('peek');
+        newPanel.classList.remove('forward');
+
+        // Bug 818056 - When multiple visible panels are present,
+        // they are not painted correctly. This appears to fix the issue.
+        // Only do this after the first load
+        if (oldPanel.className === 'current')
+          return;
+
+        oldPanel.addEventListener('transitionend', function onTransitionEnd() {
+          oldPanel.removeEventListener('transitionend', onTransitionEnd);
+          switch (newPanel.id) {
+            case 'about-licensing':
+              // Workaround for bug 825622, remove when fixed
+              var iframe = document.getElementById('os-license');
+              iframe.src = iframe.dataset.src;
+              break;
+            case 'wifi':
+              PerformanceTestingHelper.dispatch('settings-panel-wifi-visible');
+              break;
+          }
+        });
+      });
+    });
+  }
+
+  function handleRadioAndCardState() {
+    function updateDataSubpanelItem(disabled) {
+      var item = document.getElementById('data-connectivity');
+      var link = document.getElementById('menuItem-cellularAndData');
+      if (!item || !link)
+        return;
+
+      if (disabled) {
+        item.classList.add('carrier-disabled');
+        link.onclick = function() { return false; };
+      } else {
+        item.classList.remove('carrier-disabled');
+        link.onclick = null;
+      }
+    }
+
+    function updateCallSubpanelItem(disabled) {
+      var item = document.getElementById('call-settings');
+      var link = document.getElementById('menuItem-callSettings');
+      if (!item || !link)
+        return;
+
+      if (disabled) {
+        item.classList.add('call-settings-disabled');
+        link.onclick = function() { return false; };
+      } else {
+        item.classList.remove('call-settings-disabled');
+        link.onclick = null;
+      }
+    }
+
+    var key = 'ril.radio.disabled';
+
+    var settings = Settings.mozSettings;
+    if (!settings)
+      return;
+
+    var req = settings.createLock().get(key);
+    req.onsuccess = function() {
+      var value = req.result[key];
+      updateDataSubpanelItem(value);
+      updateCallSubpanelItem(value);
     };
+    settings.addObserver(key, function(evt) {
+      updateDataSubpanelItem(evt.settingValue);
+      updateCallSubpanelItem(evt.settingValue);
+    });
+  }
+
+  // startup
+  window.addEventListener('hashchange', showPanel);
+  switch (window.location.hash) {
+    case '#root':
+      // Nothing to do here; default startup case.
+      break;
+    case '':
+      document.location.hash = 'root';
+      break;
+    default:
+      document.getElementById('root').className = 'previous';
+      showPanel();
+      break;
   }
 });
 
@@ -384,7 +823,7 @@ window.addEventListener('keydown', function handleSpecialKeys(event) {
       dialog.classList.remove('active');
       document.body.classList.remove('dialog');
     } else {
-      document.location.hash = 'root';
+      document.location.hash = '#root';
     }
   } else if (event.keyCode === event.DOM_VK_RETURN) {
     event.target.blur();
@@ -393,36 +832,22 @@ window.addEventListener('keydown', function handleSpecialKeys(event) {
   }
 });
 
-// set the 'lang' and 'dir' attributes to <html> when the page is translated
-window.addEventListener('localized', function showBody() {
+// startup & language switching
+window.addEventListener('localized', function showLanguages() {
+  // set the 'lang' and 'dir' attributes to <html> when the page is translated
   document.documentElement.lang = navigator.mozL10n.language.code;
   document.documentElement.dir = navigator.mozL10n.language.direction;
 
-  // <body> children are hidden until the UI is translated
-  if (document.body.classList.contains('hidden')) {
-    // first run: show main page
-    document.body.classList.remove('hidden');
-  } else {
-    // we were in #languages and selected another locale:
-    // reset the hash to prevent weird focus bugs when switching LTR/RTL
-    window.setTimeout(function() {
-      document.location.hash = 'languages';
-    });
-  }
-
-  // update date and time samples
-  var d = new Date();
-  var f = new navigator.mozL10n.DateTimeFormat();
-  var _ = navigator.mozL10n.get;
-  document.getElementById('region-date').textContent =
-      f.localeFormat(d, _('longDateFormat'));
-  document.getElementById('region-time').textContent =
-      f.localeFormat(d, _('shortTimeFormat'));
-
-  // show current locale in the main panel
-  var selector = 'select[name="language.current"] option[value="' +
-      navigator.mozL10n.language.code + '"]';
-  document.getElementById('language-desc').textContent =
-      document.querySelector(selector).textContent;
+  // display the current locale in the main panel
+  Settings.getSupportedLanguages(function displayLang(languages) {
+    document.getElementById('language-desc').textContent =
+        languages[navigator.mozL10n.language.code];
+  });
+  Settings.updateLanguagePanel();
 });
 
+// Do initialization work that doesn't depend on the DOM, as early as
+// possible in startup.
+Settings.preInit();
+
+MouseEventShim.trackMouseMoves = false;

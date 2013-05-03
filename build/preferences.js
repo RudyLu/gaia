@@ -1,6 +1,10 @@
 
 'use strict';
 
+function debug(msg) {
+  //dump('-*- preferences.js ' + msg + '\n');
+}
+
 const prefs = [];
 
 let homescreen = HOMESCREEN + (GAIA_PORT ? GAIA_PORT : '');
@@ -17,11 +21,10 @@ Gaia.webapps.forEach(function (webapp) {
   domains.push(webapp.domain);
 });
 
-
-// Probably wont be needed when https://bugzilla.mozilla.org/show_bug.cgi?id=768440 lands
-prefs.push(["dom.send_after_paint_to_content", true]);
-
 prefs.push(["network.http.max-connections-per-server", 15]);
+
+// for https://bugzilla.mozilla.org/show_bug.cgi?id=811605 to let user know what prefs is for ril debugging
+prefs.push(["ril.debugging.enabled", false]);
 
 if (LOCAL_DOMAINS) {
   prefs.push(["network.dns.localDomains", domains.join(",")]);
@@ -39,15 +42,42 @@ if (DEBUG) {
   prefs.push(["nglayout.debug.disable_xul_fastload", true]);
   prefs.push(["extensions.autoDisableScopes", 0]);
   prefs.push(["browser.startup.homepage", homescreen]);
+  prefs.push(["startup.homepage_welcome_url", ""]);
+  prefs.push(["browser.shell.checkDefaultBrowser", false]);
+  prefs.push(["devtools.toolbox.host", "side"]);
+  prefs.push(["devtools.toolbox.sidebar.width", 800]);
+  prefs.push(["devtools.chrome.enabled", true]);
+  prefs.push(["browser.sessionstore.max_tabs_undo", 0]);
+  prefs.push(["browser.sessionstore.max_windows_undo", 0]);
+  prefs.push(["browser.sessionstore.restore_on_demand", false]);
+  prefs.push(["browser.sessionstore.resume_from_crash", false]);
 
   prefs.push(["dom.mozBrowserFramesEnabled", true]);
   prefs.push(["b2g.ignoreXFrameOptions", true]);
+  prefs.push(["network.disable.ipc.security", true]);
+  prefs.push(["webgl.verbose", true]);
+
+  prefs.push(["dom.ipc.tabs.disabled", true]);
+  prefs.push(["browser.ignoreNativeFrameTextSelection", true]);
+  prefs.push(["ui.dragThresholdX", 25]);
+  prefs.push(["dom.w3c_touch_events.enabled", 1]);
+
+  // Enable apis use on the device
   prefs.push(["dom.sms.enabled", true]);
   prefs.push(["dom.mozContacts.enabled", true]);
   prefs.push(["dom.mozSettings.enabled", true]);
+  prefs.push(["dom.mozTCPSocket.enabled", true]);
+  prefs.push(["dom.sysmsg.enabled", true]);
+  prefs.push(["dom.mozAlarms.enabled", true]);
   prefs.push(["device.storage.enabled", true]);
-  prefs.push(["devtools.chrome.enabled", true]);
-  prefs.push(["webgl.verbose", true]);
+  prefs.push(["device.storage.prompt.testing", true]);
+  prefs.push(["dom.mozPermissionSettings.enabled", true]);
+
+
+  // Disable HTTP caching for now
+  // This makes working with the system app much easier, due to the iframe
+  // caching issue.
+  prefs.push(['network.http.use-cache', false]);
 
   // Preferences for httpd
   // (Use JSON.stringify in order to avoid taking care of `\` escaping)
@@ -56,12 +86,16 @@ if (DEBUG) {
   prefs.push(["extensions.gaia.port", parseInt(GAIA_PORT.replace(/:/g, ""))]);
   prefs.push(["extensions.gaia.app_src_dirs", GAIA_APP_SRCDIRS]);
   prefs.push(["extensions.gaia.locales_debug_path", GAIA_LOCALES_PATH]);
+  prefs.push(["extensions.gaia.official", Boolean(OFFICIAL)]);
   let appPathList = [];
   Gaia.webapps.forEach(function (webapp) {
     appPathList.push(webapp.sourceAppDirectoryName + '/' +
                      webapp.sourceDirectoryName);
   });
   prefs.push(["extensions.gaia.app_relative_path", appPathList.join(' ')]);
+
+  // Identity debug messages
+  prefs.push(["toolkit.identity.debug", true]);
 }
 
 function writePrefs() {
@@ -70,7 +104,7 @@ function writePrefs() {
     return 'user_pref("' + entry[0] + '", ' + JSON.stringify(entry[1]) + ');';
   }).join('\n');
   writeContent(userJs, content + "\n");
-  dump("\n" + content + "\n");
+  debug("\n" + content);
 }
 
 function setPrefs() {

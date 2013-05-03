@@ -24,18 +24,8 @@ var SetTime = (function SetTime() {
   };
 })();
 
-window.addEventListener('localized', function SettingsDateAndTime(evt) {
+navigator.mozL10n.ready(function SettingsDateAndTime() {
   var _ = navigator.mozL10n.get;
-
-  function initDatePicker() { // Date Picker need to provide init value
-    var d = new Date();
-    gDatePicker.value = d.toLocaleFormat('%Y-%m-%d');
-  }
-
-  function initTimePicker() { // Time Picker need to provide init value
-    var d = new Date();
-    gTimePicker.value = d.toLocaleFormat('%H:%M');
-  }
 
   function updateDate() {
     var d = new Date();
@@ -61,10 +51,6 @@ window.addEventListener('localized', function SettingsDateAndTime(evt) {
     }, (59 - d.getSeconds()) * 1000);
   }
 
-  function setTimeManualEnabled(enabled) {
-    gTimeManualMenu.hidden = enabled ? true : false;
-  }
-
   function setTime(type) {
     var pDate = '';
     var pTime = '';
@@ -77,7 +63,7 @@ window.addEventListener('localized', function SettingsDateAndTime(evt) {
         break;
 
       case 'time':
-        // Get value from time picker. %Y-%m-%d
+        // Get value from time picker.
         pDate = d.toLocaleFormat('%Y-%m-%d');
         pTime = gTimePicker.value;  // Format: 0:02, 8:05, 23:45
         break;
@@ -91,160 +77,114 @@ window.addEventListener('localized', function SettingsDateAndTime(evt) {
     SetTime.set(newDate);
   }
 
-  function setTimezoneDescription(timezone) {
-    _timezone = timezone;
-    gTimezoneDescription.innerHTML = parseNameByTimezoneValue(timezone);
-  }
-
-  function parseNameByTimezoneValue(value) {
-    for (var i = 0; i < _jsonData.length; i++) {
-      for (var j = 0; j < _jsonData[i].zones.length; j++) {
-        if (value == _jsonData[i].zones[j].value)
-          return _jsonData[i].zones[j].name;
-      }
-    }
-    return value;
-  }
-
-  function loadTimezoneDB(callback) {
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', _jsonUrl, true);
-    try {
-      xhr.responseType = 'json';
-    } catch (e) { }
-    xhr.overrideMimeType('application/json; charset=utf-8');
-    xhr.onreadystatechange = function xhrReadystatechange(ev) {
-      if (xhr.readyState !== 4)
-        return;
-
-      var response;
-      if (xhr.responseType == 'json') {
-        response = xhr.response;
-      } else {
-        try {
-          response = JSON.parse(xhr.responseText);
-        } catch (e) { }
-      }
-      _jsonData = response;
-
-      if (typeof response !== 'object') {
-        debug('Failed to load timezones.json: Malformed JSON');
-        callback();
-        return;
-      }
-      xhr = null;
-      if (callback) {
-        callback();
-      }
-    };
-
-    xhr.send(null);
-  }
-
-  function initTimezoneContinents() {
-    var content = '';
-    var continentsID = 'timezone-continents-';
-    for (var i = 0; i < _jsonData.length; i++) {
-      content += '<li id="timezone-continents-' + continentsID + i + '">' +
-                 '  <a href="#timezone-zones" id="continent-item"' +
-                      'data-id="' + i + '">' + _jsonData[i].group +
-                 '  </a>' +
-                 '</li>';
-    }
-    gTimezoneContinents.innerHTML = content;
-  }
-
-  function loadZones(index) {
-    var content = '';
-    for (var i = 0; i < _jsonData[index].zones.length; i++) {
-      var isChecked =
-        (_timezone == _jsonData[index].zones[i].value) ? 'checked' : '';
-      content += '<li>' +
-                 '  <label>' +
-                 '    <input type="radio" name="time.timezone" value="' +
-                        _jsonData[index].zones[i].value + '" ' +
-                        isChecked + '/>' +
-                 '    <span></span>' +
-                 '  </label>' +
-                 '  <a>' + _jsonData[index].zones[i].name + '</a>' +
-                 '</li>';
-    }
-    gTimezoneZones.innerHTML = content;
-  }
-
   var settings = window.navigator.mozSettings;
   if (!settings)
     return;
 
-  var gTimeManualMenu = document.getElementById('time-manual');
+  var gTimeAutoSwitch = document.getElementById('time-auto');
+  var gTimezoneRegion = document.getElementById('timezone-region');
+  var gTimezoneCity = document.getElementById('timezone-city');
   var gDatePicker = document.getElementById('date-picker');
   var gTimePicker = document.getElementById('time-picker');
   var gDate = document.getElementById('clock-date');
   var gTime = document.getElementById('clock-time');
-  var gTimezoneDescription = document.getElementById('timezoneDescription');
-  var gTimezoneContinents = document.getElementById('timezone-continents');
-  var gTimezoneZones = document.getElementById('timezone-zones-list');
   var _updateDateTimeout = null;
   var _updateClockTimeout = null;
-  var _timezone = null;
-  var _jsonUrl = 'timezones.json';
-  var _jsonData = [];
 
 
-  // issue #5276: PERSONALIZATION SETTINGS ->
-  //             "Date & Time Page" -> toggle "24-hour Clock" ON/OFF
-  // [TODO]: toggle 24-Hour clock display on/off
-  // register an observer to monitor time.timezone changes
-  settings.addObserver('time.timezone', function(event) {
-    setTimezoneDescription(event.settingValue);
+  /**
+   * Monitor time.nitz.automatic-update.enabled changes
+   */
+
+  var kTimeAutoEnabled = 'time.nitz.automatic-update.enabled';
+
+  function setTimeAutoEnabled(enabled) {
+    gTimeAutoSwitch.dataset.state = enabled ? 'auto' : 'manual';
+
+    if (enabled)
+      return;
+
+    // Reset the timezone to the previous user selected value
+    var reqUserTZ = settings.createLock().get('time.timezone.user-selected');
+    reqUserTZ.onsuccess = function dt_getUserTimezoneSuccess() {
+      var userSelTimezone = reqUserTZ.result['time.timezone.user-selected'];
+      if (userSelTimezone) {
+        settings.createLock().set({'time.timezone': userSelTimezone});
+      }
+    };
+  }
+
+  settings.addObserver(kTimeAutoEnabled, function(event) {
+    setTimeAutoEnabled(!!event.settingValue);
   });
 
-  // startup, update status
-  var reqTimezone = settings.createLock().get('time.timezone');
-  reqTimezone.onsuccess = function dt_getStatusSuccess() {
-    var lastMozSettingValue = reqTimezone.result['time.timezone'];
-    setTimezoneDescription(lastMozSettingValue);
+  var reqTimeAutoEnabled = settings.createLock().get(kTimeAutoEnabled);
+  reqTimeAutoEnabled.onsuccess = function dt_getStatusSuccess() {
+    setTimeAutoEnabled(reqTimeAutoEnabled.result[kTimeAutoEnabled]);
   };
 
-  // register an observer to monitor time.nitz.automatic-update.enabled changes
-  settings.addObserver('time.nitz.automatic-update.enabled', function(event) {
-    setTimeManualEnabled(event.settingValue);
+
+  /**
+   * Hide automatic time setting if NITZ is not available
+   */
+
+  var kTimeAutoAvailable = 'time.nitz.available';
+
+  function setTimeAutoAvailable(available) {
+    gTimeAutoSwitch.hidden = !available;
+    if (!available) { // disable the time auto-update if N/A
+      var cset = {};
+      cset[kTimeAutoEnabled] = false;
+      settings.createLock().set(cset);
+    }
+  }
+
+  settings.addObserver(kTimeAutoAvailable, function(event) {
+    setTimeAutoAvailable(!!event.settingValue);
   });
 
-  // startup, update status
-  var reqTimeAutoUpdate =
-    settings.createLock().get('time.nitz.automatic-update.enabled');
-  reqTimeAutoUpdate.onsuccess = function dt_getStatusSuccess() {
-    var lastMozSettingValue =
-      reqTimeAutoUpdate.result['time.nitz.automatic-update.enabled'];
-    setTimeManualEnabled(lastMozSettingValue);
+  var reqTimeAutoAvailable = settings.createLock().get(kTimeAutoAvailable);
+  reqTimeAutoAvailable.onsuccess = function nitz_getStatusSuccess() {
+    setTimeAutoAvailable(!!reqTimeAutoAvailable.result[kTimeAutoAvailable]);
   };
+
+
+  /**
+   * UI startup
+   */
 
   SetTime.init();
-  loadTimezoneDB(initTimezoneContinents);
-  initDatePicker();
-  initTimePicker();
   updateDate();
   updateClock();
 
-  gTimezoneContinents.addEventListener('click', function clickContinents(evt) {
-    var link = evt.target;
-    if (!link)
-      return;
+  // need to provide an onchange callback to tzSelect, so that
+  // when we change region, both region/city will be updated
+  function tzOnchange() {
+    var selectList = [gTimezoneRegion, gTimezoneCity];
+    selectList.forEach(function initLabel(select) {
+      var button = select.previousElementSibling;
+      var index = select.selectedIndex;
+      if (index >= 0) {
+        button.textContent = select.options[index].textContent;
+      }
+    });
+  }
 
-    switch (link.id) {
-      case 'continent-item':
-        loadZones(link.dataset.id);
-        break;
-    }
-  });
+  // monitor time.timezone changes, see /shared/js/tz_select.js
+  tzSelect(gTimezoneRegion, gTimezoneCity, tzOnchange, tzOnchange);
 
   gDatePicker.addEventListener('input', function datePickerChange() {
     setTime('date');
+    // Clean up the value of picker once we get date set by the user.
+    // It will get new date according system time when pop out again.
+    gDatePicker.value = '';
   });
 
   gTimePicker.addEventListener('input', function timePickerChange() {
     setTime('time');
+    // Clean up the value of picker once we get time set by the user.
+    // It will get new time according system time when pop out again.
+    gTimePicker.value = '';
   });
 
   window.addEventListener('moztimechange', function moztimechange() {
@@ -252,6 +192,15 @@ window.addEventListener('localized', function SettingsDateAndTime(evt) {
     window.clearTimeout(_updateClockTimeout);
     updateDate();
     updateClock();
+  });
+
+  window.addEventListener('localized', function localized() {
+    // Update date and time locale when language is changed
+    var d = new Date();
+    var f = new navigator.mozL10n.DateTimeFormat();
+    var format = _('shortTimeFormat');
+    gDate.textContent = f.localeFormat(d, '%x');
+    gTime.textContent = f.localeFormat(d, format);
   });
 
   document.addEventListener('mozvisibilitychange', function visibilityChange() {

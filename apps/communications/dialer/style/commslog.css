@@ -9,22 +9,32 @@ section[role="region"] > header:first-child button[aria-disabled="true"] .icon {
 }
 
 /* Overriding BB styles for edit mode */
-form.edit[role="dialog"] header .icon {
+form[role="dialog"][data-type="edit"] header .icon {
   pointer-events: auto;
 }
 
-form.edit[role="dialog"] header,
-form.edit[role="dialog"] > menu {
-  transition: transform 0.25s ease;
+/* Override Building Block [Edit mode] styles */
+form[role="dialog"][data-type="edit"] header,
+form[role="dialog"][data-type="edit"] > menu {
+  transition: all 0.3s ease;
 }
 
-form.edit[role="dialog"],
-form.edit[role="dialog"] header {
-  transform: translateY(-100%);
+form[role="dialog"][data-type="edit"] header {
+  transform: translateY(-110%);
 }
 
-form.edit[role="dialog"] > menu {
-  transform: translateY(100%);
+form[role="dialog"][data-type="edit"] > menu {
+  transform: translateY(110%);
+}
+
+/* Override Building Block styles for lists */
+#recents-container[data-type="list"] li {
+  border-top: 0.1rem solid #DBD9D9;
+  border-bottom: none;
+}
+
+#recents-container[data-type="list"] li:first-child {
+  border-top: none;
 }
 
 .disabled {
@@ -45,28 +55,24 @@ ol, ul {
   list-style: none;
 }
 
-.recents-filter-container {
-  background: white;
+/* Copying Filters BB styles for selected filter, but using .selected instead of :target */
+ul[role="tablist"][data-type="filter"] > [role="tab"].selected {
+  background: #fff;
+  border: solid 1px #999;
+  border-top: none;
+  color: #000;
 }
 
-.recents-filter-entry {
-  float: left;
-  width: 50%;
+ul[role="tablist"][data-type="filter"] > [role="tab"]:first-child.selected {
+  border-left: none;
 }
 
-.recents-filter-entry > button {
-  height: 3rem;
-  width: 100%;
-  font-size: -moz-calc(6*0.226rem);
-  opacity: 0.8;
+ul[role="tablist"][data-type="filter"] > [role="tab"]:last-child.selected {
+  border-right: none;
 }
 
-button.selected {
-  opacity: 1.0;
-}
-
-button::-moz-focus-inner {
-  border: 0px;
+ul[role="tablist"][data-type="filter"] > [role="tab"].selected > a {
+  color: #000;
 }
 
 .hide {
@@ -76,9 +82,10 @@ button::-moz-focus-inner {
 .view-body {
   background : white;
   color: black;
-  height: -moz-calc(100% - 8rem);
+  height: -moz-calc(100% - 9.5rem);
   -moz-transition: height .15s ease-in;
   position: absolute;
+  overflow: hidden;
   width: 100%;
 }
 
@@ -87,18 +94,13 @@ button::-moz-focus-inner {
   overflow: auto;
 }
 
-.view-body h2 {
-  margin: 0;
-  font-family: FontRegular;
-  border-bottom: solid 1px #ff4e00;
-  padding-left: 1.5rem;
-  margin-left: 1.5rem;
-  margin-right: 1.5rem;
-  padding-top:1rem;
-  font-size: -moz-calc(6*0.226rem);
-  color: #ff4e00;
-  text-transform: uppercase;
-  height: 1.8rem;
+.view-body-inner ol {
+  overflow: hidden;
+}
+
+.view-body .fixed-title {
+  background-position: 1.5rem 0;
+  height: 3.5rem;
 }
 
 .header-noresult {
@@ -118,54 +120,73 @@ button::-moz-focus-inner {
   background-image: url('images/ComLog_200x200_clock.png');
 }
 
-.log-group li {
-  height: 5rem;
-  border-bottom: .1rem solid  #dbdbdb;
-  color:black;
-}
-
-.log-group li:last-child{
-  border-bottom: 0;
-}
-
 .icon-container {
   float: left;
   height: 100%;
   width: 5rem;
-
 }
 
-.icon-incoming {
-  width: 3rem;
-  height: 3rem;
+.icon-incoming,
+.icon-outgoing,
+.icon-missed {
+  background-size: 3rem;
+}
+
+[data-type="list"] aside.icon.icon-incoming {
   background-image: url('images/CallLog_30x30_incoming.png');
 }
 
-.icon-outgoing {
-  width: 3rem;
-  height: 3rem;
+[data-type="list"] aside.icon.icon-outgoing {
   background-image: url('images/CallLog_30x30_outgoing.png');
 }
 
-.icon-missed {
-  width: 3rem;
-  height: 3rem;
+[data-type="list"] aside.icon.icon-missed {
   background-image: url('images/CallLog_30x30_missed_grey.png');
+}
+
+[data-type="list"] .log-item {
+  padding: 0;
 }
 
 .log-item * {
   pointer-events: none;
 }
 
+.log-item .pack-end {
+  position: absolute;
+  right: 0;
+}
+
+.log-item:not(.hasPhoto) .pack-end {
+  width: 0;
+}
+
+.log-item .primary-info {
+  text-overflow: clip;
+}
+
+.log-item.hasPhoto .primary-info,
+.log-item.hasPhoto .secondary-info {
+  width: 19rem;
+}
+
+.log-item:not(.hasPhoto) .primary-info,
+.log-item:not(.hasPhoto) .secondary-info {
+  width: 25rem;
+}
+
+.log-item .primary-info span {
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .log-item .call-log-contact-photo {
   pointer-events: auto;
 }
 
-.recents-edit .call-log-contact-photo {
-  pointer-events: none;
-}
-
-.log-item.highlighted .icon-missed {
+[data-type="list"] .highlighted aside.icon.icon-missed {
   background-image: url('images/CallLog_30x30_missed.png');
 }
 
@@ -177,120 +198,63 @@ button::-moz-focus-inner {
   color: red !important;
 }
 
-.log-item-info {
-  float: left;
-  height: 100%;
-  width: -moz-calc(100% - 10rem);
-}
-
-.ellipsis {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.primary-info {
-  font-family: FontRegular;
-  font-size: -moz-calc(8 * 0.226rem);
-  color: #000000;
-}
-
-.primary-info-main {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: inline-block;
-  white-space: nowrap;
-  padding-right: 0.6rem;
-}
-
-.primary-info-main.ellipsed {
-  padding-right: 0rem;
-}
-
-.entry-count {
-  overflow: hidden;
-  display: inline-block;
-}
-
-.secondary-info {
-  font-family: FontRegular;
-  font-size: -moz-calc(6 * 0.226rem);
-  color: #5b5b5b;
-}
-
-.call-additional-info {
-  padding-left: 0.7rem;
-}
-
-.call-log-contact-photo {
-  float: left;
-  height: 100%;
-  width: 5rem;
-  background-image: url('images/icon_arrow.png');
-  background-size: 1rem;
-  background-position: 75% 75%;
-  background-repeat: no-repeat;
-}
-
-.log-item.isContact.contact-photo-available .call-log-contact-photo {
-  background-position: center;
-  background-size: cover;
-  background-repeat: no-repeat;
-}
-
-.call-log-selection {
-  height: 100%;
-  width: 5rem;
-  display: none;
-  background-image: url('images/timeline_checkbox_off.png');
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: 2.2rem 2.2rem;
-  overflow: hidden;
-}
-
-.log-item.selected .call-log-selection {
-  background-image: url('images/timeline_checkbox_on.png');
-}
-
 /* Edit mode state */
-.recents-edit form.edit[role="dialog"],
-.recents-edit form.edit[role="dialog"] header,
-.recents-edit form.edit[role="dialog"] > menu {
+.recents-edit form[role="dialog"][data-type="edit"] header,
+.recents-edit form[role="dialog"][data-type="edit"] > menu {
   transform: translateY(0);
 }
 
-.recents-edit .call-log-selection {
-  display: block;
-  float: left;
+.recents-edit label:not([for]).call-log-selection {
+  transform: translateX(4rem);
+  transition: transform 0.3s ease;
 }
 
-.recents-edit .log-item-info {
-  width: -moz-calc(100% - 15rem);
+.recents-edit .log-item a {
+  transform: translateX(3rem);
+  transition: all 0.3s ease;
+}
+
+.recents-edit .log-item.hasPhoto .primary-info,
+.recents-edit .log-item.hasPhoto .secondary-info,
+.recents-edit .log-item:not(.hasPhoto) .primary-info,
+.recents-edit .log-item:not(.hasPhoto) .secondary-info {
+  width: 22rem;
+}
+
+.recents-edit .pack-end {
+  transition: all 0.3s ease;
+  transform: translateX(6rem);
+}
+
+.recents-edit .call-log-contact-photo {
+  pointer-events: none;
+}
+
+.recents-edit .log-item label {
+  pointer-events: auto;
 }
 
 /*
   No result container
 */
+
 #no-result-container {
-  background-image: url('images/SMS_200x200_bubble.png');
-  background-repeat:no-repeat;
-  background-attachment:fixed;
-  background-position:center;
+  background: url('images/ComLog_200x200_clock.png') fixed no-repeat center / 20rem;
   height: 100%;
-  width: 100%;
 }
 
 #no-result-message {
+  position: relative;
+  top: 11.5rem;
+  border-top: .1rem solid rgba(96,96,96,.5);
+  padding: 1rem 0.5rem;
+}
+
+#no-result-message > p {
   text-align: left;
   line-height: 3rem;
-  position: relative;
-  top: 50%;
-  border-top: .1rem solid rgba(96,96,96,.5);
-  padding: 2rem 0.5rem;
-  width: 270px;
-  margin: -80px auto;
-  color: #606060;
+  font-size: 2.2rem;
   font-weight: 300;
-  font-size: -moz-calc(10 * 0.226rem);
+  color: #606060;
+  margin: 0;
 }

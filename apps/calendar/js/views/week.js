@@ -11,11 +11,14 @@ Calendar.ns('Views').Week = (function() {
    * @param {String} id frame id.
    * @param {Array[Object]} children array of child views.
    */
-  function Frame(id, children) {
+  function Frame(id, children, stickyList) {
     this.id = id;
     this.children = children;
+    this.stickyList = stickyList;
     // frame element - mostly here for positioning
     this.element = document.createElement('section');
+
+    this.element.innerHTML = template.frame.render();
 
     var firstSpan = children[0].timespan;
     var lastSpan = children[children.length - 1].timespan;
@@ -30,20 +33,27 @@ Calendar.ns('Views').Week = (function() {
     var len = children.length;
     var i = 0;
 
+    var weekChildren = this.element.querySelector('.scroll .children');
     for (; i < len; i++) {
       // create always should return an element.
-      this.element.appendChild(children[i].create());
+      weekChildren.appendChild(children[i].create());
     }
+
+    this.element.querySelector('.sticky .children').appendChild(stickyList);
+    this._appendSidebarHours();
   }
 
   Frame.prototype = {
-
-    swipeThreshold: window.innerWidth / 5,
 
     /**
      * Calls a method on all children.
      */
     _childMethod: function(method) {
+      if (!this.children) {
+        console.trace();
+        console.error('trying to access dead object');
+      }
+
       var i = 0;
       var len = this.children.length;
 
@@ -87,6 +97,27 @@ Calendar.ns('Views').Week = (function() {
       this.timespan = null;
       this.children = null;
       this.element = null;
+    },
+
+    _appendSidebarHours: function() {
+      var element = this.element.querySelector('.sidebar');
+
+      var i = 0;
+      var hour;
+      var displayHour;
+
+      for (; i < 24; i++) {
+        hour = String(i);
+        displayHour = Calendar.Calc.formatHour(i);
+
+        element.insertAdjacentHTML(
+          'beforeend',
+          template.sidebarHour.render({
+            hour: hour,
+            displayHour: displayHour
+          })
+        );
+      }
     }
   };
 
@@ -103,9 +134,7 @@ Calendar.ns('Views').Week = (function() {
     scale: 'week',
 
     selectors: {
-      element: '#week-view',
-      sidebar: '#week-view > .sidebar',
-      container: '#week-view > .children'
+      element: '#week-view'
     },
 
     get sidebar() {
@@ -113,7 +142,11 @@ Calendar.ns('Views').Week = (function() {
     },
 
     get frameContainer() {
-      return this._findElement('container');
+      return this._findElement('element');
+    },
+
+    get delegateParent() {
+      return this._findElement('element');
     },
 
     /**
@@ -185,7 +218,6 @@ Calendar.ns('Views').Week = (function() {
     },
 
     render: function() {
-      this._appendSidebarHours();
       this.changeDate(
         this.app.timeController.day
       );
@@ -221,54 +253,32 @@ Calendar.ns('Views').Week = (function() {
       var id = start.valueOf();
       var len = details.length;
       var children = [];
+      var stickyList = document.createElement('ul');
 
       var i = 0;
       for (; i < len; i++) {
         var date = new Date(start.valueOf());
         date.setDate(date.getDate() + i);
+
+        var stickyFrame = document.createElement('li');
+        stickyList.appendChild(stickyFrame);
+
         children.push(new Calendar.Views.WeekChild({
           date: date,
-          app: this.app
+          app: this.app,
+          stickyFrame: stickyFrame
         }));
       }
 
-      var frame = new Frame(id, children);
+      var frame = new Frame(id, children, stickyList);
       var list = frame.element.classList;
 
       list.add('days-' + len);
       list.add('weekday');
 
+      frame.stickyList.classList.add('days-' + len);
+
       return frame;
-    },
-
-    _appendSidebarHours: function() {
-      var element = this.sidebar;
-      var allday = template.sidebarHour.render({
-        hour: Calendar.Calc.ALLDAY,
-        displayHour: Calendar.Calc.ALLDAY
-      });
-
-      element.insertAdjacentHTML(
-        'beforeend',
-        allday
-      );
-
-      var i = 0;
-      var hour;
-      var displayHour;
-
-      for (; i < 24; i++) {
-        hour = String(i);
-        displayHour = Calendar.Calc.formatHour(i);
-
-        element.insertAdjacentHTML(
-          'beforeend',
-          template.sidebarHour.render({
-            hour: hour,
-            displayHour: displayHour
-          })
-        );
-      }
     }
 
   };

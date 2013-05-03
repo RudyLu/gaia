@@ -10,116 +10,132 @@ Calendar.ns('Controllers').Sync = (function() {
    */
   function Sync(app) {
     this.app = app;
+    this.pending = 0;
+
     Calendar.Responder.call(this);
   }
 
   Sync.prototype = {
     __proto__: Calendar.Responder.prototype,
 
-    observe: function() {
-      var self = this;
-      var account = this.app.store('Account');
+    startEvent: 'syncStart',
+    completeEvent: 'syncComplete',
 
-      // used instead of bind for testing reasons.
-      account.on('add', function(id, data) {
-        self.emit('sync start');
-        self._syncAccount(data, function() {
-          self.emit('sync complete');
-        });
-      });
+    _incrementPending: function() {
+      if (!this.pending) {
+        this.emit('syncStart');
+      }
+
+      this.pending++;
+    },
+
+    _resolvePending: function() {
+      if (!(--this.pending)) {
+        this.emit('syncComplete');
+      }
     },
 
     /**
      * Sync all accounts, calendars, events.
+     * There is no callback for all intentionally.
+     *
+     * Use:
+     *
+     *    controller.once('syncComplete', cb);
+     *
      */
-    sync: function(callback) {
-      var key;
-      var self = this;
+    all: function(callback) {
+      if (callback) {
+        this.once('syncComplete', callback);
+      }
+
+      if (this.app.offline()) {
+        this.emit('offline');
+        this.emit('syncComplete');
+        return;
+      }
+
       var account = this.app.store('Account');
-      var pending = 0;
-      var errorList = [];
 
-      function next(err) {
-        if (err) {
-          errorList.push(err);
+      account.all(function(err, list) {
+
+        for (var key in list) {
+          this.account(list[key]);
         }
 
-        if (!(--pending)) {
-          if (callback) {
-            if (errorList.length) {
-              callback(errorList);
-            } else {
-              callback(null);
-            }
-          }
-          self.emit('sync complete');
+        // If we have nothing to sync
+        if (!this.pending) {
+          this.emit('syncComplete');
         }
-      }
 
-      this.emit('sync start');
+      }.bind(this));
+   },
 
-      for (key in account.cached) {
-        pending++;
-        this._syncAccount(
-          account.cached[key], next
-        );
-      }
+    /**
+     * Initiates a sync for a single calendar.
+     *
+     * @param {Object} account parent of calendar.
+     * @param {Object} calendar specific calendar to sync.
+     * @param {Function} [callback] optional callback.
+     */
+    calendar: function(account, calendar, callback) {
+      var store = this.app.store('Calendar');
+      var self = this;
 
-      if (!pending) {
-        callback();
-        this.emit('sync complete');
-      }
+      this._incrementPending();
+      store.sync(account, calendar, function(err) {
+        self._resolvePending();
+        if (callback)
+          callback(err);
+      });
     },
 
-    _syncAccount: function(model, callback) {
-      var self = this;
-      var account = this.app.store('Account');
-      var calendar = this.app.store('Calendar');
+    /**
+     * Initiates a sync of a single account and all
+     * associated calendars (calendars that exist after
+     * the full sync of the account itself).
+     *
+     * @param {Object} account sync target.
+     * @param {Function} [callback] optional callback.
+    */
+    account: function(account, callback) {
+      var accountStore = this.app.store('Account');
+      var calendarStore = this.app.store('Calendar');
 
-      account.sync(model, function(err) {
-        if (err) {
-          //TODO: Implement error handling to show
-          //      UI to change user/password, etc..
-          callback(err);
-          return;
-        }
+      var self = this;
+
+      this._incrementPending();
+      accountStore.sync(account, function(err) {
 
         var pending = 0;
-        var cals = calendar.remotesByAccount(
-          model._id
-        );
-
-        var key;
-        var errorList = [];
-
-        function next(err) {
-          if (err) {
-            errorList.push(err);
-          }
-
+        function next() {
           if (!(--pending)) {
-            if (errorList.length) {
-              callback(errorList);
-            } else {
-              callback(null);
-            }
+            self._resolvePending();
+
+            if (callback)
+              callback();
           }
         }
 
-        for (key in cals) {
-          pending++;
-          calendar.sync(
-            model,
-            cals[key],
-            next
-          );
+        function fetchCalendars(err, calendars) {
+          if (err) {
+            return callback(err);
+          }
+
+          for (var key in calendars) {
+            pending++;
+            self.calendar(account, calendars[key], next);
+          }
         }
+
+        // find all calendars
+        var calendars = calendarStore.remotesByAccount(
+          account._id,
+          fetchCalendars
+        );
       });
     }
-
   };
 
   return Sync;
-
 }());
-

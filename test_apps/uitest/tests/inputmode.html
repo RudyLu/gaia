@@ -21,17 +21,23 @@
       differences as well (in word suggestions, for example) but for
       now, inputmode is just controlling auto capitalization
     </p>
+    <p>
+      The special inputmode "digits" for the number field will allow the
+      keyboard to enter digits(0-9) only.
+    </p>
 
     none: <input type="text"><br>
-    latin: <input type="text" inputmode="latin"><br>
-    verbatim: <input type="text" inputmode="verbatim"><br>
-    latin-prose: <input type="text" inputmode="latin-prose"><br>
-    latin-name: <input type="text" inputmode="latin-name"><br>
+    latin: <input type="text" x-inputmode="latin"><br>
+    verbatim: <input type="text" x-inputmode="verbatim"><br>
+    latin-prose: <input type="text" x-inputmode="latin-prose"><br>
+    latin-name: <input type="text" x-inputmode="latin-name"><br>
 
     none: <textarea></textarea><br>
-    latin: <textarea inputmode="latin"></textarea><br>
-    verbatim: <textarea inputmode="verbatim"></textarea><br>
-    latin-prose: <textarea inputmode="latin-prose"></textarea><br>
-    latin-name: <textarea inputmode="latin-name"></textarea><br>
+    latin: <textarea x-inputmode="latin"></textarea><br>
+    verbatim: <textarea x-inputmode="verbatim"></textarea><br>
+    latin-prose: <textarea x-inputmode="latin-prose"></textarea><br>
+    latin-name: <textarea x-inputmode="latin-name"></textarea><br>
+
+    digits: <input type="number" x-inputmode="digits"><br>
   </body>
 </html>

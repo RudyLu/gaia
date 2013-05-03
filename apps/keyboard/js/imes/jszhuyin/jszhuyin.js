@@ -102,7 +102,7 @@
 
       db = new IMEngineDatabase();
       db.init(dbSettings);
-    }
+    };
 
     /* ==== helper functions ==== */
 
@@ -169,7 +169,7 @@
         debug('The last syllable is incomplete, add asterisk.');
         syllablesInBuffer[syllablesInBuffer.length - 1] += '*';
       }
-    }
+    };
 
     var typeOfSymbol = function ime_typeOfSymbol(code) {
 
@@ -605,6 +605,11 @@
     /* ==== interaction functions ==== */
 
     this.click = function ime_click(code) {
+      if (layoutPage !== LAYOUT_PAGE_DEFAULT) {
+        settings.sendKey(code);
+        return;
+      }
+
       if (code <= 0) {
         debug('Ignoring keyCode <= 0.');
         return;
@@ -612,6 +617,11 @@
       debug('Click keyCode: ' + code);
       keypressQueue.push(code);
       start();
+    };
+
+    var layoutPage = LAYOUT_PAGE_DEFAULT;
+    this.setLayoutPage = function ime_setLayoutPage(page) {
+      layoutPage = page;
     };
 
     var selectedText;
@@ -1161,7 +1171,7 @@
           findSuggestionsInIDB();
         }
       );
-    },
+    };
 
     this.getTerms = function imedb_getTerms(syllables, callback) {
       if (!jsonData && !iDB) {
@@ -1288,7 +1298,7 @@
         }
         callback(terms[0]);
       });
-    }
+    };
 
     this.getSentences = function imedb_getSentences(syllables, callback) {
       var sentences = [];
@@ -1367,8 +1377,8 @@
   if (typeof define === 'function' && define.amd)
     define('jszhuyin', [], function() { return jszhuyin; });
 
-  // Expose to IMEManager if we are in Gaia homescreen
-  if (typeof IMEManager !== 'undefined')
-    IMEController.IMEngines.jszhuyin = jszhuyin;
+  // Expose to the Gaia keyboard
+  if (typeof InputMethods !== 'undefined')
+    InputMethods.jszhuyin = jszhuyin;
 
 })();

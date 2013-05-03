@@ -1,28 +1,47 @@
 'use strict';
 
-var contacts = window.contacts || {};
+var FriendListRenderer = (function() {
 
-contacts.List = (function() {
-  var groupsList = document.querySelector('#groups-list');
+  // Order criteria
+  var orderCriteria = {
+    firstName: ['givenName', 'familyName', 'email1'],
+    lastName: ['familyName', 'givenName', 'email1']
+  };
 
-  function contactsLoaded() {
-     var figures = document.querySelectorAll('#groups-list img');
-      for (var i = 0; i < figures.length; i++) {
-        var figure = figures[i];
-        var src = figure.dataset.src;
-        if (src && src !== 'null') {
-          figure.src = src;
-        }
+  // Options by default
+  var defaults = {
+    container: '#groups-list',
+    orderBy: 'lastName'
+  };
+
+  var render = function render(contacts, cb, options) {
+    // Populate defaults
+    for (var key in defaults) {
+      if (typeof options[key] === 'undefined') {
+        options[key] = defaults[key];
       }
-  }
+    }
 
-  var load = function load(contacts, cb) {
+    doRender(contacts, cb, options);
+  };
+
+  var doRender = function doRender(contacts, cb, options) {
+    var groupsList = document.querySelector(options.container);
+    var orderBy = options.orderBy;
+    var order = orderCriteria[orderBy];
+
+    // Sorting friend list
+    contacts.sort(function(a, b) {
+      return getStringToBeOrdered(a, order).localeCompare(
+                                                getStringToBeOrdered(b, order));
+    });
+
     // Hash containing each group
     var groups = {};
 
     contacts.forEach(function(contact) {
       // Contacts are ordered so it is pretty easy to group them
-      var groupName = getGroupName(contact);
+      var groupName = getGroupName(contact, order);
       if (!groups[groupName]) {
         groups[groupName] = [];
       }
@@ -30,56 +49,97 @@ contacts.List = (function() {
       groups[groupName].push(contact);
     });
 
-    var agroups = Object.keys(groups);
+    var fragment = document.createDocumentFragment();
 
-    // For each group
-    agroups.forEach(function(group) {
-      // New element appended
-      var ele = utils.templates.append(groupsList, {group: group});
-      ele.addEventListener('click', fb.importer.ui.selection);
-
-      // Array of friends
-      var friends = groups[group];
-      // For each friend in the group
-      friends.forEach(function(friend) {
-        var searchInfo = [];
-        var searchable = ['givenName', 'familyName', 'org'];
-        searchable.forEach(function(field) {
-          if (friend[field] && friend[field][0]) {
-            searchInfo.push(friend[field][0]);
-          }
-        });
-        friend.search = normalizeText(searchInfo.join(' '));
-        // New friend appended
-        utils.templates.append(ele, friend);
-        // We check wether this friend was in the AB or not before
-      });
-    });
-
-    groupsList.removeChild(groupsList.children[0]); // Deleting template
-    FixedHeader.init('#mainContent', '#fixed-container', 'h2.block-title');
-
-    if (typeof cb === 'function') {
-      window.setTimeout(function() { cb(); }, 0);
+    // We are going to delete the paragraph that paints the other order for the
+    // contact's name from template...
+    var notRenderedParagraph = groupsList.querySelector('[data-order-by="' +
+                   (orderBy === 'firstName' ? 'lastName' : 'firstName') + '"]');
+    if (notRenderedParagraph) {
+      notRenderedParagraph.parentNode.removeChild(notRenderedParagraph);
     }
 
-    // Finally images are loaded
-    contactsLoaded();
+    // A..Z groups
+    for (var i = 65; i <= 90; i++) {
+      var group = String.fromCharCode(i);
+      renderGroup(fragment, groupsList, group, groups[group]);
+    }
 
+    // # group
+    renderGroup(fragment, groupsList, '#', groups['#']);
+
+    // Deleting template
+    utils.dom.removeChildNodes(groupsList);
+    groupsList.appendChild(fragment);
+
+    if (typeof cb === 'function') {
+      // We wait a delay depending on number of nodes (the curtain is displayed)
+      window.setTimeout(function() { cb(); }, contacts.length * 2);
+    }
   };
 
+  function renderGroup(fragment, groupsList, group, friends) {
+    if (!friends || friends.length === 0)
+      return;
 
-  function getStringToBeOrdered(contact) {
-    var ret = [];
+    // New element appended
+    var element = utils.templates.append(groupsList, {
+      group: group
+    }, fragment);
 
-    ret.push(contact.familyName ? contact.familyName[0] : '');
-    ret.push(contact.givenName ? contact.givenName[0] : '');
+    // This is the <ol> and <header> is children[0]
+    var list = element.children[1];
 
-    return ret.join('');
+    // For each friend in the group
+    friends.forEach(function(friend) {
+      if (!friend.search || friend.search.length === 0)
+        return;
+
+      // Set the picture size
+      var box = importUtils.getPreferredPictureBox();
+      friend.picwidth = box.width;
+      friend.picheight = box.height;
+
+      friend.search = utils.text.normalize(friend.search);
+
+      // New friend appended
+      utils.templates.append(list, friend);
+    });
+
+    // Template is deleted from the list
+    list.removeChild(list.firstElementChild);
   }
 
-  function getGroupName(contact) {
-    var ret = getStringToBeOrdered(contact);
+  function getStringToBeOrdered(contact, order) {
+    var ret = contact.search;
+
+    if (!ret) {
+      ret = [];
+
+      order.forEach(function(field) {
+        ret.push(getValue(contact, field));
+      });
+
+      ret = contact.search = ret.join('');
+    }
+
+    return ret;
+  }
+
+  function getValue(contact, field) {
+    var out = contact[field];
+
+    if (out) {
+      out = Array.isArray(out) ? out[0] : out;
+    } else {
+      out = '';
+    }
+
+    return out;
+  };
+
+  function getGroupName(contact, order) {
+    var ret = getStringToBeOrdered(contact, order);
 
     ret = ret.charAt(0).toUpperCase();
     ret = ret.replace(/[ÁÀ]/ig, 'A');
@@ -90,12 +150,12 @@ contacts.List = (function() {
 
     var code = ret.charCodeAt(0);
     if (code < 65 || code > 90) {
-      ret = 'und';
+      ret = '#';
     }
     return ret;
   }
 
   return {
-    'load': load
+    'render': render
   };
 })();

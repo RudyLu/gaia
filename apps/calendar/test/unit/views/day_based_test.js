@@ -1,17 +1,15 @@
-requireApp('calendar/test/unit/helper.js', function() {
-  requireLib('timespan.js');
-  requireLib('overlap.js');
-  requireLib('ordered_map.js');
-  requireLib('templates/day.js');
-  requireLib('views/day_based.js');
-});
+requireLib('timespan.js');
+requireLib('utils/overlap.js');
+requireLib('utils/ordered_map.js');
+requireLib('templates/day.js');
+requireLib('views/day_based.js');
 
-suite('views/day_based', function() {
+suiteGroup('Views.DayBased', function() {
 
   var OrderedMap;
 
   suiteSetup(function() {
-    OrderedMap = Calendar.OrderedMap;
+    OrderedMap = Calendar.Utils.OrderedMap;
   });
 
   var subject;
@@ -39,9 +37,9 @@ suite('views/day_based', function() {
 
     template = subject.template;
 
-    subject._renderEvent = function(event) {
+    subject._renderEvent = function(busytime, event) {
       return template.event.render({
-        eventId: event._id,
+        busytimeId: busytime._id,
         calendarId: event.calendarId,
         title: event.remote.title
       });
@@ -60,7 +58,7 @@ suite('views/day_based', function() {
     assert.deepEqual(subject.timespan, expectedSpan);
 
     assert.instanceOf(subject.hours, OrderedMap);
-    assert.instanceOf(subject.overlaps, Calendar.Overlap);
+    assert.instanceOf(subject.overlaps, Calendar.Utils.Overlap);
   });
 
   suite('#_loadRecords', function() {
@@ -103,11 +101,11 @@ suite('views/day_based', function() {
 
       subject.add = function() {
         addCalledWith.push(arguments);
-      }
+      };
 
       controller.findAssociated = function() {
         requestCalledWith.push(arguments);
-      }
+      };
     });
 
     test('when given an object', function() {
@@ -172,7 +170,7 @@ suite('views/day_based', function() {
 
       subject._loadRecords = function() {
         calledLoadWith = arguments;
-      }
+      };
 
       subject.events.innerHTML = 'foobar';
     });
@@ -181,7 +179,14 @@ suite('views/day_based', function() {
       assert.equal(subject._changeToken, 0);
       var day = Calendar.Calc.createDay(startTime);
 
+      assert.ok(!subject.element.dataset.date, 'does not have a date');
       subject.changeDate(startTime, true);
+
+      assert.equal(
+        subject.element.dataset.date,
+        startTime.toString(),
+        'sets dataset.date'
+      );
 
       assert.equal(subject._changeToken, 1);
       assert.deepEqual(subject.date, day);
@@ -249,6 +254,7 @@ suite('views/day_based', function() {
 
       assert.equal(el.style.top, '83.3333%', 'top');
       assert.equal(el.style.height, '50%', 'height');
+      assert.match(el.className, /\bpartial-hour\b/, 'partial-hour found');
     });
 
     test('top of hour 1.5 hours', function() {
@@ -299,9 +305,8 @@ suite('views/day_based', function() {
       assert.ok(idx !== -1, 'has calendar id flag on hour');
 
       // verify its in the dom
-      // TODO: this should be a busytime id soon
       var elements = hour.element.querySelectorAll(
-        '[data-id="' + event._id + '"]'
+        '[data-id="' + busytime._id + '"]'
       );
 
       assert.length(elements, 1);
@@ -317,7 +322,7 @@ suite('views/day_based', function() {
     test('subsequent _createRecord calls after initial', function() {
       var max = 24 - intialHour;
       var curHour = intialHour + 1;
-      var selector = '[data-id="' + event._id + '"]';
+      var selector = '[data-id="' + busytime._id + '"]';
       var initialElement = subject.element.querySelector(
         selector
       );
@@ -343,7 +348,7 @@ suite('views/day_based', function() {
 
       var hour = subject.hours.get(intialHour);
       var eventEl = hour.element.querySelector(
-        '[data-id="' + event._id + '"]'
+        '[data-id="' + busytime._id + '"]'
       );
 
       assert.ok(eventEl);
@@ -373,7 +378,7 @@ suite('views/day_based', function() {
 
       // verify dom element
       var el = hour.element.querySelector(
-        '[data-id="' + event._id + '"]'
+        '[data-id="' + busytime._id + '"]'
       );
 
       assert.ok(el, 'has element');
@@ -407,7 +412,7 @@ suite('views/day_based', function() {
       // find element
 
       var el = subject.element.querySelector(
-        '[data-id="' + event._id + '"]'
+        '[data-id="' + busytime._id + '"]'
       );
 
       return { busytime: busytime, event: event, element: el };
@@ -662,7 +667,7 @@ suite('views/day_based', function() {
         this,
         arguments
       );
-    }
+    };
 
     var el = subject.create();
     assert.equal(subject.id, date.valueOf(), 'id');

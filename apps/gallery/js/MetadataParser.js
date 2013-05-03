@@ -1,139 +1,257 @@
 'use strict';
 
-// Given an image file, pass an object of metadata to the callback function
-// or pass an error message to the errback function.
-// The metadata object will look like this:
-// {
-//    width:     /* image width */,
-//    height:    /* image height */,
-//    thumbnail: /* a thumbnail image jpeg blob */,
-//    exif:      /* for jpeg images an object of additional EXIF data */
-// }
+//
+// This file defines a single metadataParsers object. The two
+// properties of this object are metadata parsing functions for image
+// files and video files, intended for use with the MediaDB class.
+//
+// This file depends on JPEGMetadataParser.js and blobview.js
 //
 var metadataParser = (function() {
   // If we generate our own thumbnails, aim for this size
   var THUMBNAIL_WIDTH = 120;
   var THUMBNAIL_HEIGHT = 120;
-  // To save memory (because of gecko bugs) we want to create only one
-  // offscreen image and reuse it.
+
+  // Don't try to decode image files of unknown type if bigger than this
+  var MAX_UNKNOWN_IMAGE_FILE_SIZE = .5 * 1024 * 1024; // half a megabyte
+
+  // Don't try to open images with more pixels than this
+  var MAX_IMAGE_PIXEL_SIZE = 5 * 1024 * 1024; // 5 megapixels
+
+  // An <img> element for loading images
   var offscreenImage = new Image();
 
-  // Parsing metadata is memory-intensive.  Make sure we only do
-  // one at a time
-  var queue = [];     // Store
-  var busy = false;
+  // The screen size. Preview images must be at least this big
+  var sw = window.innerWidth;
+  var sh = window.innerHeight;
 
-  // This is the main entry point function that we return below
-  function metadataParser(file, callback, errback) {
-    queue.push({file: file, callback: callback, errback: errback});
-    if (!busy)
-      processQueue();
+  // Create a thumbnail size canvas, copy the <img> or <video> into it
+  // cropping the edges as needed to make it fit, and then extract the
+  // thumbnail image as a blob and pass it to the callback.
+  // This utility function is used by both the image and video metadata parsers
+  function createThumbnailFromElement(elt, video, rotation, callback) {
+    // Create a thumbnail image
+    var canvas = document.createElement('canvas');
+    var context = canvas.getContext('2d');
+    canvas.width = THUMBNAIL_WIDTH;
+    canvas.height = THUMBNAIL_HEIGHT;
+    var eltwidth = elt.width;
+    var eltheight = elt.height;
+    var scalex = canvas.width / eltwidth;
+    var scaley = canvas.height / eltheight;
+
+    // Take the larger of the two scales: we crop the image to the thumbnail
+    var scale = Math.max(scalex, scaley);
+
+    // Calculate the region of the image that will be copied to the
+    // canvas to create the thumbnail
+    var w = Math.round(THUMBNAIL_WIDTH / scale);
+    var h = Math.round(THUMBNAIL_HEIGHT / scale);
+    var x = Math.round((eltwidth - w) / 2);
+    var y = Math.round((eltheight - h) / 2);
+
+    // If a rotation is specified, rotate the canvas context
+    if (rotation) {
+      context.save();
+      switch (rotation) {
+      case 90:
+        context.translate(THUMBNAIL_WIDTH, 0);
+        context.rotate(Math.PI / 2);
+        break;
+      case 180:
+        context.translate(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT);
+        context.rotate(Math.PI);
+        break;
+      case 270:
+        context.translate(0, THUMBNAIL_HEIGHT);
+        context.rotate(-Math.PI / 2);
+        break;
+      }
+    }
+
+    // Draw that region of the image into the canvas, scaling it down
+    context.drawImage(elt, x, y, w, h,
+                      0, 0, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT);
+
+    // Restore the default rotation so the play arrow comes out correctly
+    if (rotation) {
+      context.restore();
+    }
+
+    // If this is a video, superimpose a translucent play button over
+    // the captured video frame to distinguish it from a still photo thumbnail
+    if (video) {
+      // First draw a transparent gray circle
+      context.fillStyle = 'rgba(0, 0, 0, .2)';
+      context.beginPath();
+      context.arc(THUMBNAIL_WIDTH / 2, THUMBNAIL_HEIGHT / 2,
+                  THUMBNAIL_HEIGHT / 5, 0, 2 * Math.PI, false);
+      context.fill();
+
+      // Now outline the circle in white
+      context.strokeStyle = 'rgba(255,255,255,.6)';
+      context.lineWidth = 2;
+      context.stroke();
+
+      // And add a white play arrow.
+      context.beginPath();
+      context.fillStyle = 'rgba(255,255,255,.6)';
+      // The height of an equilateral triangle is sqrt(3)/2 times the side
+      var side = THUMBNAIL_HEIGHT / 5;
+      var triangle_height = side * Math.sqrt(3) / 2;
+      context.moveTo(THUMBNAIL_WIDTH / 2 + triangle_height * 2 / 3,
+                     THUMBNAIL_HEIGHT / 2);
+      context.lineTo(THUMBNAIL_WIDTH / 2 - triangle_height / 3,
+                     THUMBNAIL_HEIGHT / 2 - side / 2);
+      context.lineTo(THUMBNAIL_WIDTH / 2 - triangle_height / 3,
+                     THUMBNAIL_HEIGHT / 2 + side / 2);
+      context.closePath();
+      context.fill();
+    }
+
+    canvas.toBlob(callback, 'image/jpeg');
   }
 
-  // If we're not currently running, get the first entry in the queue
-  // and parse metadata for it
-  function processQueue() {
-    if (queue.length === 0) {
-      busy = false;
+  var VIDEOFILE = /DCIM\/\d{3}MZLLA\/VID_\d{4}\.jpg/;
+
+  function metadataParser(file, metadataCallback, metadataError) {
+    // If the file is a poster image for a video file, then we've want
+    // video metadata, not image metadata
+    if (VIDEOFILE.test(file.name)) {
+      videoMetadataParser(file, metadataCallback, metadataError);
       return;
     }
 
-    busy = true;
-    var entry = queue.shift();  // get first element off queue
-    try {
-      parseMetadata(entry.file,
-                    function(m) {
-                      entry.callback(m);
-                      processQueue();
-                    },
-                    function(s) {
-                      if (entry.errback)
-                        entry.errback(s);
-                      processQueue();
-                    });
-    }
-    catch (e) {
-      // Don't allow unhandled exceptions to mess up our queue handling
-      entry.errback(e.toString());
-      processQueue();
-    }
-  }
+    // Figure out how big the image is if we can. For JPEG files this
+    // calls the JPEG parser and returns the EXIF preview if there is one.
+    getImageSize(file, gotImageSize, gotImageSizeError);
 
-  function parseMetadata(file, callback, errback) {
-    if (file.type === 'image/jpeg') {
-      // For jpeg images, we can read metadata right out of the file
-      parseJPEGMetadata(file, function(data) {
-        // If we got dimensions and thumbnail, we're done
-        // Otherwise, keep going to get more metadata
-        if (data.width && data.height && data.thumbnail)
-          callback(data);
-        else
-          parseImageMetadata(file, data, callback, errback);
-      }, function(errmsg) {
-        // If something went wrong, fallback on the
-        // basic image parser
-        console.error(errmsg);
-        parseImageMetadata(file, {}, callback, errback);
-      });
+    function gotImageSizeError(errmsg) {
+      // If the error message is anything other than unknown image type
+      // it means we've got a corrupt image file, or the image metdata parser
+      // can't handle the file for some reason. Log a warning but keep going
+      // in case the image is good and the metadata parser is buggy.
+      if (errmsg !== 'unknown image type') {
+        console.warn('getImageSize', errmsg, file.name);
+      }
+
+      // The image is not a JPEG, PNG or GIF file. We may still be
+      // able to decode and display it but we don't know the image
+      // size, so we won't even try if the file is too big.
+      if (file.size > MAX_UNKNOWN_IMAGE_FILE_SIZE) {
+        metadataError('Ignoring large file ' + file.name);
+        return;
+      }
+
+      // If it is not too big create a preview and thumbnail.
+      createThumbnailAndPreview(file, metadataCallback, metadataError);
     }
-    else {
-      // For all other image types, we get dimensions and thumbnails this way
-      parseImageMetadata(file, {}, callback, errback);
+
+    function gotImageSize(metadata) {
+      // If the image is too big, reject it now so we don't have
+      // memory trouble later.
+      if (metadata.width * metadata.height > MAX_IMAGE_PIXEL_SIZE) {
+        metadataError('Ignoring high-resolution image ' + file.name);
+        return;
+      }
+
+      // If the file included a preview image, see if it is big enough
+      if (metadata.preview) {
+        // Create a blob that is just the preview image
+        var previewblob = file.slice(metadata.preview.start,
+                                     metadata.preview.end,
+                                     'image/jpeg');
+
+        // Check to see if the preview is big enough to use in MediaFrame
+        parseJPEGMetadata(previewblob, previewsuccess, previewerror);
+      }
+      else {
+        // If there wasn't a preview image, then generate a preview and
+        // thumbnail from the full size image.
+        createThumbnailAndPreview(file, metadataCallback, metadataError);
+      }
+
+      function previewerror(msg) {
+        // The preview isn't a valid jpeg file, so use the full image to
+        // create a preview and a thumbnail
+        createThumbnailAndPreview(file, metadataCallback, metadataError);
+      }
+
+      function previewsuccess(previewmetadata) {
+        var pw = previewmetadata.width;      // size of the preview image
+        var ph = previewmetadata.height;
+
+        // If the preview is big enough, use it to create a thumbnail.
+        // A preview is big enough if at least one dimension is >= the
+        // screen size in both portait and landscape mode.
+        if ((pw >= sw || pw >= sh) && (pw >= sh || ph >= sw)) {
+          // The final argument true means don't actually create a preview
+          createThumbnailAndPreview(previewblob,
+                                    function(m) {
+                                      metadata.preview.width = m.width;
+                                      metadata.preview.height = m.height;
+                                      metadata.thumbnail = m.thumbnail;
+                                      metadataCallback(metadata);
+                                    },
+                                    function(errmsg) {
+                                      // If something went wrong with the
+                                      // preview blob, then fall back on
+                                      // the full-size image
+                                      console.warn('Error creating thumbnail' +
+                                                   ' from preview:', errmsg);
+                                      createThumbnailAndPreview(file,
+                                                               metadataCallback,
+                                                               metadataError);
+                                    },
+                                    true);
+        }
+        else {
+          // Preview isn't big enough so get one the hard way
+          createThumbnailAndPreview(file, metadataCallback, metadataError);
+        }
+      }
     }
   }
 
   // Load an image from a file into an <img> tag, and then use that
   // to get its dimensions and create a thumbnail.  Store these values in
-  // the metadata object if they are not already there, and then pass
-  // the complete metadata object to the callback function
-  function parseImageMetadata(file, metadata, callback, errback) {
-    console.log('fallback parsing metadata for', file.name);
-    if (!errback) {
-      errback = function(e) {
-        console.error('ImageMetadata ', String(e));
-      };
-    }
-
+  // a metadata object, and pass the object to the callback function.
+  // If anything goes wrong, pass an error message to the error function.
+  // If it is a large image, create and save a preview for it as well.
+  function createThumbnailAndPreview(file, callback, error, nopreview) {
+    var metadata = {};
     var url = URL.createObjectURL(file);
     offscreenImage.src = url;
 
     offscreenImage.onerror = function() {
-      // XXX When launched as an inline activity this gets into a failure
-      // loop where this function is called over and over. Unsetting
-      // onerror here works around it. I don't know why the error is
-      // happening in the first place..
-      offscreenImage.onerror = null;
       URL.revokeObjectURL(url);
-      offscreenImage.src = null;
-      errback('Image failed to load');
+      offscreenImage.src = '';
+      error('createThumbnailAndPreview: Image failed to load');
     };
 
     offscreenImage.onload = function() {
       URL.revokeObjectURL(url);
-      metadata.width = offscreenImage.width;
-      metadata.height = offscreenImage.height;
+      var iw = metadata.width = offscreenImage.width;
+      var ih = metadata.height = offscreenImage.height;
 
-      // If we've already got a thumbnail, we're done
-      if (metadata.thumbnail) {
-        offscreenImage.src = null;
-        callback(metadata);
-        return;
-      }
-
-      // Create a thumbnail image
-      var canvas = document.createElement('canvas');
-      var context = canvas.getContext('2d');
-      canvas.width = THUMBNAIL_WIDTH;
-      canvas.height = THUMBNAIL_HEIGHT;
-      var scalex = canvas.width / offscreenImage.width;
-      var scaley = canvas.height / offscreenImage.height;
-
-      // Take the larger of the two scales: we crop the image to the thumbnail
-      var scale = Math.max(scalex, scaley);
+      // If this is a big image, then decoding it takes a lot of memory.
+      // We set this flag to prevent the user from zooming in on other
+      // images at the same time because that also takes a lot of memory
+      // and we don't want to crash with an OOM. If we find one big image
+      // we assume that there may be others, so the flag remains set until
+      // the current scan is complete.
+      //
+      // XXX: When bug 854795 is fixed, we'll be able to create previews
+      // for large images without using so much memory, and we can remove
+      // this flag then.
+      if (iw * ih > 2 * 1024 * 1024)
+        scanningBigImages = true;
 
       // If the image was already thumbnail size, it is its own thumbnail
-      if (scale >= 1) {
-        offscreenImage.src = null;
+      // and it does not need a preview
+      if (metadata.width <= THUMBNAIL_WIDTH &&
+          metadata.height <= THUMBNAIL_HEIGHT) {
+        offscreenImage.src = '';
         //
         // XXX
         // Because of a gecko bug, we can't just store the image file itself
@@ -143,341 +261,122 @@ var metadataParser = (function() {
         //
         metadata.thumbnail = file.slice(0, file.size, file.type);
         callback(metadata);
-        return;
+      }
+      else {
+        createThumbnailFromElement(offscreenImage, false, 0, gotThumbnail);
       }
 
-      // Calculate the region of the image that will be copied to the
-      // canvas to create the thumbnail
-      var w = Math.round(THUMBNAIL_WIDTH / scale);
-      var h = Math.round(THUMBNAIL_HEIGHT / scale);
-      var x = Math.round((offscreenImage.width - w) / 2);
-      var y = Math.round((offscreenImage.height - h) / 2);
+      function gotThumbnail(thumbnail) {
+        metadata.thumbnail = thumbnail;
+        // If no preview was requested, or if if the image was less
+        // than half a megapixel then it does not need a preview
+        // image, and we can call the callback right away
+        if (nopreview || metadata.width * metadata.height < 512 * 1024) {
+          offscreenImage.src = '';
+          callback(metadata);
+        }
+        else {
+          // Otherwise, this was a big image and we need to create a
+          // preview for it so we can avoid decoding the full size
+          // image again when possible
+          createAndSavePreview();
+        }
+      }
 
-      // Draw that region of the image into the canvas, scaling it down
-      context.drawImage(offscreenImage, x, y, w, h,
-                        0, 0, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT);
+      function createAndSavePreview() {
+        // Figure out the preview size.
+        // Make sure the size is big enough for both landscape and portrait
+        var scale = Math.max(Math.min(sw / iw, sh / ih, 1),
+                             Math.min(sh / iw, sw / ih, 1));
+        var pw = iw * scale, ph = ih * scale; // preview width and height;
 
-      // We're done with the image now
-      offscreenImage.src = null;
+        // Create the preview in a canvas
+        var canvas = document.createElement('canvas');
+        canvas.width = pw;
+        canvas.height = ph;
+        var context = canvas.getContext('2d');
+        context.drawImage(offscreenImage, 0, 0, iw, ih, 0, 0, pw, ph);
+        canvas.toBlob(function(blob) {
+          offscreenImage.src = '';
+          canvas.width = canvas.height = 0;
+          savePreview(blob);
+        }, 'image/jpeg');
 
-      // Now extract the thumbnail from the canvas as a jpeg file
-      metadata.thumbnail = canvas.mozGetAsFile(file.name + '.thumbnail.jpeg',
-                                               'image/jpeg');
-      callback(metadata);
+        function savePreview(previewblob) {
+          var storage = navigator.getDeviceStorage('pictures');
+          var filename = '.gallery/previews/' + file.name;
+
+          // Delete any existing preview by this name
+          var delreq = storage.delete(filename);
+          delreq.onsuccess = delreq.onerror = save;
+
+          function save() {
+            var savereq = storage.addNamed(previewblob, filename);
+            savereq.onerror = function() {
+              console.error('Could not save preview image', filename);
+            };
+
+            // Don't actually wait for the save to complete. Go start
+            // scanning the next one.
+            metadata.preview = {
+              filename: filename,
+              width: pw,
+              height: ph
+            };
+            callback(metadata);
+          }
+        }
+      }
     };
   }
 
-
-  // Asynchronously read a JPEG Blob (or File), extract its metadata,
-  // and pass an object containing selected portions of that metadata
-  // to the specified callback function.
-  function parseJPEGMetadata(file, callback, errback) {
-    console.log('parsing jpeg metadata for', file.name);
-
-    var currentSegmentOffset = 0;
-    var currentSegmentLength = 0;
-    var nextSegmentOffset = 0; // First JPEG segment is SOI
-    var nextSegmentLength = 2; // First segment is just 2 bytes
-
+  function videoMetadataParser(file, metadataCallback, errorCallback) {
     var metadata = {};
+    var videofilename = file.name.replace('.jpg', '.3gp');
+    metadata.video = videofilename;
 
-    // Read the next JPEG segment from the file and pass it as a DataView
-    // object to the specified callback. Return false there is no next
-    // segment to read.
-    function getNextSegment(nextSegmentCallback) {
-      if (nextSegmentOffset === -1) // No more segments to read
-        return false;
-
-      var hasNextSegment = (nextSegmentOffset + nextSegmentLength < file.size);
-
-      // If there is another segment after the one we're reading, read
-      // its header so we know how big it will be.
-      var extraBytes = hasNextSegment ? 4 : 0;
-      var slice = file.slice(nextSegmentOffset,
-                             nextSegmentOffset + nextSegmentLength + extraBytes,
-                             file.type);
-
-      var reader = new FileReader();
-      reader.readAsArrayBuffer(slice);
-      reader.onerror = function() {
-        errback(reader.error);
-        nextSegmentOffset = -1;
-      };
-      reader.onload = function() {
-        try {
-          currentSegmentOffset = nextSegmentOffset;
-          currentSegmentLength = nextSegmentLength;
-          if (hasNextSegment) {
-            nextSegmentOffset = currentSegmentOffset + currentSegmentLength;
-            var next = new DataView(reader.result,
-                                    currentSegmentLength, extraBytes);
-            if (next.getUint8(0) !== 0xFF)
-              throw Error('Malformed JPEG file: bad delimiter in next');
-            // Add 2 for the delimiter + type bytes
-            nextSegmentLength = next.getUint16(2) + 2;
-          }
-          else {
-            nextSegmentOffset = -1;
-          }
-
-          var data = new DataView(reader.result, 0, currentSegmentLength);
-          var delimiter = data.getUint8(0);
-          var segtype = data.getUint8(1);
-
-          if (delimiter !== 0xFF)
-            throw Error('Malformed JPEG file: bad delimiter in this segment');
-          nextSegmentCallback(segtype, data);
-        } catch (e) {
-          errback(e.toString());
+    var getreq = videostorage.get(videofilename);
+    getreq.onerror = function() {
+      errorCallback('cannot get video file: ' + videofilename);
+    };
+    getreq.onsuccess = function() {
+      var videofile = getreq.result;
+      getVideoRotation(videofile, function(rotation) {
+        if (typeof rotation === 'number') {
+          metadata.rotation = rotation;
+          getVideoThumbnailAndSize();
         }
-      };
-
-      return true;
-    }
-
-    // This first call to getNextSegment reads the JPEG header
-    getNextSegment(function(type, data) {
-      if (type !== 0xD8) {
-        // Wrong magic number
-        errback('Not a JPEG file');
-        return;
-      }
-
-      // Now start reading the segments that follow
-      getNextSegment(segmentHandler);
-    });
-
-    // This is a callback function for getNextSegment that handles the
-    // various types of segments we expect to see in a jpeg file
-    function segmentHandler(type, data) {
-      switch (type) {
-      case 0xC0:  // Some actual image data, including image dimensions
-      case 0xC1:
-      case 0xC2:
-      case 0xC3:
-        // Get image dimensions
-        metadata.height = data.getUint16(5);
-        metadata.width = data.getUint16(7);
-
-        // We're done. All the EXIF data will come before this segment
-        // So call the callback
-        callback(metadata);
-        break;
-
-      case 0xE1:  // APP1 segment. Probably holds EXIF metadata
-        try {
-          parseAPP1(data, metadata);
+        else if (typeof rotation === 'string') {
+          errorCallback('Video rotation:', rotation);
         }
-        catch (e) {
-          errback(e.toString());
-          return;
-        }
-        // Intentional fallthrough here to read the next segment
-
-      default:
-        // A segment we don't care about, so just go on and read the next one
-        if (!getNextSegment(segmentHandler))
-          errback('unexpected end of JPEG file');
-      }
-    }
-
-    function parseAPP1(data, metadata) {
-      if (data.getUint8(4) === 0x45 && // E
-          data.getUint8(5) === 0x78 && // x
-          data.getUint8(6) === 0x69 && // i
-          data.getUint8(7) === 0x66 && // f
-          data.getUint8(8) === 0) {    // NUL
-
-        var dataView = new DataView(data.buffer,
-                                    data.byteOffset + 10,
-                                    data.byteLength - 10);
-        metadata.exif = parseEXIFData(dataView);
-
-        if (metadata.exif.THUMBNAIL && metadata.exif.THUMBNAILLENGTH) {
-          var start = currentSegmentOffset + 10 + metadata.exif.THUMBNAIL;
-          var end = start + metadata.exif.THUMBNAILLENGTH;
-          metadata.thumbnail = file.slice(start, end, 'image/jpeg');
-          console.log('Found thumbnail in metadata for', file.name,
-                      metadata.thumbnail.size);
-          delete metadata.exif.THUMBNAIL;
-          delete metadata.exif.THUMBNAILLENGTH;
-        }
-      }
-    }
-
-    // Parse an EXIF segment from a JPEG file and return an object
-    // of metadata attributes. The argument must be a DataView object
-    function parseEXIFData(data) {
-      var exif = {};
-
-      var byteorder = data.getUint8(0);
-      if (byteorder === 0x4D) {  // big endian
-        byteorder = false;
-      } else if (byteorder === 0x49) {  // little endian
-        byteorder = true;
-      } else {
-        throw Error('invalid byteorder in EXIF segment');
-      }
-
-      if (data.getUint16(2, byteorder) !== 42) { // magic number
-        throw Error('bad magic number in EXIF segment');
-      }
-
-      var offset = data.getUint32(4, byteorder);
-
-      parseIFD(data, offset, byteorder, exif);
-
-      if (exif.EXIFIFD) {
-        parseIFD(data, exif.EXIFIFD, byteorder, exif);
-        delete exif.EXIFIFD;
-      }
-
-      if (exif.GPSIFD) {
-        parseIFD(data, exif.GPSIFD, byteorder, exif);
-        delete exif.GPSIFD;
-      }
-
-      return exif;
-    }
-
-    function parseIFD(data, offset, byteorder, exif) {
-      var numentries = data.getUint16(offset, byteorder);
-      for (var i = 0; i < numentries; i++) {
-        parseEntry(data, offset + 2 + 12 * i, byteorder, exif);
-      }
-
-      var next = data.getUint32(offset + 2 + 12 * numentries, byteorder);
-      if (next !== 0)
-        parseIFD(data, next, byteorder, exif);
-    }
-
-    // size, in bytes, of each TIFF data type
-    var typesize = [
-      0,   // Unused
-      1,   // BYTE
-      1,   // ASCII
-      2,   // SHORT
-      4,   // LONG
-      8,   // RATIONAL
-      1,   // SBYTE
-      1,   // UNDEFINED
-      2,   // SSHORT
-      4,   // SLONG
-      8,   // SRATIONAL
-      4,   // FLOAT
-      8    // DOUBLE
-    ];
-
-    // This object maps EXIF tag numbers to their names.
-    // Only list the ones we want to bother parsing and returning.
-    // All others will be ignored.
-    var tagnames = {
-      /*
-       * We don't currently use any of these EXIF tags for anything.
-       *
-       *
-      '256': 'ImageWidth',
-      '257': 'ImageHeight',
-      '40962': 'PixelXDimension',
-      '40963': 'PixelYDimension',
-      '306': 'DateTime',
-      '315': 'Artist',
-      '33432': 'Copyright',
-      '36867': 'DateTimeOriginal',
-      '33434': 'ExposureTime',
-      '33437': 'FNumber',
-      '34850': 'ExposureProgram',
-      '34867': 'ISOSpeed',
-      '37377': 'ShutterSpeedValue',
-      '37378': 'ApertureValue',
-      '37379': 'BrightnessValue',
-      '37380': 'ExposureBiasValue',
-      '37382': 'SubjectDistance',
-      '37383': 'MeteringMode',
-      '37384': 'LightSource',
-      '37385': 'Flash',
-      '37386': 'FocalLength',
-      '41986': 'ExposureMode',
-      '41987': 'WhiteBalance',
-      '41991': 'GainControl',
-      '41992': 'Contrast',
-      '41993': 'Saturation',
-      '41994': 'Sharpness',
-      */
-      // These are special tags that we handle internally
-      '34665': 'EXIFIFD',         // Offset of EXIF data
-      // '34853': 'GPSIFD',          // Offset of GPS data
-      '513': 'THUMBNAIL',         // Offset of thumbnail
-      '514': 'THUMBNAILLENGTH'   // Length of thumbnail
+      });
     };
 
-    function parseEntry(data, offset, byteorder, exif) {
-      var tag = data.getUint16(offset, byteorder);
-      var tagname = tagnames[tag];
+    function getVideoThumbnailAndSize() {
+      var url = URL.createObjectURL(file);
+      offscreenImage.src = url;
 
-      if (!tagname) // If we don't know about this tag type, skip it
-        return;
+      offscreenImage.onerror = function() {
+        URL.revokeObjectURL(url);
+        offscreenImage.src = '';
+        errorCallback('getVideoThumanailAndSize: Image failed to load');
+      };
 
-      var type = data.getUint16(offset + 2, byteorder);
-      var count = data.getUint32(offset + 4, byteorder);
+      offscreenImage.onload = function() {
+        URL.revokeObjectURL(url);
 
-      var total = count * typesize[type];
-      var valueOffset = total <= 4 ? offset + 8 :
-        data.getUint32(offset + 8, byteorder);
-      exif[tagname] = parseValue(data, valueOffset, type, count, byteorder);
-    }
+        // We store the unrotated size of the poster image, which we
+        // require to have the same size and rotation as the video
+        metadata.width = offscreenImage.width;
+        metadata.height = offscreenImage.height;
 
-    function parseValue(data, offset, type, count, byteorder) {
-      if (type === 2) { // ASCII string
-        var codes = [];
-        for (var i = 0; i < count - 1; i++) {
-          codes[i] = data.getUint8(offset + i);
-        }
-        return String.fromCharCode.apply(String, codes);
-      } else {
-        if (count == 1) {
-          return parseOneValue(data, offset, type, byteorder);
-        } else {
-          var values = [];
-          var size = typesize[type];
-          for (var i = 0; i < count; i++) {
-            values[i] = parseOneValue(data, offset + size * i, type, byteorder);
-          }
-          return values;
-        }
-      }
-    }
-
-    function parseOneValue(data, offset, type, byteorder) {
-      switch (type) {
-      case 1: // BYTE
-      case 7: // UNDEFINED
-        return data.getUint8(offset);
-      case 2: // ASCII
-        // This case is handed in parseValue
-        return null;
-      case 3: // SHORT
-        return data.getUint16(offset, byteorder);
-      case 4: // LONG
-        return data.getUint32(offset, byteorder);
-      case 5: // RATIONAL
-        return data.getUint32(offset, byteorder) /
-          data.getUint32(offset + 4, byteorder);
-      case 6: // SBYTE
-        return data.getInt8(offset);
-      case 8: // SSHORT
-        return data.getInt16(offset, byteorder);
-      case 9: // SLONG
-        return data.getInt32(offset, byteorder);
-      case 10: // SRATIONAL
-        return data.getInt32(offset, byteorder) /
-          data.getInt32(offset + 4, byteorder);
-      case 11: // FLOAT
-        return data.getFloat32(offset, byteorder);
-      case 12: // DOUBLE
-        return data.getFloat64(offset, byteorder);
-      }
-      return null;
+        createThumbnailFromElement(offscreenImage, true, metadata.rotation,
+                                   function(thumbnail) {
+                                     metadata.thumbnail = thumbnail;
+                                     offscreenImage.src = '';
+                                     metadataCallback(metadata);
+                                   });
+      };
     }
   }
 

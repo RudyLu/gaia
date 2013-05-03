@@ -18,22 +18,29 @@ ul li {
   min-height: 6rem;
 }
 
-ul li.active,
-ul li:active {
-  background-color: #ddf;
-  color: #222;
+ul li.sound-setting {
+  min-height: 7.9rem;
 }
 
-ul li > a {
+ul li > a,
+ul li > span {
   display: block;
   text-decoration: none;
   outline: 0;
   color: #000;
   -moz-box-sizing: border-box;
   height: 6rem;
-  font-size: 1.8rem;
+  font-size: 1.9rem;
   line-height: 6rem;
   padding: 0 3rem;
+}
+
+ul li.active,
+ul li:not(.explanation):active,
+ul li:not(.disabled) > small + a:active,
+ul li:not(.disabled) > a[href]:active {
+  background-color: #b2f2ff;
+  color: #222;
 }
 
 ul li.disabled > a {
@@ -41,10 +48,25 @@ ul li.disabled > a {
   pointer-events: none;
 }
 
+ul > li > progress {
+  display: inline-block;
+  margin: 0 0 0 3rem;
+  padding: 0;
+}
+
+ul > li > progress + span {
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0;
+  padding: 0 0 0 1rem;
+  color: #505b5b;
+  font-size: 1.4rem;
+}
+
 /* description + value on the same line */
 ul li > a span {
   position: absolute;
-  right: 2rem;
+  right: 3rem;
   color: #505859;
 }
 
@@ -63,7 +85,7 @@ ul li > small {
   right: 3rem;
   top: 50%;
   padding-top: 0.4rem;
-  font-size: 1.2rem;
+  font-size: 1.4rem;
   color: #505859;
   /* click/tap events should be caught by the <a> element below the <small> */
   pointer-events: none;
@@ -74,8 +96,10 @@ ul li > label:not([for]) + small {
 }
 
 /* required for empty elements like Bluetooth */
-ul li > small:not(:empty) + a {
+ul li > small:not(:empty) + a,
+ul li > small:not(:empty) + span {
   line-height: 4.4rem;
+  overflow: inherit; /* see Bug 831429 */
 }
 
 
@@ -84,14 +108,11 @@ ul li > small:not(:empty) + a {
  */
 
 ul li button,
-ul li a[role=button] {
+ul li a[role="button"] {
   position: relative;
-  top: 1rem;
-  left: 2rem;
-  font-size: 1.5rem;
-  line-height: 1em;
-  width: calc(100% - 5rem);
-  height: calc(100% - 2rem);
+  top: 1.1rem;
+  left: 3rem;
+  width: calc(100% - 6rem);
 }
 
 /* custom styles for boolean inputs (see /shared/style/switches.css) */
@@ -110,24 +131,27 @@ ul li > label:not([for]) {
 ul li > label:not([for]) > span,
 ul li > label:not([for]) > input[data-type="switch"] + span {
   left: auto;
-  right: 2rem;
+  right: 3rem;
 }
 
-ul li > label:not([for]) + a,
-ul li > label:not([for]) + small + a {
+ul li > label:not([for]) ~ a {
   padding-right: 6rem;
 }
 
+ul li > label:not([for]):active ~ a {
+  background-color: #b2f2ff;
+  color: #222;
+}
 
 /******************************************************************************
- * Text inputs
+ * Field inputs
  */
 
 ul li p {
-  font-size: 1.8rem;
+  font-size: 1.9rem;
   font-weight: 400;
   margin: 0;
-  padding: 1rem 3rem;
+  padding: 1rem 3rem 1.2rem;
 }
 
 ul li p + label:not([for]) {
@@ -135,29 +159,11 @@ ul li p + label:not([for]) {
   height: calc(100% - 2.5rem);
 }
 
-ul li p + input[type=text],
-ul li p + input[type=password] {
-  display: block;
+ul li p + input[type="text"],
+ul li p + input[type="tel"],
+ul li p + input[type="password"] {
   width: calc(100% - 6rem);
-  font-size: 1.8rem;
-  height: 2rem;
-  line-height: 2rem;
   margin: -1rem auto 1rem;
-}
-
-
-/******************************************************************************
- * Date|Time inputs
- */
-
-ul li > label input[type="date"],
-ul li > label input[type="time"] {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  top: 0;
-  left: 0;
-  opacity: 0;
 }
 
 
@@ -165,11 +171,58 @@ ul li > label input[type="time"] {
  * Range inputs
  */
 
-ul li > label input[type=range] {
-  width: 80%;
+input[type=range] {
+  -moz-appearance: none;
+  border: none;
+  background: none;
+}
+
+input[type=range]:-moz-focusring {
+  outline: none;
+}
+
+ul li > label input[type="range"] {
+  position: relative;
+  top: calc(50% - 1.5rem);
+  left: 6.5rem;
+  right: 8.5rem;
+  height: 3rem;
+  width: calc(100% - 15rem);
+}
+
+input[type=range]::-moz-range-track {
+  height: 0.1rem;
+  background-color: #7e7e7e;
+}
+
+input[type=range]::-moz-range-progress {
+  height: 0.3rem;
+  background-color: #01c5ed;
+}
+
+input[type=range]::-moz-range-thumb {
+  width: 2.8rem;
+  height: 2.8rem;
+  border: solid 0.1rem transparent;
+  border-radius: 3rem;
+  transition: border 0.15s ease;
+  -moz-box-sizing: border-box;
+  background: url(images/range_thumb.png) no-repeat 50% 50%;
+}
+
+input[type=range]:active::-moz-range-thumb {
+  border: solid 0.4rem #01c5ed;
+}
+
+ul li.sound-setting > label input[type="range"] {
+  margin: 0 auto;
   width: calc(100% - 6rem);
-  margin-left: 3rem;
-  margin-top: 2rem;
+  left: 3rem;
+}
+
+ul li#brightness-manual > label input[type="range"] {
+  margin: 0 auto;
+  width: calc(100% - 13rem);
 }
 
 /**
@@ -212,10 +265,10 @@ ul li > label.bug344618_polyfill div:before {
 ul li > label.bug344618_polyfill div {
   position: relative;
   top: calc(50% - 1.5rem);
-  left: 7.5rem;
-  right: 7.5rem;
+  left: 3rem;
+  right: 3rem;
   height: 3rem;
-  width: calc(100% - 15rem);
+  width: calc(100% - 6rem);
 }
 
 /* fill */
@@ -226,7 +279,7 @@ ul li > label.bug344618_polyfill div span:first-child {
   top: calc(50% - 0.15rem);
   width: 4rem;
   height: 0.3rem;
-  background: #01c5ed;
+  background-color: #01c5ed;
 }
 
 /* throbber */
@@ -246,7 +299,7 @@ ul li > label.bug344618_polyfill div span:last-child {
 }
 
 ul li > label.bug344618_polyfill div span:last-child:active {
-  border: solid 0.4rem #01C5ED;
+  border: solid 0.4rem #01c5ed;
 }
 
 
@@ -255,14 +308,14 @@ ul li > label.bug344618_polyfill div span:last-child:active {
  */
 
 ul li select {
-  font-size: 1.8rem;
+  font-size: 1.9rem;
   height: 3rem;
   line-height: 3rem;
   text-align: center;
 }
 
 /* half-width select boxes */
-ul li a select {
+ul li span select {
   display: inline-block;
   position: absolute;
   top: 1.5rem;
@@ -277,16 +330,66 @@ ul li p + select {
   margin: -1rem 3rem 1rem 12rem;
 }
 
+/******************************************************************************
+ * Fake select boxes
+ */
+.fake-select {
+  position: relative;
+  display: block;
+  padding: 1.1rem 3rem;
+  margin: 0;
+  height: 3.8rem;
+}
+
+.fake-select.small {
+  display: inline-block;
+  vertical-align: top;
+}
+
+.fake-select > button {
+  display: block;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+.fake-select > select {
+  position: absolute;
+  top: 0;
+  left: 3rem;
+  width: calc(100% - 6rem);
+  height: 3.8rem;
+  border: none;
+  background: red;
+  opacity: 0;
+}
+
+/* */
+section[role="region"] > ul > li > p + .fake-select {
+  padding-top: 0;
+  margin-top: -0.8rem;
+}
+
 
 /******************************************************************************
  * Progress, Meter
  */
 
-ul li progress, ul li meter {
+ul > li progress {
   display: block;
   width: calc(100% - 6rem);
   height: 3rem;
-  margin: 2.5rem auto;
+  margin: 3rem auto;
+  background: #e7e7e7;
+  border: 0.1rem solid #b6b6b6;
+  border-radius: 0.3rem;
+}
+
+ul > li progress::-moz-progress-bar {
+  margin: 1px;
+  height: calc(100% - 0.2rem);
+  border-radius: 0.2rem;
+  background-color: #82c72c;
 }
 
 
@@ -295,12 +398,12 @@ ul li progress, ul li meter {
  */
 
 dl > * {
-  font-size: 1.6em;
+  font-size: 1.7rem;
 }
 
 dl dt {
   padding-left: 3rem;
-  font-weight: bold;
+  font-weight: 500;
   border-bottom: 0.1rem solid black;
 }
 
@@ -312,20 +415,55 @@ dl dd {
 
 
 /******************************************************************************
- * Applications Permissions
+ * Right-to-Left layout
  */
-#appPermissions ul li > a {
-  padding: 0 -moz-calc(4.1rem - 30px);
-  height: 6rem;
-  line-height: 6rem;
-  font-size: 1.8rem;
-  color: #000;
+
+/* definition lists */
+html[dir="rtl"] dl dt {
+  padding-left: inherit;
+  padding-right: 3rem;
 }
 
-#appPermissions ul li img {
-  float: left;
-  margin-top: -moz-calc(3rem - 15px);
-  margin-right: 1.4rem;
-  width: 30px;
-  height: 30p;
+/* half-width select boxes */
+html[dir="rtl"] ul li span select {
+  left: 3rem;
+  right: inherit;
 }
+
+/* full-width select boxes */
+html[dir="rtl"] ul li p + select {
+  margin: -1rem 12rem 1rem 3rem;
+}
+
+/* boolean inputs */
+
+html[dir="rtl"] ul li button,
+html[dir="rtl"] ul li a[role="button"] {
+  left: inherit;
+  right: 3rem;
+}
+
+html[dir="rtl"] ul li > label:not([for]) > span,
+html[dir="rtl"] ul li > label:not([for]) > input[data-type="switch"] + span {
+  left: 6rem; /* XXX we use "right: 3rem" for LTR layouts... */
+  right: inherit;
+}
+
+html[dir="rtl"] ul li > label:not([for]) ~ a {
+  padding-left: 6rem;
+  padding-right: 3rem;
+}
+
+/* description + value on the same line */
+html[dir="rtl"] ul li > a span {
+  left: 3rem;
+  right: inherit;
+}
+
+/* main list items */
+html[dir="rtl"] ul li > a,
+html[dir="rtl"] ul li > span {
+  padding-left: inherit;
+  padding-right: 3rem;
+}
+

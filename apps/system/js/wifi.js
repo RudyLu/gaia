@@ -10,11 +10,16 @@ var Wifi = {
 
   wifiDisabledByWakelock: false,
 
-  // Without wake lock, wait for kOffTime milliseconds and turn wifi off
-  // after the conditions are met.
-  kOffTime: 60 * 1000,
+  // Without an wifi wake lock, wait for screenOffTimeout milliseconds
+  // to turn wifi off after the conditions are met.
+  // If it's set to 0, wifi will never be turn off.
+  screenOffTimeout: 0,
 
-  _offTimer: null,
+  // if Wifi is enabled but disconnected, try to scan for networks every
+  // kScanInterval ms.
+  kScanInterval: 20 * 1000,
+
+  _scanTimer: null,
 
   init: function wf_init() {
     window.addEventListener('screenchange', this);
@@ -44,6 +49,34 @@ var Wifi = {
 
     var self = this;
     var wifiManager = window.navigator.mozWifiManager;
+    // when wifi is really enabled, emit event to notify QuickSettings
+    wifiManager.onenabled = function onWifiEnabled() {
+      var evt = document.createEvent('CustomEvent');
+      evt.initCustomEvent('wifi-enabled',
+        /* canBubble */ true, /* cancelable */ false, null);
+      window.dispatchEvent(evt);
+    };
+
+    // when wifi is really disabled, emit event to notify QuickSettings
+    wifiManager.ondisabled = function onWifiDisabled() {
+      var evt = document.createEvent('CustomEvent');
+      evt.initCustomEvent('wifi-disabled',
+        /* canBubble */ true, /* cancelable */ false, null);
+      window.dispatchEvent(evt);
+    };
+
+    // when wifi status change, emit event to notify StatusBar/UpdateManager
+    wifiManager.onstatuschange = function onWifiDisabled() {
+      var evt = document.createEvent('CustomEvent');
+      evt.initCustomEvent('wifi-statuschange',
+        /* canBubble */ true, /* cancelable */ false, null);
+      window.dispatchEvent(evt);
+    };
+
+    SettingsListener.observe(
+      'wifi.screen_off_timeout', 600000, function(value) {
+        self.screenOffTimeout = value;
+      });
 
     // Track the wifi.enabled mozSettings value
     SettingsListener.observe('wifi.enabled', true, function(value) {
@@ -62,6 +95,18 @@ var Wifi = {
       }
 
       self.wifiEnabled = value;
+
+      clearTimeout(self._scanTimer);
+      if (!value)
+        return;
+
+      // If wifi is enabled but disconnected.
+      // we would need to call getNetworks() continuously
+      // so we could join known wifi network
+      self._scanTimer = setInterval(function wifi_scan() {
+        if (wifiManager.connection.status == 'disconnected')
+          wifiManager.getNetworks();
+      });
     });
 
     var power = navigator.mozPower;
@@ -83,6 +128,10 @@ var Wifi = {
   // Check the status of screen, wifi wake lock and power source
   // and turn on/off wifi accordingly
   maybeToggleWifi: function wifi_maybeToggleWifi() {
+    // Do nothing if we are being disabled.
+    if (!this.screenOffTimeout)
+      return;
+
     var battery = window.navigator.battery;
     var wifiManager = window.navigator.mozWifiManager;
     if (!battery || !wifiManager ||
@@ -111,7 +160,7 @@ var Wifi = {
       this.setSystemMessageHandler();
 
       // Start with a timer, only turn off wifi till timeout.
-      var date = new Date(Date.now() + this.kOffTime);
+      var date = new Date(Date.now() + this.screenOffTimeout);
       var self = this;
       var req = navigator.mozAlarms.add(date, 'ignoreTimezone', 'wifi-off');
       req.onsuccess = function wifi_offAlarmSet() {
@@ -128,6 +177,12 @@ var Wifi = {
       if (this._alarmId) {
         navigator.mozAlarms.remove(this._alarmId);
         this._alarmId = null;
+      }
+
+      // If wifi is enabled but disconnected.
+      // we would need to call getNetworks() so we could join known wifi network
+      if (this.wifiEnabled && wifiManager.connection.status == 'disconnected') {
+        wifiManager.getNetworks();
       }
 
       // We don't need to do anything if we didn't disable wifi at first place.

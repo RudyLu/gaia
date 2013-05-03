@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- /
+/* -*- Mode: js; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- /
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 
 'use strict';
@@ -18,6 +18,7 @@ var Applications = {
         var apps = evt.target.result;
         apps.forEach(function(app) {
           self.installedApps[app.manifestURL] = app;
+          // TODO Followup for retrieving homescreen & comms app
         });
 
         self.ready = true;
@@ -55,7 +56,7 @@ var Applications = {
       delete self.installedApps[deletedapp.manifestURL];
 
       self.fireApplicationUninstallEvent(deletedapp);
-    }
+    };
   },
 
   getByManifestURL: function a_getByManifestURL(manifestURL) {

@@ -20,8 +20,8 @@ var ModalDialog = {
     var elementsID = ['alert', 'alert-ok', 'alert-message',
       'prompt', 'prompt-ok', 'prompt-cancel', 'prompt-input', 'prompt-message',
       'confirm', 'confirm-ok', 'confirm-cancel', 'confirm-message',
-      'error', 'error-back', 'error-reload', 'select-one', 'select-one-cancel',
-      'select-one-menu', 'select-one-title'];
+      'select-one', 'select-one-cancel', 'select-one-menu', 'select-one-title',
+      'alert-title', 'confirm-title', 'prompt-title'];
 
     var toCamelCase = function toCamelCase(str) {
       return str.replace(/\-(.)/g, function replacer(str, p1) {
@@ -51,13 +51,14 @@ var ModalDialog = {
 
     // Bind events
     window.addEventListener('mozbrowsershowmodalprompt', this);
-    window.addEventListener('mozbrowsererror', this);
     window.addEventListener('appopen', this);
     window.addEventListener('appwillclose', this);
     window.addEventListener('appterminated', this);
     window.addEventListener('resize', this);
     window.addEventListener('keyboardchange', this);
     window.addEventListener('keyboardhide', this);
+    window.addEventListener('home', this);
+    window.addEventListener('holdhome', this);
 
     for (var id in elements) {
       var tagName = elements[id].tagName.toLowerCase();
@@ -71,13 +72,9 @@ var ModalDialog = {
   handleEvent: function md_handleEvent(evt) {
     var elements = this.elements;
     switch (evt.type) {
-      case 'mozbrowsererror':
       case 'mozbrowsershowmodalprompt':
-        if (evt.target.dataset.frameType != 'window')
-          return;
-
-        /* fatal case (App crashing) is handled in Window Manager */
-        if (evt.type == 'mozbrowsererror' && evt.detail.type == 'fatal')
+        var frameType = evt.target.dataset.frameType;
+        if (frameType != 'window' && frameType != 'inline-activity')
           return;
 
         evt.preventDefault();
@@ -86,18 +83,13 @@ var ModalDialog = {
 
         // Show modal dialog only if
         // the frame is currently displayed.
-        if (origin == WindowManager.getDisplayedApp())
-          this.show(origin);
+        if (origin == WindowManager.getDisplayedApp() ||
+            frameType == 'inline-activity')
+          this.show(evt.target, origin);
         break;
 
       case 'click':
-        if (evt.currentTarget === elements.errorBack) {
-          this.cancelHandler();
-          WindowManager.kill(this.currentOrigin);
-        } else if (evt.currentTarget === elements.errorReload) {
-          this.cancelHandler();
-          WindowManager.reload(this.currentOrigin);
-        } else if (evt.currentTarget === elements.confirmCancel ||
+        if (evt.currentTarget === elements.confirmCancel ||
           evt.currentTarget === elements.promptCancel ||
           evt.currentTarget === elements.selectOneCancel) {
           this.cancelHandler();
@@ -109,7 +101,15 @@ var ModalDialog = {
         break;
 
       case 'appopen':
-        this.show(evt.detail.origin);
+        this.show(evt.target, evt.detail.origin);
+        break;
+
+      case 'home':
+      case 'holdhome':
+        // Inline activity, which origin is different from foreground app
+        if (this.isVisible() &&
+            this.currentOrigin != WindowManager.getDisplayedApp())
+          this.cancelHandler();
         break;
 
       case 'appwillclose':
@@ -148,20 +148,25 @@ var ModalDialog = {
   },
 
   // Show relative dialog and set message/input value well
-  show: function md_show(origin) {
-    this.currentOrigin = origin;
+  show: function md_show(target, origin) {
+    if (!(origin in this.currentEvents))
+      return;
+
+    var _ = navigator.mozL10n.get;
     var evt = this.currentEvents[origin];
+    this.currentOrigin = origin;
 
     var message = evt.detail.message || '';
     var elements = this.elements;
     this.screen.classList.add('modal-dialog');
 
     function escapeHTML(str) {
-      var span = document.createElement('span');
-      span.textContent = str;
-      // Escape space for displaying multiple space in message.
-      span.innerHTML = span.innerHTML.replace(/\n/g, '<br/>');
-      return span.innerHTML;
+      var stringHTML = str;
+      stringHTML = stringHTML.replace(/\</g, '&#60;');
+      stringHTML = stringHTML.replace(/(\r\n|\n|\r)/gm, '<br/>');
+      stringHTML = stringHTML.replace(/\s\s/g, ' &nbsp;');
+
+      return stringHTML.replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
     }
 
     var type = evt.detail.promptType || evt.detail.type;
@@ -173,27 +178,32 @@ var ModalDialog = {
       case 'alert':
         elements.alertMessage.innerHTML = message;
         elements.alert.classList.add('visible');
+        this.setTitle('alert', '');
+        elements.alertOk.textContent = evt.yesText ? evt.yesText : _('ok');
         break;
 
       case 'prompt':
         elements.prompt.classList.add('visible');
         elements.promptInput.value = evt.detail.initialValue;
         elements.promptMessage.innerHTML = message;
+        this.setTitle('prompt', '');
+        elements.promptOk.textContent = evt.yesText ? evt.yesText : _('ok');
+        elements.promptCancel.textContent = evt.noText ?
+          evt.noText : _('cancel');
         break;
 
       case 'confirm':
         elements.confirm.classList.add('visible');
         elements.confirmMessage.innerHTML = message;
+        this.setTitle('confirm', '');
+        elements.confirmOk.textContent = evt.yesText ? evt.yesText : _('ok');
+        elements.confirmCancel.textContent = evt.noText ?
+          evt.noText : _('cancel');
         break;
 
       case 'selectone':
         this.buildSelectOneDialog(message);
         elements.selectOne.classList.add('visible');
-        break;
-
-      // Error
-      case 'other':
-        elements.error.classList.add('visible');
         break;
     }
 
@@ -202,13 +212,17 @@ var ModalDialog = {
 
   hide: function md_hide() {
     var evt = this.currentEvents[this.currentOrigin];
-    var type = evt.detail.promptType || evt.detail.type;
+    var type = evt.detail.promptType;
     if (type == 'prompt') {
       this.elements.promptInput.blur();
     }
     this.currentOrigin = null;
     this.screen.classList.remove('modal-dialog');
     this.elements[type].classList.remove('visible');
+  },
+
+  setTitle: function md_setTitle(type, title) {
+    this.elements[type + 'Title'].textContent = title;
   },
 
   // When user clicks OK button on alert/confirm/prompt
@@ -232,10 +246,6 @@ var ModalDialog = {
       case 'confirm':
         evt.detail.returnValue = true;
         elements.confirm.classList.remove('visible');
-        break;
-
-      case 'other':
-        elements.error.classList.remove('visible');
         break;
     }
 
@@ -279,14 +289,10 @@ var ModalDialog = {
         evt.detail.returnValue = null;
         elements.selectOne.classList.remove('visible');
         break;
-
-      case 'other':
-        elements.error.classList.remove('visible');
-        break;
     }
 
-    if (evt.isPseudo && evt.callback) {
-      evt.callback(evt.detail.returnValue);
+    if (evt.isPseudo && evt.cancelCallback) {
+      evt.cancelCallback(evt.detail.returnValue);
     }
 
     if (evt.detail.unblock)
@@ -336,34 +342,66 @@ var ModalDialog = {
     elements.selectOneMenu.innerHTML = itemsHTML.join('');
   },
 
-  // The below is for system apps to use.
-  alert: function md_alert(text, callback) {
+  /**
+  * Method about customized alert
+  * @param  {String} title the title of the dialog. null or empty for
+  *                        no title.
+  * @param  {String} text message for the dialog.
+  * @param  {Object} confirm {title, callback} object when confirm.
+  */
+  alert: function md_alert(title, text, confirm) {
     this.showWithPseudoEvent({
       type: 'alert',
       text: text,
-      callback: callback
+      callback: confirm.callback,
+      title: title,
+      yesText: confirm.title
     });
   },
 
-  confirm: function md_confirm(text, callback, cancel) {
+  /**
+  * Method about customized confirm
+  * @param  {String} title the title of the dialog. null or empty for
+  *                        no title.
+  * @param  {String} text message for the dialog.
+  * @param  {Object} confirm {title, callback} object when confirm.
+  * @param  {Object} cancel {title, callback} object when cancel.
+  */
+  confirm: function md_confirm(title, text, confirm, cancel) {
     this.showWithPseudoEvent({
       type: 'confirm',
       text: text,
-      callback: callback,
-      cancel: cancel
+      callback: confirm.callback,
+      cancel: cancel.callback,
+      title: title,
+      yesText: confirm.title,
+      noText: cancel.title
     });
   },
 
-  prompt: function md_prompt(text, default_value, callback) {
+  /**
+  * Method about customized prompt
+  * @param  {String} title the title of the dialog. null or empty for
+  *                        no title.
+  * @param  {String} text message for the dialog.
+  * @param  {String} default_value message in the text field.
+  * @param  {Object} confirm {title, callback} object when confirm.
+  * @param  {Object} cancel {title, callback} object when cancel.
+  */
+  prompt: function md_prompt(title, text, default_value, confirm, cancel) {
     this.showWithPseudoEvent({
       type: 'prompt',
       text: text,
       initialValue: default_value,
-      callback: callback
+      callback: confirm.callback,
+      cancel: cancel.callback,
+      title: title,
+      yesText: confirm.title,
+      noText: cancel.title
     });
   },
 
-  selectOne: function md_alert(data, callback) {
+  selectOne: function md_selectOne(data, callback) {
     this.showWithPseudoEvent({
       type: 'selectone',
       text: data,
@@ -382,6 +420,9 @@ var ModalDialog = {
     pseudoEvt.detail.message = config.text;
     pseudoEvt.callback = config.callback;
     pseudoEvt.detail.promptType = config.type;
+    pseudoEvt.cancelCallback = config.cancel;
+    pseudoEvt.yesText = config.yesText;
+    pseudoEvt.noText = config.noText;
     if (config.type == 'prompt') {
       pseudoEvt.detail.initialValue = config.initialValue;
     }
@@ -389,7 +430,9 @@ var ModalDialog = {
     // Create a virtual mapping in this.currentEvents,
     // since system-app uses the different way to call ModalDialog.
     this.currentEvents['system'] = pseudoEvt;
-    this.show('system');
+    this.show(null, 'system');
+    if (config.title)
+      this.setTitle(config.type, config.title);
   },
 
   isVisible: function md_isVisible() {
@@ -398,3 +441,4 @@ var ModalDialog = {
 };
 
 ModalDialog.init();
+

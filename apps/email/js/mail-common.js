@@ -4,6 +4,15 @@
 
 var mozL10n = navigator.mozL10n;
 
+// Dependcy handling for Cards
+// We match the first section of each card type to the key
+// E.g., setup-progress, would load the 'setup' lazyCards.setup
+var lazyCards = {
+    compose: ['js/compose-cards.js', 'style/compose-cards.css'],
+    settings: ['js/setup-cards.js', 'style/setup-cards.css'],
+    setup: ['js/setup-cards.js', 'style/setup-cards.css']
+};
+
 function dieOnFatalError(msg) {
   console.error('FATAL:', msg);
   throw new Error(msg);
@@ -43,6 +52,18 @@ function populateTemplateNodes() {
   tngNodes = processTemplNodes('tng');
 }
 
+function addClass(domNode, name) {
+  if (domNode) {
+    domNode.classList.add(name);
+  }
+}
+
+function removeClass(domNode, name) {
+  if (domNode) {
+    domNode.classList.remove(name);
+  }
+}
+
 function batchAddClass(domNode, searchClass, classToAdd) {
   var nodes = domNode.getElementsByClassName(searchClass);
   for (var i = 0; i < nodes.length; i++) {
@@ -57,10 +78,10 @@ function batchRemoveClass(domNode, searchClass, classToRemove) {
   }
 }
 
-const MATCHED_TEXT_CLASS = 'highlight';
+var MATCHED_TEXT_CLASS = 'highlight';
 
 function appendMatchItemTo(matchItem, node) {
-  const text = matchItem.text;
+  var text = matchItem.text;
   var idx = 0;
   for (var iRun = 0; iRun <= matchItem.matchRuns.length; iRun++) {
     var run;
@@ -186,7 +207,13 @@ var Cards = {
    * }
    */
   _cardStack: [],
-  activeCardIndex: null,
+  activeCardIndex: -1,
+
+  /**
+   * Cards can stack on top of each other, make sure the stacked set is
+   * visible over the lower sets.
+   */
+  _zIndex: 0,
 
   /**
    * The DOM node that contains the _containerNode ("#cardContainer") and which
@@ -216,6 +243,13 @@ var Cards = {
    */
   _animatingDeadDomNodes: [],
 
+  /**
+   * Tracks the number of transition events per card animation. Since each
+   * animation ends up with two transitionend events since two cards are
+   * moving, need to wait for the last one to be finished before doing
+   * cleanup, like DOM removal.
+   */
+  _transitionCount: 0,
 
   /**
    * Annoying logic related to contextmenu event handling; search for the uses
@@ -259,9 +293,6 @@ var Cards = {
                                          this._onMaybeIntercept.bind(this),
                                          true);
 
-    this._adjustCardSizes();
-    window.addEventListener('resize', this._adjustCardSizes.bind(this), false);
-
     // XXX be more platform detecty. or just add more events. unless the
     // prefixes are already gone with webkit and opera?
     this._cardsNode.addEventListener('transitionend',
@@ -294,32 +325,30 @@ var Cards = {
         (event.clientX >
          this._containerNode.offsetWidth - this.TRAY_GUTTER_WIDTH)) {
       event.stopPropagation();
-      this.moveToCard(this.activeCardIndex + 1);
-    }
-  },
 
-  _adjustCardSizes: function(evt) {
-    var cardWidth = this._containerNode.offsetWidth,
-        cardHeight = this._containerNode.offsetHeight,
-        totalWidth = 0;
+      // Look for a card with a data-tray-target attribute
+      var targetIndex = -1;
+      this._cardStack.some(function(card, i) {
+        if (card.domNode.hasAttribute('data-tray-target')) {
+          targetIndex = i;
+          return true;
+        }
+      });
 
-    for (var i = 0; i < this._cardStack.length; i++) {
-      var cardInst = this._cardStack[i];
-      var targetWidth = cardWidth;
-      if (cardInst.modeDef.tray)
-        targetWidth -= this.TRAY_GUTTER_WIDTH;
-      cardInst.domNode.style.width = targetWidth + 'px';
-      cardInst.domNode.style.height = cardHeight + 'px';
+      // Choose a default of one card ahead
+      if (targetIndex === -1)
+        targetIndex = this.activeCardIndex + 1;
 
-      cardInst.left = totalWidth;
-      totalWidth += targetWidth;
-    }
-    this._cardsNode.style.width = totalWidth + 'px';
-    this._cardsNode.style.height = cardHeight + 'px';
+      var indexDiff = targetIndex - (this.activeCardIndex + 1);
+      if (indexDiff > 0) {
+        this._afterTransitionAction = (function() {
+          this.removeCardAndSuccessors(this._cardStack[0].domNode,
+                                       'none', indexDiff);
+          this.moveToCard(targetIndex, 'animate', 'forward');
+        }.bind(this));
+      }
 
-    // Reset cards' position when container resized.
-    if (evt && evt.type == 'resize') {
-      this._showCard(this.activeCardIndex, 'immediate');
+      this.moveToCard(this.activeCardIndex + 1, 'animate', 'forward');
     }
   },
 
@@ -386,8 +415,20 @@ var Cards = {
    */
   pushCard: function(type, mode, showMethod, args, placement) {
     var cardDef = this._cardDefs[type];
-    if (!cardDef)
+    var typePrefix = type.split('-')[0];
+
+    if (!cardDef && lazyCards[typePrefix]) {
+      var args = Array.slice(arguments);
+      var callback = function() {
+        this.pushCard.apply(this, args);
+      };
+
+      this.eatEventsUntilNextCard();
+      App.loader.load(lazyCards[typePrefix], callback.bind(this));
+      return;
+    } else if (!cardDef)
       throw new Error('No such card def type: ' + type);
+
     var modeDef = cardDef.modes[mode];
     if (!modeDef)
       throw new Error('No such card mode: ' + mode);
@@ -405,10 +446,12 @@ var Cards = {
     if (!placement) {
       cardIndex = this._cardStack.length;
       insertBuddy = null;
+      domNode.classList.add(cardIndex === 0 ? 'before' : 'after');
     }
     else if (placement === 'left') {
       cardIndex = this.activeCardIndex++;
       insertBuddy = this._cardsNode.children[cardIndex];
+      domNode.classList.add('before');
     }
     else if (placement === 'right') {
       cardIndex = this.activeCardIndex + 1;
@@ -416,21 +459,25 @@ var Cards = {
         insertBuddy = null;
       else
         insertBuddy = this._cardsNode.children[cardIndex];
+      domNode.classList.add('after');
     }
     this._cardStack.splice(cardIndex, 0, cardInst);
     this._cardsNode.insertBefore(domNode, insertBuddy);
-    this._adjustCardSizes();
+
+    // If the card has any <button type="reset"> buttons,
+    // make them clear the field they're next to and not the entire form.
+    // See input_areas.js and shared/style/input_areas.css.
+    hookupInputAreaResetButtons(domNode);
+
     if ('postInsert' in cardImpl)
       cardImpl.postInsert();
 
     if (showMethod !== 'none') {
-      // If we want to animate and we just inserted the card to the left, then
-      // we need to update our position so that the user perceives animation.
-      // (Otherwise our offset is already showing the new card.)
-      if (showMethod === 'animate' && placement === 'left')
-        this._showCard(this.activeCardIndex, 'immediate');
+      // make sure the reflow sees the new node so that the animation
+      // later is smooth.
+      domNode.clientWidth;
 
-      this._showCard(cardIndex, showMethod);
+      this._showCard(cardIndex, showMethod, 'forward');
     }
   },
 
@@ -442,8 +489,6 @@ var Cards = {
         return i;
       }
     }
-    throw new Error('Unable to find card with type: ' + type + ' mode: ' +
-                    mode);
   },
 
   _findCardUsingImpl: function(impl) {
@@ -452,16 +497,29 @@ var Cards = {
       if (cardInst.cardImpl === impl)
         return i;
     }
-    throw new Error('Unable to find card using impl:', impl);
   },
 
-  _findCard: function(query) {
+  _findCard: function(query, skipFail) {
+    var result;
     if (Array.isArray(query))
-      return this._findCardUsingTypeAndMode(query[0], query[1]);
+      result = this._findCardUsingTypeAndMode(query[0], query[1], skipFail);
     else if (typeof(query) === 'number') // index number
-      return query;
+      result = query;
     else
-      return this._findCardUsingImpl(query);
+      result = this._findCardUsingImpl(query);
+
+    if (result > -1)
+      return result;
+    else if (!skipFail)
+      throw new Error('Unable to find card with query:', query);
+    else
+      // Returning undefined explicitly so that index comparisons, like
+      // the one in hasCard, are correct.
+      return undefined;
+  },
+
+  hasCard: function(query) {
+    return this._findCard(query, true) > -1;
   },
 
   findCardObject: function(query) {
@@ -469,27 +527,35 @@ var Cards = {
   },
 
   folderSelector: function(callback) {
-    // XXX: Unified folders will require us to make sure we get the folder list
-    //      for the account the message originates from.
-    if (!this.folderPrompt) {
-      var selectorTitle = mozL10n.get('messages-folder-select');
-      this.folderPrompt = new ValueSelector(selectorTitle);
-    }
     var self = this;
-    var folderCardObj = Cards.findCardObject(['folder-picker', 'navigation']);
-    var folderImpl = folderCardObj.cardImpl;
-    var folders = folderImpl.foldersSlice.items;
-    for (var i = 0; i < folders.length; i++) {
-      var folder = folders[i];
-      this.folderPrompt.addToList(folder.name, folder.depth, function(folder) {
-        return function() {
-          self.folderPrompt.hide();
-          callback(folder);
-        }
-      }(folder));
 
-    }
-    this.folderPrompt.show();
+    App.loader.load(
+      ['style/value_selector.css', 'js/value_selector.js'],
+      function() {
+        // XXX: Unified folders will require us to make sure we get
+        //      the folder list for the account the message originates from.
+        if (!self.folderPrompt) {
+          var selectorTitle = mozL10n.get('messages-folder-select');
+          self.folderPrompt = new ValueSelector(selectorTitle);
+        }
+
+        var folderCardObj =
+          Cards.findCardObject(['folder-picker', 'navigation']);
+        var folderImpl = folderCardObj.cardImpl;
+        var folders = folderImpl.foldersSlice.items;
+        for (var i = 0; i < folders.length; i++) {
+          var folder = folders[i];
+          self.folderPrompt.addToList(folder.name, folder.depth,
+            function(folder) {
+              return function() {
+                self.folderPrompt.hide();
+                callback(folder);
+              }
+            }(folder));
+
+        }
+        self.folderPrompt.show();
+      });
   },
 
   moveToCard: function(query, showMethod) {
@@ -542,74 +608,6 @@ var Cards = {
   },
 
   /**
-   * Create a popup associated with a given node.  We mask out the part of the
-   * screen that is not the node, helping make it obvious what the menu is
-   * related to.  We currently do not try to show an arrow thing, although it
-   * would be friendly of us if we did.
-   *
-   * https://wiki.mozilla.org/Gaia/Design/Patterns#Dialogues:_Popups
-   */
-  popupMenuForNode: function(menuTree, domNode, legalClickTargets, callback) {
-    var self = this,
-        bounds = domNode.getBoundingClientRect();
-
-    var popupInfo = this._popupActive = {
-      popupNode: menuTree,
-      maskNodeCleanup: this._createMaskForNode(domNode, bounds),
-      close: function(result) {
-        self._popupActive = false;
-        self._rootNode.removeChild(popupInfo.popupNode);
-        popupInfo.maskNodeCleanup();
-        callback(result);
-      }
-    };
-
-    var uiWidth = this._containerNode.offsetWidth,
-        uiHeight = this._containerNode.offsetHeight;
-
-    popupInfo.popupNode.classList.add('popup');
-    this._rootNode.appendChild(popupInfo.popupNode);
-    // now we need to position the popup...
-    var menuWidth = popupInfo.popupNode.offsetWidth,
-        menuHeight = popupInfo.popupNode.offsetHeight,
-        nodeCenter = bounds.top + (bounds.bottom - bounds.top) / 2,
-        menuTop, menuLeft;
-
-    const MARGIN = 4;
-
-    // - Menu goes below item
-    if (nodeCenter < uiHeight / 2) {
-      menuTop = bounds.bottom + MARGIN;
-      if (menuTop + menuHeight >= uiHeight)
-        menuTop = uiHeight - menuHeight - MARGIN;
-    }
-    // - Menu goes above item
-    else {
-      menuTop = bounds.top - menuHeight - MARGIN;
-
-      if (menuTop < MARGIN)
-        menuTop = MARGIN;
-    }
-
-    menuLeft = (uiWidth - menuWidth) / 2;
-
-    popupInfo.popupNode.style.top = menuTop + 'px';
-    popupInfo.popupNode.style.left = menuLeft + 'px';
-
-    popupInfo.popupNode.addEventListener('click', function(event) {
-      var node = event.target;
-      while (node !== popupInfo.popupNode) {
-        for (var i = 0; i < legalClickTargets.length; i++) {
-          if (node.classList.contains(legalClickTargets[i])) {
-            popupInfo.close(node);
-            return;
-          }
-        }
-      }
-    }, false);
-  },
-
-  /**
    * Remove the card identified by its DOM node and all the cards to its right.
    * Pass null to remove all of the cards!
    */
@@ -652,6 +650,9 @@ var Cards = {
     }
     else if (cardDomNode === null) {
       firstIndex = 0;
+      // reset the z-index to 0 since we may have cards in the stack that
+      // adjusted the z-index (and we are definitively clearing all cards).
+      this._zIndex = 0;
     }
     else {
       for (iCard = this._cardStack.length - 1; iCard >= 0; iCard--) {
@@ -666,6 +667,25 @@ var Cards = {
     }
     if (!numCards)
       numCards = this._cardStack.length - firstIndex;
+
+    if (showMethod !== 'none') {
+      var nextCardIndex = null;
+      if (nextCardSpec)
+        nextCardIndex = this._findCard(nextCardSpec);
+      else if (this._cardStack.length)
+        nextCardIndex = Math.min(firstIndex - 1, this._cardStack.length - 1);
+
+      this._showCard(nextCardIndex, showMethod, 'back');
+    }
+
+    // Update activeCardIndex if nodes were removed that would affect its
+    // value.
+    if (firstIndex <= this.activeCardIndex) {
+      this.activeCardIndex -= numCards;
+      if (this.activeCardIndex < -1) {
+        this.activeCardIndex = -1;
+      }
+    }
 
     var deadCardInsts = this._cardStack.splice(
                           firstIndex, numCards);
@@ -687,51 +707,122 @@ var Cards = {
           break;
       }
     }
-    if (showMethod !== 'none') {
-      var nextCardIndex = null;
-      if (nextCardSpec)
-        nextCardIndex = this._findCard(nextCardSpec);
-      else if (this._cardStack.length)
-        nextCardIndex = Math.min(firstIndex - 1, this._cardStack.length - 1);
-      this._showCard(nextCardIndex, showMethod);
-    }
   },
 
-  _showCard: function(cardIndex, showMethod) {
+  /**
+   * Shortcut for removing all the cards
+   */
+  removeAllCards: function() {
+    return this.removeCardAndSuccessors(null, 'none');
+  },
+
+  _showCard: function(cardIndex, showMethod, navDirection) {
+    // Do not do anything if this is a show card for the current card.
+    if (cardIndex === this.activeCardIndex) {
+      return;
+    }
+
+    if (cardIndex > this._cardStack.length - 1) {
+      // Some cards were removed, adjust.
+      cardIndex = this._cardStack.length - 1;
+    }
+    if (this.activeCardIndex > this._cardStack.length - 1) {
+      this.activeCardIndex = -1;
+    }
+
+    if (this.activeCardIndex === -1) {
+      this.activeCardIndex = cardIndex === 0 ? cardIndex : cardIndex - 1;
+    }
+
     var cardInst = (cardIndex !== null) ? this._cardStack[cardIndex] : null;
+    var beginNode = this._cardStack[this.activeCardIndex].domNode;
+    var endNode = this._cardStack[cardIndex].domNode;
+    var isForward = navDirection === 'forward';
 
-    var targetLeft;
-    if (cardInst)
-      targetLeft = 'translateX(' + (-cardInst.left) + 'px)';
-    else
-      targetLeft = 'translateX(0px)';
+    if (this._cardStack.length === 1) {
+      // Reset zIndex so that it does not grow ever higher when all but
+      // one card are removed
+      this._zIndex = 0;
+    }
 
-    var cardsNode = this._cardsNode;
-    if (cardsNode.style.MozTransform !== targetLeft) {
-      if (showMethod === 'immediate') {
-        // XXX cross-platform support.
-        cardsNode.style.MozTransitionProperty = 'none';
-        // make sure the reflow sees the transition is turned off.
-        cardsNode.clientWidth;
-        // explicitly clear since there will be no animation
-        this._eatingEventsUntilNextCard = false;
-      }
-      else {
-        this._eatingEventsUntilNextCard = true;
-      }
-      cardsNode.style.MozTransform = targetLeft;
+    // If going forward and it is an overlay node, then do not animate the
+    // beginning node, it will just sit under the overlay.
+    if (isForward && endNode.classList.contains('anim-overlay')) {
+      beginNode = null;
 
-      if (showMethod === 'immediate') {
-        // make sure the instantaneous transition is seen before we turn
-        // transitions back on.
-        cardsNode.clientWidth;
-        // CROSS-BROWSER-TODO
-        cardsNode.style.MozTransitionProperty = '-moz-transform';
+      // anim-overlays are the transitions to new layers in the stack. If
+      // starting a new one, it is forward movement and needs a new zIndex.
+      // Otherwise, going back to
+      this._zIndex += 10;
+    }
+
+    // If going back and the beginning node was an overlay, do not animate
+    // the end node, since it should just be hidden under the overlay.
+    if (beginNode && beginNode.classList.contains('anim-overlay')) {
+      if (isForward) {
+        // If a forward animation and overlay had a vertical transition,
+        // disable it, use normal horizontal transition.
+        if (showMethod !== 'immediate' &&
+            beginNode.classList.contains('anim-vertical')) {
+          removeClass(beginNode, 'anim-vertical');
+          addClass(beginNode, 'disabled-anim-vertical');
+        }
+      } else {
+        endNode = null;
+        this._zIndex -= 10;
       }
     }
-    else {
+
+    // If the zindex is not zero, then in an overlay stack, adjust zindex
+    // accordingly.
+    if (endNode && isForward && this._zIndex) {
+      endNode.style.zIndex = this._zIndex;
+    }
+
+    var cardsNode = this._cardsNode;
+
+    if (showMethod === 'immediate') {
+      addClass(beginNode, 'no-anim');
+      addClass(endNode, 'no-anim');
+
+      // make sure the reflow sees the transition is turned off.
+      cardsNode.clientWidth;
       // explicitly clear since there will be no animation
       this._eatingEventsUntilNextCard = false;
+    }
+    else {
+      this._transitionCount = (beginNode && endNode) ? 2 : 1;
+      this._eatingEventsUntilNextCard = true;
+    }
+
+    if (this.activeCardIndex === cardIndex) {
+      // same node, no transition, just bootstrapping UI.
+      removeClass(beginNode, 'before');
+      removeClass(beginNode, 'after');
+      addClass(beginNode, 'center');
+    } else if (this.activeCardIndex > cardIndex) {
+      // back
+      removeClass(beginNode, 'center');
+      addClass(beginNode, 'after');
+
+      removeClass(endNode, 'before');
+      addClass(endNode, 'center');
+    } else {
+      // forward
+      removeClass(beginNode, 'center');
+      addClass(beginNode, 'before');
+
+      removeClass(endNode, 'after');
+      addClass(endNode, 'center');
+    }
+
+    if (showMethod === 'immediate') {
+      // make sure the instantaneous transition is seen before we turn
+      // transitions back on.
+      cardsNode.clientWidth;
+
+      removeClass(beginNode, 'no-anim');
+      removeClass(endNode, 'no-anim');
     }
 
     // Hide toaster while active card index changed:
@@ -743,17 +834,46 @@ var Cards = {
   },
 
   _onTransitionEnd: function(event) {
-    if (this._eatingEventsUntilNextCard)
-      this._eatingEventsUntilNextCard = false;
-    if (this._animatingDeadDomNodes.length) {
-      this._animatingDeadDomNodes.forEach(function(domNode) {
-        if (domNode.parentNode)
-          domNode.parentNode.removeChild(domNode);
-      });
-      // Our coordinate space may have been affected, so update and re-show
-      // the current card.
-      this._adjustCardSizes();
-      this._showCard(this.activeCardIndex, 'immediate');
+    // Multiple cards can animate, so there can be multiple transitionend
+    // events. Only do the end work when all have finished animating.
+    if (this._transitionCount > 0)
+      this._transitionCount -= 1;
+
+    if (this._transitionCount === 0) {
+      if (this._eatingEventsUntilNextCard)
+        this._eatingEventsUntilNextCard = false;
+      if (this._animatingDeadDomNodes.length) {
+        // Use a setTimeout to give the animation some space to settle.
+        setTimeout(function() {
+          this._animatingDeadDomNodes.forEach(function(domNode) {
+            if (domNode.parentNode)
+              domNode.parentNode.removeChild(domNode);
+          });
+          this._animatingDeadDomNodes = [];
+        }.bind(this), 100);
+      }
+
+      // If an vertical overlay transition was was disabled, if
+      // current node index is an overlay, enable it again.
+      var endNode = this._cardStack[this.activeCardIndex].domNode;
+      if (endNode.classList.contains('disabled-anim-vertical')) {
+        removeClass(endNode, 'disabled-anim-vertical');
+        addClass(endNode, 'anim-vertical');
+      }
+
+      // Popup toaster that pended for previous card view.
+      var pendingToaster = Toaster.pendingStack.slice(-1)[0];
+      if (pendingToaster) {
+        pendingToaster();
+        Toaster.pendingStack.pop();
+      }
+
+      // If any action to to at the end of transition trigger now.
+      if (this._afterTransitionAction) {
+        var afterTransitionAction = this._afterTransitionAction;
+        this._afterTransitionAction = null;
+        afterTransitionAction();
+      }
     }
   },
 
@@ -804,13 +924,27 @@ var Toaster = {
   get body() {
     delete this.body;
     return this.body =
-           document.querySelector('section[role="dialog"].banner');
+           document.querySelector('section[role="status"]');
   },
   get text() {
     delete this.text;
     return this.text =
-           document.querySelector('section[role="dialog"].banner p');
+           document.querySelector('section[role="status"] p');
   },
+  get undoBtn() {
+    delete this.undoBtn;
+    return this.undoBtn =
+           document.querySelector('.toaster-banner-undo');
+  },
+  get retryBtn() {
+    delete this.retryBtn;
+    return this.retryBtn =
+           document.querySelector('.toaster-banner-retry');
+  },
+
+  undoableOp: null,
+  retryCallback: null,
+
   /**
    * Toaster timeout setting.
    */
@@ -830,35 +964,46 @@ var Toaster = {
    */
   _listeners: [],
 
-  /**
-   * Tell toaster listeners about our sending message, and return a callback
-   * to appropriately report the error or what not when the send conclusively
-   * fails or succeeds.
-   */
-  trackSendMessage: function() {
-  },
+  pendingStack: [],
 
   /**
    * Tell toaster listeners about a mutation we just made.
+   *
+   * @param {Object} undoableOp undoable operation.
+   * @param {Boolean} pending
+   *   If true, indicates that we should wait to display this banner until we
+   *   transition to the next card.  This is appropriate for things like
+   *   deleting the message that is displayed on the current card (and which
+   *   will be imminently closed).
    */
-  logMutation: function(undoableOp) {
-    //Close previous toaster before showing the new one.
-    if (!this.body.classList.contains('collapsed')) {
-      this.hide();
+  logMutation: function(undoableOp, pending) {
+    if (pending) {
+      this.pendingStack.push(this.show.bind(this, 'undo', undoableOp));
+    } else {
+      this.show('undo', undoableOp);
     }
-    this.show('undo', undoableOp);
+  },
+
+  /**
+   * Something failed that it makes sense to let the user explicitly trigger
+   * a retry of!  For example, failure to synchronize.
+   */
+  logRetryable: function(retryStringId, retryCallback) {
+    this.show('retry', retryStringId, retryCallback);
   },
 
   handleEvent: function(evt) {
     switch (evt.type) {
       case 'click' :
-        if (evt.target.classList.contains('toaster-banner-undo')) {
-          // TODO: Need to find out why undo could not work now.
-          // this.undoableOp.undo();
+        var classList = evt.target.classList;
+        if (classList.contains('toaster-banner-undo')) {
+          this.undoableOp.undo();
           this.hide();
-        } else if (evt.target.classList.contains('toaster-banner-retry')) {
-          // TODO: Handle send retry here.
-        } else if (evt.target.classList.contains('toaster-cancel-btn')) {
+        } else if (classList.contains('toaster-banner-retry')) {
+          if (this.retryCallback)
+            this.retryCallback();
+          this.hide();
+        } else if (classList.contains('toaster-cancel-btn')) {
           this.hide();
         }
         break;
@@ -868,21 +1013,43 @@ var Toaster = {
     }
   },
 
-  show: function(type, operation) {
-    var text;
-    if (type == 'undo') {
+  show: function(type, operation, callback) {
+    // Close previous toaster before showing the new one.
+    if (!this.body.classList.contains('collapsed')) {
+      this.hide();
+    }
+
+    var text, textId, showUndo = false;
+    var undoBtn = this.body.querySelector('.toaster-banner-undo');
+    if (type === 'undo') {
       this.undoableOp = operation;
-      // There is no need to show toaster is affected message count < 1
-      if (this.undoableOp.affectedCount < 1) {
+      // There is no need to show toaster if affected message count < 1
+      if (!this.undoableOp || this.undoableOp.affectedCount < 1) {
         return;
       }
-      var textId = 'toaster-message-' + this.undoableOp.operation;
+      textId = 'toaster-message-' + this.undoableOp.operation;
       text = mozL10n.get(textId, { n: this.undoableOp.affectedCount });
-    } else if (type == 'retry') {
-      // TODO: Showing the send retry text and related operation.
-    } else {
-      // TODO: Maybe we can show pure text only toaster here.
+      // https://bugzilla.mozilla.org/show_bug.cgi?id=804916
+      // Remove undo email move/delete UI for V1.
+      showUndo = (this.undoableOp.operation !== 'move' &&
+                  this.undoableOp.operation !== 'delete');
+    } else if (type === 'retry') {
+      textId = 'toaster-retryable-' + operation;
+      text = mozL10n.get(textId);
+      this.retryCallback = callback;
+    // XXX I assume this is for debug purposes?
+    } else if (type === 'text') {
+      text = operation;
     }
+
+    if (type === 'undo' && showUndo)
+      this.undoBtn.classList.remove('collapsed');
+    else
+      this.undoBtn.classList.add('collapsed');
+    if (type === 'retry')
+      this.retryBtn.classList.remove('collapsed');
+    else
+      this.retryBtn.classList.add('collapsed');
 
     this.body.title = type;
     this.text.textContent = text;
@@ -899,47 +1066,61 @@ var Toaster = {
     this.fadeTimeout = null;
     this.body.removeEventListener('click', this);
     this.body.removeEventListener('transitionend', this);
+
     // Clear operations:
     this.undoableOp = null;
+    this.retryCallback = null;
   }
 };
 
+/**
+ * Confirm dialog helper function. Display the dialog by providing dialog body
+ * element and button id/handler function.
+ *
+ */
+var ConfirmDialog = {
+  dialog: null,
+  show: function(dialog, confirm, cancel) {
+    this.dialog = dialog;
+    var formSubmit = function(evt) {
+      this.hide();
+      switch (evt.explicitOriginalTarget.id) {
+        case confirm.id:
+          confirm.handler();
+          break;
+        case cancel.id:
+          if (cancel.handler)
+            cancel.handler();
+          break;
+      }
+      return false;
+    };
+    dialog.addEventListener('submit', formSubmit.bind(this));
+    document.body.appendChild(dialog);
+  },
+  hide: function() {
+    document.body.removeChild(this.dialog);
+  }
+};
 ////////////////////////////////////////////////////////////////////////////////
-// Pretty date logic; copied from the SMS app.
-// Based on Resig's pretty date
+// Attachment Formatting Helpers
 
+/**
+ * Display a human-readable file size.  Currently we always display things in
+ * kilobytes because we are targeting a mobile device and we want bigger sizes
+ * (like megabytes) to be obviously large numbers.
+ */
+function prettyFileSize(sizeInBytes) {
+  var kilos = Math.ceil(sizeInBytes / 1024);
+  return mozL10n.get('attachment-size-kib', { kilobytes: kilos });
+}
+
+/**
+ * Display a human-readable relative timestamp.
+ */
 function prettyDate(time) {
-
-  switch (time.constructor) {
-    case String:
-      time = parseInt(time);
-      break;
-    case Date:
-      time = time.getTime();
-      break;
-  }
-
-  var f = new navigator.mozL10n.DateTimeFormat();
-  var diff = (Date.now() - time) / 1000;
-  var day_diff = Math.floor(diff / 86400);
-
-  if (isNaN(day_diff))
-    return '(incorrect date)';
-
-  if (day_diff < 0 || diff < 0) {
-    // future time
-    return f.localeFormat(new Date(time), _('shortDateTimeFormat'));
-  }
-
-  return day_diff == 0 && (
-    diff < 60 && 'Just Now' ||
-    diff < 120 && '1 Minute Ago' ||
-    diff < 3600 && Math.floor(diff / 60) + ' Minutes Ago' ||
-    diff < 7200 && '1 Hour Ago' ||
-    diff < 86400 && Math.floor(diff / 3600) + ' Hours Ago') ||
-    day_diff == 1 && 'Yesterday' ||
-    day_diff < 7 && f.localeFormat(new Date(time), '%A') ||
-    f.localeFormat(new Date(time), '%x');
+  var f = new mozL10n.DateTimeFormat();
+  return f.fromNow(time);
 }
 
 (function() {
@@ -966,3 +1147,84 @@ function prettyDate(time) {
 })();
 
 ////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Class to handle form input navigation.
+ *
+ * If 'Enter' is hit, next input element will be focused,
+ * and if the input element is the last one, trigger 'onLast' callback.
+ *
+ * options:
+ *   {
+ *     formElem: element,             // The form element
+ *     checkFormValidity: function    // Function to check form validity
+ *     onLast: function               // Callback when 'Enter' in the last input
+ *   }
+ */
+function FormNavigation(options) {
+  function extend(destination, source) {
+    for (var property in source)
+      destination[property] = source[property];
+    return destination;
+  }
+
+  if (!options.formElem) {
+    throw new Error('The form element should be defined.');
+  }
+
+  var self = this;
+  this.options = extend({
+    formElem: null,
+    checkFormValidity: function checkFormValidity() {
+      return self.options.formElem.checkValidity();
+    },
+    onLast: function() {}
+  }, options);
+
+  this.options.formElem.addEventListener('keypress',
+    this.onKeyPress.bind(this));
+}
+
+FormNavigation.prototype = {
+  onKeyPress: function formNav_onKeyPress(event) {
+    if (event.keyCode === 13) {
+      // If the user hit enter, focus the next form element, or, if the current
+      // element is the last one and the form is valid, submit the form.
+      var nextInput = this.focusNextInput(event);
+      if (!nextInput && this.options.checkFormValidity()) {
+        this.options.onLast();
+      }
+    }
+  },
+
+  focusNextInput: function formNav_focusNextInput(event) {
+    var currentInput = event.target;
+    var inputElems = this.options.formElem.getElementsByTagName('input');
+    var currentInputFound = false;
+
+    for (var i = 0; i < inputElems.length; i++) {
+      var input = inputElems[i];
+      if (currentInput === input) {
+        currentInputFound = true;
+        continue;
+      } else if (!currentInputFound) {
+        continue;
+      }
+
+      if (input.type === 'hidden' || input.type === 'button') {
+        continue;
+      }
+
+      input.focus();
+      if (document.activeElement !== input) {
+        // We couldn't focus the element we wanted.  Try with the next one.
+        continue;
+      }
+      return input;
+    }
+
+    // If we couldn't find anything to focus, just blur the initial element.
+    currentInput.blur();
+    return null;
+  }
+};

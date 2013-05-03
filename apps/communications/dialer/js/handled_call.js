@@ -20,19 +20,21 @@ function HandledCall(aCall, aNode) {
     return;
 
   this.node = aNode;
-  this.durationNode = aNode.querySelector('.duration span');
+  this.durationNode = aNode.querySelector('.duration');
+  this.durationChildNode = aNode.querySelector('.duration span');
   this.directionNode = aNode.querySelector('.duration .direction');
-  this.numberNode = aNode.querySelector('.number');
+  this.numberNode = aNode.querySelector('.numberWrapper .number');
   this.additionalInfoNode = aNode.querySelector('.additionalContactInfo');
 
+  this.node.dataset.occupied = 'true';
 
   this.updateCallNumber();
 
-  var _ = navigator.mozL10n.get;
-
-  var durationMessage = (this.call.state == 'incoming') ?
-                         _('incoming') : _('calling');
-  this.durationNode.textContent = durationMessage + '…';
+  LazyL10n.get((function localized(_) {
+    var durationMessage = (this.call.state == 'incoming') ?
+                           _('incoming') : _('connecting');
+    this.durationChildNode.textContent = durationMessage;
+  }).bind(this));
 
   this.updateDirection();
 
@@ -45,6 +47,7 @@ function HandledCall(aCall, aNode) {
 HandledCall.prototype.handleEvent = function hc_handle(evt) {
   switch (evt.call.state) {
     case 'connected':
+      CallScreen.render('connected');
       this.connected();
       break;
     case 'disconnected':
@@ -55,12 +58,15 @@ HandledCall.prototype.handleEvent = function hc_handle(evt) {
       break;
     case 'resumed':
       if (this.photo) {
-        CallScreen.setCallerContactImage(this.photo);
+        CallScreen.setCallerContactImage(this.photo, true, false);
       }
       CallScreen.syncSpeakerEnabled();
       break;
     case 'held':
       this.node.classList.add('held');
+      break;
+    case 'busy':
+      this.busy();
       break;
   }
 };
@@ -69,10 +75,24 @@ HandledCall.prototype.startTimer = function hc_startTimer() {
   if (this._ticker)
     return;
 
-  this._ticker = setInterval(function hc_updateTimer(self, startTime) {
-    var elapsed = new Date(Date.now() - startTime);
-    self.durationNode.textContent = elapsed.toLocaleFormat('%M:%S');
-  }, 1000, this, Date.now());
+  function padNumber(n) {
+    return n > 9 ? n : '0' + n;
+  }
+
+  this.durationChildNode.textContent = '00:00';
+  this.durationNode.classList.add('isTimer');
+  LazyL10n.get((function localized(_) {
+    this._ticker = setInterval(function hc_updateTimer(self, startTime) {
+      var elapsed = new Date(Date.now() - startTime);
+      var duration = {
+        h: padNumber(elapsed.getUTCHours()),
+        m: padNumber(elapsed.getUTCMinutes()),
+        s: padNumber(elapsed.getUTCSeconds())
+      };
+      self.durationChildNode.textContent = _(elapsed.getUTCHours() > 0 ?
+        'callDurationHours' : 'callDurationMinutes', duration);
+    }, 1000, this, Date.now());
+  }).bind(this));
 };
 
 HandledCall.prototype.updateCallNumber = function hc_updateCallNumber() {
@@ -81,8 +101,9 @@ HandledCall.prototype.updateCallNumber = function hc_updateCallNumber() {
   var additionalInfoNode = this.additionalInfoNode;
 
   if (!number.length) {
-    var _ = navigator.mozL10n.get;
-    node.textContent = _('unknown');
+    LazyL10n.get(function localized(_) {
+      node.textContent = _('withheld-number');
+    });
     return;
   }
 
@@ -97,21 +118,28 @@ HandledCall.prototype.updateCallNumber = function hc_updateCallNumber() {
 
   var self = this;
   Contacts.findByNumber(number, function lookupContact(contact, matchingTel) {
-    if (contact && contact.name) {
-      node.textContent = contact.name;
-      KeypadManager.formatPhoneNumber('right');
+    if (contact) {
+      var primaryInfo = Utils.getPhoneNumberPrimaryInfo(matchingTel, contact);
+      if (primaryInfo) {
+        node.textContent = primaryInfo;
+      } else {
+        LazyL10n.get(function gotL10n(_) {
+          node.textContent = _('withheld-number');
+        });
+      }
+      KeypadManager.formatPhoneNumber('end', true);
       var additionalInfo = Utils.getPhoneNumberAdditionalInfo(matchingTel,
-                                                              contact);
-      additionalInfoNode.textContent = additionalInfo ?
-        additionalInfo : '';
+                                                              contact, number);
+      KeypadManager.updateAdditionalContactInfo(additionalInfo);
       if (contact.photo && contact.photo.length > 0) {
         self.photo = contact.photo[0];
-        CallScreen.setCallerContactImage(self.photo);
+        CallScreen.setCallerContactImage(self.photo, true, false);
       }
       return;
     }
 
     node.textContent = number;
+    KeypadManager.formatPhoneNumber('end', true);
   });
 };
 
@@ -132,10 +160,9 @@ HandledCall.prototype.remove = function hc_remove() {
   if (!this.node)
     return;
 
+  this.node.dataset.occupied = 'false';
   clearInterval(this._ticker);
   this._ticker = null;
-
-  this.node.hidden = true;
 };
 
 HandledCall.prototype.connected = function hc_connected() {
@@ -153,6 +180,10 @@ HandledCall.prototype.connected = function hc_connected() {
   CallScreen.syncSpeakerEnabled();
 };
 
+HandledCall.prototype.busy = function hc_busy() {
+  OnCallHandler.notifyBusyLine();
+};
+
 HandledCall.prototype.disconnected = function hc_disconnected() {
   if (this.recentsEntry &&
      (this.recentsEntry.type.indexOf('-connected') == -1)) {
@@ -160,12 +191,7 @@ HandledCall.prototype.disconnected = function hc_disconnected() {
   }
 
   if (this.recentsEntry) {
-    var recentToAdd = this.recentsEntry;
-    RecentsDBManager.init(function() {
-      RecentsDBManager.add(recentToAdd, function() {
-        RecentsDBManager.close();
-      });
-    });
+    OnCallHandler.addRecentEntry(this.recentsEntry);
   }
 
   if (!this.node)
@@ -174,4 +200,18 @@ HandledCall.prototype.disconnected = function hc_disconnected() {
   CallScreen.unmute();
   CallScreen.turnSpeakerOff();
   this.remove();
+};
+
+HandledCall.prototype.show = function hc_show() {
+  if (!this.node)
+    return;
+
+  this.node.hidden = false;
+};
+
+HandledCall.prototype.hide = function hc_hide() {
+  if (!this.node)
+    return;
+
+  this.node.hidden = true;
 };

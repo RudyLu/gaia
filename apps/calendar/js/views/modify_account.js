@@ -1,14 +1,23 @@
-(function(window) {
+Calendar.ns('Views').ModifyAccount = (function() {
 
   function ModifyAccount(options) {
     Calendar.View.apply(this, arguments);
 
     this.save = this.save.bind(this);
     this.deleteRecord = this.deleteRecord.bind(this);
+    this.cancel = this.cancel.bind(this);
+
+    this.accountHandler = new Calendar.Utils.AccountCreation(
+      this.app
+    );
+
+    this.accountHandler.on('authorizeError', this);
   }
 
   ModifyAccount.prototype = {
     __proto__: Calendar.View.prototype,
+
+    _changeToken: 0,
 
     selectors: {
       element: '#modify-account-view',
@@ -16,6 +25,9 @@
       fields: '*[name]',
       saveButton: '#modify-account-view .save',
       deleteButton: '#modify-account-view .delete-confirm',
+      cancelDeleteButton: '#modify-account-view .delete-cancel',
+      backButton: '#modify-account-view .cancel',
+      status: '#modify-account-view section[role="status"]',
       errors: '#modify-account-view .errors'
     },
 
@@ -25,12 +37,16 @@
       return this._findElement('deleteButton');
     },
 
-    get saveButton() {
-      return this._findElement('saveButton');
+    get cancelDeleteButton() {
+      return this._findElement('cancelDeleteButton');
     },
 
-    get errors() {
-      return this._findElement('errors');
+    get backButton() {
+      return this._findElement('backButton');
+    },
+
+    get saveButton() {
+      return this._findElement('saveButton');
     },
 
     get form() {
@@ -56,12 +72,16 @@
       return this._fields;
     },
 
-    _clearErrors: function() {
-      this.errors.textContent = '';
-    },
+    handleEvent: function(event) {
+      var type = event.type;
+      var data = event.data;
 
-    _displayError: function(err) {
-      this.errors.textContent = err.message;
+      switch (type) {
+        case 'authorizeError':
+          // we only expect one argument an error object.
+          this.showErrors(data[0]);
+          break;
+      }
     },
 
     updateForm: function() {
@@ -78,7 +98,17 @@
 
       update.forEach(function(name) {
         var field = this.fields[name];
-        this.model[name] = field.value;
+        var value = field.value;
+        if (name === 'fullUrl') {
+          // Prepend a scheme if url has neither port nor scheme
+          var port = Calendar.Utils.URI.getPort(value);
+          var scheme = Calendar.Utils.URI.getScheme(value);
+          if (!port && !scheme) {
+            value = 'https://' + value;
+          }
+        }
+
+        this.model[name] = value;
       }, this);
     },
 
@@ -100,39 +130,33 @@
       });
     },
 
+    cancel: function(event) {
+      if (event) {
+        event.preventDefault();
+      }
+
+      window.back();
+    },
+
     save: function() {
       var list = this.element.classList;
       var self = this;
 
+      if (this.app.offline()) {
+        this.showErrors([{name: 'offline'}]);
+        return;
+      }
+
       list.add(this.progressClass);
 
-      this._persistForm(function(err) {
+      this.errors.textContent = '';
+      this.updateModel();
+
+      this.accountHandler.send(this.model, function(err) {
         list.remove(self.progressClass);
         if (!err) {
           self.app.go(self.completeUrl);
         }
-      });
-    },
-
-    /**
-     * Persist the form
-     *
-     * @param {Function} callback node style.
-     */
-    _persistForm: function(callback) {
-      var self = this;
-      var store = self.app.store('Account');
-
-      this._clearErrors();
-      this.updateModel();
-
-      store.verifyAndPersist(this.model, function(err, id, model) {
-        if (err) {
-          self._displayError(err);
-          callback(err);
-          return;
-        }
-        callback(null, model);
       });
     },
 
@@ -149,16 +173,6 @@
       return model;
     },
 
-    /**
-     * @param {String} id account id.
-     */
-    _updateModel: function(id, callback) {
-      var store = this.app.store('Account');
-      var self = this;
-
-      return store.cached[id];
-    },
-
     render: function() {
       if (!this.model) {
         throw new Error('must provider model to ModifyAccount');
@@ -167,16 +181,22 @@
       var list = this.element.classList;
 
       this.saveButton.addEventListener('click', this.save);
+      this.backButton.addEventListener('click', this.cancel);
 
       if (this.model._id) {
         this.type = 'update';
         this.deleteButton.addEventListener('click', this.deleteRecord);
+        this.cancelDeleteButton.addEventListener('click', this.cancel);
       } else {
         this.type = 'create';
       }
 
       this.form.reset();
       this.updateForm();
+
+      var usernameType = this.model.usernameType;
+      this.fields['user'].type = (usernameType === undefined) ?
+          'text' : usernameType;
 
       list.add(this.type);
       list.add('preset-' + this.model.preset);
@@ -196,40 +216,52 @@
 
       this.saveButton.removeEventListener('click', this.save);
       this.deleteButton.removeEventListener('click', this.deleteRecord);
+      this.cancelDeleteButton.removeEventListener('click',
+                                                  this.cancel);
+      this.backButton.removeEventListener('click',
+                                                this.cancel);
     },
 
     dispatch: function(data) {
       if (this.model)
         this.destroy();
 
-      var provider;
-      var autoSubmit;
       var params = data.params;
+      var changeToken = ++this._changeToken;
+
+      this.completeUrl = '/settings/';
+
+      var self = this;
+      function displayModel(err, model) {
+        // race condition another dispatch has queued
+        // while we where waiting for an async event.
+        if (self._changeToken !== changeToken)
+          return;
+
+        if (err) {
+          console.log(
+            'Error displaying model in ModifyAccount',
+            data
+          );
+          return;
+        }
+
+        self.model = model;
+        self.render();
+
+        if (self.ondispatch) {
+          self.ondispatch();
+        }
+      }
 
       if (params.id) {
-        this.model = this._updateModel(params.id);
-        this.completeUrl = '/settings/';
+        this.app.store('Account').get(params.id, displayModel);
       } else if (params.preset) {
-        this.model = this._createModel(params.preset);
-        this.completeUrl = '/settings/';
-      }
-
-      if (this.model && this.model.providerType) {
-        provider = this.app.provider(this.model.providerType);
-        autoSubmit = !provider.useCredentials && !provider.useUrl;
-      }
-
-      // when provider requires no credentials
-      // auto submit form (which will also redirect)
-      if (provider && autoSubmit) {
-        this.save();
-      } else {
-        this.render();
+        displayModel(null, this._createModel(params.preset));
       }
     }
-
   };
 
-  Calendar.ns('Views').ModifyAccount = ModifyAccount;
+  return ModifyAccount;
 
-}(this));
+}());

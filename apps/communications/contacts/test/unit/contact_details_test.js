@@ -2,7 +2,9 @@
 requireApp('communications/contacts/test/unit/mock_details_dom.js.html');
 
 requireApp('communications/contacts/js/contacts_details.js');
+requireApp('communications/contacts/js/utilities/normalizer.js');
 requireApp('communications/contacts/js/utilities/templates.js');
+requireApp('communications/contacts/js/utilities/dom.js');
 requireApp('communications/contacts/test/unit/mock_contacts.js');
 requireApp('communications/contacts/test/unit/mock_contact_all_fields.js');
 requireApp('communications/contacts/test/unit/mock_fb.js');
@@ -11,6 +13,7 @@ requireApp('communications/contacts/test/unit/mock_extfb.js');
 var subject,
     container,
     realL10n,
+    realOnLine,
     dom,
     contact,
     contactDetails,
@@ -35,11 +38,24 @@ var subject,
     realContacts,
     realFb,
     mozL10n,
-    mockContact;
+    mockContact,
+    fbButtons,
+    linkButtons;
+var SCALE_RATIO = 1;
 
 suite('Render contact', function() {
 
+  var isOnLine = true;
+  function navigatorOnLine() {
+    return isOnLine;
+  }
+
+  function setNavigatorOnLine(value) {
+    isOnLine = value;
+  }
+
   suiteSetup(function() {
+    realOnLine = Object.getOwnPropertyDescriptor(navigator, 'onLine');
     realL10n = navigator.mozL10n;
     navigator.mozL10n = {
       get: function get(key) {
@@ -48,14 +64,21 @@ suite('Render contact', function() {
       DateTimeFormat: function() {
         this.localeFormat = function(date, format) {
           return date;
-        }
+        };
       }
     };
+
+    Object.defineProperty(navigator, 'onLine', {
+      configurable: true,
+      get: navigatorOnLine,
+      set: setNavigatorOnLine
+    });
+
     realContacts = window.Contacts;
-    window.Contacts = MockContactsApp;
+    window.Contacts = MockContacts;
     realFb = window.fb;
-    window.fb = MockFb;
-    window.Contacts.extFb = MockExtFb;
+    window.fb = Mockfb;
+    window.Contacts.extServices = MockExtFb;
     dom = document.createElement('section');
     dom.id = 'view-contact-details';
     dom.innerHTML = MockDetailsDom;
@@ -76,18 +99,32 @@ suite('Render contact', function() {
     cover = dom.querySelector('#cover-img');
     detailsInner = dom.querySelector('#contact-detail-inner');
     favoriteMessage = dom.querySelector('#toggle-favorite').children[0];
+
+    fbButtons = [
+      '#profile_button',
+      '#msg_button',
+      '#wall_button'
+    ];
+
+    linkButtons = [
+      '#link_button'
+    ];
   });
 
   suiteTeardown(function() {
     window.Contacts = realContacts;
     window.fb = realFb;
     window.mozL10n = realL10n;
+    if (realOnLine) {
+      Object.defineProperty(navigator, 'onLine', realOnLine);
+    }
   });
 
   setup(function() {
     mockContact = new MockContactAllFields();
     subject.setContact(mockContact);
     TAG_OPTIONS = Contacts.getTags();
+    window.set;
   });
 
   teardown(function() {
@@ -154,20 +191,40 @@ suite('Render contact', function() {
   });
 
   suite('Render social', function() {
-    test('!isFbContact', function() {
+     teardown(function() {
+      window.fb.setIsFbContact(false);
+      window.fb.setIsFbLinked(false);
+    });
+
+    function assertFbButtons(buttons, mode, state) {
+      buttons.forEach(function(buttonid) {
+        var selector = buttonid;
+        if (state) {
+          selector += '[' + state + ']';
+        }
+        if (mode === 'present') {
+          assert.isNotNull(container.querySelector(selector));
+        }
+        else {
+          assert.isNull(container.querySelector(selector));
+        }
+      });
+    }
+
+    test('It is not a Facebook Contact', function() {
+      window.fb.setIsEnabled(true);
+      window.fb.setIsFbContact(false);
       subject.render(null, TAG_OPTIONS);
       assert.include(container.innerHTML, 'social-template');
-      var toCheck = 'id="wall_button"';
-      assert.include(container.innerHTML, toCheck);
-      assert.equal(-1, container.innerHTML.indexOf('data-id="1"'));
-
+      assert.isFalse(container.querySelector('#link_button').
+                    classList.contains('hide'));
       assert.isTrue(container.
                        querySelector('#profile_button').
                        classList.contains('hide')
       );
     });
 
-    test('Fb Contact', function() {
+    test('It is a Facebook Contact', function() {
       window.fb.setIsFbContact(true);
 
       // The edit mode should be disabled
@@ -192,16 +249,55 @@ suite('Render contact', function() {
       window.fb.setIsFbContact(false);
     });
 
-    test('fb is not enabled', function() {
+    test('Facebook is not enabled', function() {
       window.fb.setIsEnabled(false);
+
       subject.render(null, TAG_OPTIONS);
       var incSocial = container.innerHTML.indexOf('social-template');
       assert.isTrue(incSocial === -1);
-      var search = 'Contacts.extFb.startLink(" 1","true")';
-      var incSstart = container.innerHTML.indexOf(search);
-      assert.isTrue(incSstart === -1);
+
+      assertFbButtons(linkButtons, 'absent');
+
+      window.fb.setIsEnabled(true);
     });
 
+    test('FB Contact. Device is offline', function() {
+      navigator.onLine = false;
+      window.fb.setIsFbContact(true);
+
+      subject.render(null, TAG_OPTIONS);
+
+      assertFbButtons(fbButtons, 'present', 'disabled');
+    });
+
+    test('FB Contact. Device is online', function() {
+      navigator.onLine = true;
+      window.fb.setIsFbContact(true);
+
+      subject.render(null, TAG_OPTIONS);
+
+      assertFbButtons(fbButtons, 'present');
+      assertFbButtons(fbButtons, 'absent', 'disabled');
+    });
+
+    test('Not FB Contact. Device is offline', function() {
+      navigator.onLine = false;
+      window.fb.setIsFbContact(false);
+
+      subject.render(null, TAG_OPTIONS);
+
+      assertFbButtons(linkButtons, 'present', 'disabled');
+    });
+
+    test('Not FB Contact. Device is online', function() {
+      navigator.onLine = true;
+      window.fb.setIsFbContact(false);
+
+      subject.render(null, TAG_OPTIONS);
+
+      assertFbButtons(linkButtons, 'present');
+      assertFbButtons(linkButtons, 'absent', 'disabled');
+    });
   });
 
   suite('Render phones', function() {
@@ -211,6 +307,23 @@ suite('Render contact', function() {
       assert.include(container.innerHTML, mockContact.tel[0].value);
       assert.include(container.innerHTML, mockContact.tel[0].carrier);
       assert.include(container.innerHTML, mockContact.tel[0].type);
+    });
+
+    test('with 1 phone and carrier undefined', function() {
+      var contactNoCarrier = new MockContactAllFields();
+      contactNoCarrier.tel = [
+        {
+          value: '+34678987123',
+          type: ['Personal']
+        }
+      ];
+      subject.setContact(contactNoCarrier);
+      subject.render(null, TAG_OPTIONS);
+      var phoneButton = container.querySelector('#call-or-pick-0');
+      assert.equal(phoneButton.querySelector('b').textContent,
+                    contactNoCarrier.tel[0].value);
+      var carrierContent = phoneButton.querySelector('em').textContent;
+      assert.lengthOf(carrierContent, 0);
     });
 
     test('with no phones', function() {
@@ -299,10 +412,14 @@ suite('Render contact', function() {
       subject.render(null, TAG_OPTIONS);
       assert.include(container.innerHTML, 'address-details-template-0');
       var address0 = mockContact.adr[0];
-      assert.include(container.innerHTML, address0.countryName);
-      assert.include(container.innerHTML, address0.locality);
-      assert.include(container.innerHTML, address0.postalCode);
-      assert.include(container.innerHTML, address0.streetAddress);
+      assert.include(container.innerHTML,
+                    utils.text.escapeHTML(address0.countryName, true));
+      assert.include(container.innerHTML,
+                    utils.text.escapeHTML(address0.locality, true));
+      assert.include(container.innerHTML,
+                    utils.text.escapeHTML(address0.postalCode, true));
+      assert.include(container.innerHTML,
+                    utils.text.escapeHTML(address0.streetAddress, true));
     });
 
     test('with no addresses', function() {
@@ -334,14 +451,22 @@ suite('Render contact', function() {
       assert.include(container.innerHTML, 'address-details-template-1');
       var address0 = contactMultAddress.adr[0];
       var address1 = contactMultAddress.adr[1];
-      assert.include(container.innerHTML, address0.countryName);
-      assert.include(container.innerHTML, address0.locality);
-      assert.include(container.innerHTML, address0.postalCode);
-      assert.include(container.innerHTML, address0.streetAddress);
-      assert.include(container.innerHTML, address1.countryName);
-      assert.include(container.innerHTML, address1.locality);
-      assert.include(container.innerHTML, address1.postalCode);
-      assert.include(container.innerHTML, address1.streetAddress);
+      assert.include(container.innerHTML,
+                    utils.text.escapeHTML(address0.countryName, true));
+      assert.include(container.innerHTML,
+                    utils.text.escapeHTML(address0.locality, true));
+      assert.include(container.innerHTML,
+                    utils.text.escapeHTML(address0.postalCode, true));
+      assert.include(container.innerHTML,
+                    utils.text.escapeHTML(address0.streetAddress, true));
+      assert.include(container.innerHTML,
+                    utils.text.escapeHTML(address1.countryName, true));
+      assert.include(container.innerHTML,
+                    utils.text.escapeHTML(address1.locality, true));
+      assert.include(container.innerHTML,
+                    utils.text.escapeHTML(address1.postalCode, true));
+      assert.include(container.innerHTML,
+                    utils.text.escapeHTML(address1.streetAddress, true));
       var toCheck = container.innerHTML;
       assert.equal(-1, toCheck.indexOf('address-details-template-2'));
     });
@@ -350,7 +475,8 @@ suite('Render contact', function() {
     test('with 1 note', function() {
       subject.render(null, TAG_OPTIONS);
       assert.include(container.innerHTML, 'note-details-template-0');
-      assert.include(container.innerHTML, mockContact.note[0]);
+      assert.include(container.innerHTML,
+                    utils.text.escapeHTML(mockContact.note[0], true));
     });
 
     test('with no notes', function() {
@@ -380,8 +506,10 @@ suite('Render contact', function() {
       subject.render(null, TAG_OPTIONS);
       assert.include(container.innerHTML, 'note-details-template-0');
       assert.include(container.innerHTML, 'note-details-template-1');
-      assert.include(container.innerHTML, contactMultNote.note[0]);
-      assert.include(container.innerHTML, contactMultNote.note[1]);
+      assert.include(container.innerHTML,
+                    utils.text.escapeHTML(contactMultNote.note[0], true));
+      assert.include(container.innerHTML,
+                    utils.text.escapeHTML(contactMultNote.note[1], true));
       assert.equal(-1, container.innerHTML.indexOf('note-details-template-2'));
     });
   });

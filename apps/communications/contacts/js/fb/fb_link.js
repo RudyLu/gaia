@@ -21,141 +21,117 @@ if (!fb.link) {
     // Used to control the number of queries
     var numQueries = 0;
 
+    // The uid of the friend to be linked
+    var friendUidToLink;
+
     // Base query to search for contacts
     var SEARCH_QUERY = ['SELECT uid, name, email from user ',
-    ' WHERE uid IN (SELECT uid1 FROM friend WHERE uid2=me() ORDER BY rank) ',
+    ' WHERE uid IN (SELECT uid1 FROM friend WHERE uid2=me()) ',
     ' AND (', null, ')', ' ORDER BY name'
     ];
 
     // Conditions
     var MAIL_COND = ['strpos(email, ' , "'", null, "'", ') >= 0'];
     var CELL_COND = ['strpos(cell, ' , "'", null, "'", ') >= 0'];
-    var NAME_COND = ['strpos(lower(name), ' , "'", null,
-                                                              "'", ') >= 0'];
 
-    // Conditions over first name and last name (second query)
-    var FIRST_NAME_COND = ['strpos(lower(first_name), ' , "'", null,
-                                                              "'", ') >= 0'];
-    var LAST_NAME_COND = ['strpos(lower(last_name), ' , "'", null,
-                                                              "'", ') >= 0'];
+    var ALL_QUERY = ['SELECT uid, name, last_name, first_name,',
+      ' middle_name, email from user ',
+      ' WHERE uid IN (SELECT uid1 FROM friend WHERE uid2=me()) ',
+      ' ORDER BY name'
+    ];
 
-    var ALL_QUERY = ['SELECT uid, name, email from user ',
-    ' WHERE uid IN (SELECT uid1 FROM friend WHERE uid2=me()) ',
-    ' ORDER BY name'];
+    var SEARCH_ACCENTS_FIELDS = {
+      'last_name': 'familyName',
+      'first_name': 'givenName',
+      'middle_name': 'givenName'
+    };
 
     var friendsList;
     var viewButton = document.querySelector('#view-all');
+    var mainSection = document.querySelector('#main');
 
     var currentRecommendation = null;
     var allFriends = null;
+    // Enables cancelation
+    var currentNetworkRequest = null;
+    // State can be proposal or view All
+    var state;
+    var _ = navigator.mozL10n.get;
+    var imgLoader;
 
     // Builds the first query for finding a contact to be linked to
     function buildQuery(contact) {
       var filter = [];
 
-      if (contact.name && contact.name.length > 0 &&
-                                      contact.name[0].length > 0) {
-        // First the name condition is put there
-        NAME_COND[2] = contact.name[0].toLowerCase();
-      }
-      else {
-         // The condition will be false by definition
-        NAME_COND[2] = 'A';
-      }
-
-      filter.push(NAME_COND.join(''));
-
       if (contact.tel && contact.tel.length > 0) {
         contact.tel.forEach(function(tel) {
-          filter.push(' OR ');
-          CELL_COND[2] = tel.value;
+          CELL_COND[2] = tel.value.trim();
           filter.push(CELL_COND.join(''));
+          filter.push(' OR ');
         });
       }
 
       if (contact.email && contact.email.length > 0) {
         contact.email.forEach(function(email) {
-          filter.push(' OR ');
-          MAIL_COND[2] = email.value;
+          MAIL_COND[2] = email.value.trim();
           filter.push(MAIL_COND.join(''));
+          filter.push(' OR ');
         });
       }
 
-      SEARCH_QUERY[3] = filter.join('');
+      // Remove the last OR
+      if (filter.length > 0) {
+        filter[filter.length - 1] = null;
+      }
+      var filterStr = filter.join('');
 
-      return SEARCH_QUERY.join('');
-    }
-
-    // Builds the second query (name-based) for findinding a linking contact
-    function buildQueryNames(contact) {
-      var filter = [];
-
-      if (contact.givenName && contact.givenName.length > 0 &&
-                               contact.givenName[0].length > 0) {
-        // First the name condition is put there
-        FIRST_NAME_COND[2] = contact.givenName[0].toLowerCase();
+      var out;
+      if (filterStr) {
+        SEARCH_QUERY[3] = filterStr;
+        out = SEARCH_QUERY.join('');
       }
       else {
-         // The condition will be false by definition
-        FIRST_NAME_COND[2] = 'A';
+        out = null;
       }
-
-      filter.push(FIRST_NAME_COND.join(''));
-      filter.push(' OR ');
-
-      if (contact.familyName && contact.familyName.length > 0 &&
-                                contact.familyName[0].length > 0) {
-        // First the name condition is put there
-        LAST_NAME_COND[2] = contact.familyName[0].toLowerCase();
-      }
-      else {
-         // The condition will be false by definition
-        LAST_NAME_COND[2] = 'A';
-      }
-
-      filter.push(LAST_NAME_COND.join(''));
-
-      SEARCH_QUERY[3] = filter.join('');
-
-      var out = SEARCH_QUERY.join('');
 
       return out;
     }
 
-
     // entry point for obtaining a remote proposal
-    link.getRemoteProposal = function(acc_t, contid) {
-      access_token = acc_t;
-
+    link.getRemoteProposal = function(acc_tk, contid) {
       var cid = contid || contactid;
 
       var req = fb.utils.getContactData(cid);
-
       req.onsuccess = function() {
         if (req.result) {
           cdata = req.result;
           numQueries = 1;
           currentRecommendation = null;
-          doGetRemoteProposal(access_token, cdata, buildQuery(cdata));
+          var query = buildQuery(cdata);
+          // Check whether we have enough info for the first query
+          // otherwise launch the getAll query
+          if (query === null) {
+            getRemoteProposalAll(acc_tk);
+            return;
+          }
+          doGetRemoteProposal(acc_tk, cdata, query);
         }
         else {
-          throw ('FB: Contact to be linked not found' + contactId);
+          throw ('FB: Contact to be linked not found: ', cid);
         }
-      }
+      };
       req.onerror = function() {
-        throw ('FB: Error while retrieving contact data');
-      }
-    }
+        throw ('FB: Error while retrieving contact data: ', cid);
+      };
+    };
 
-    function getRemoteProposalByNames(access_token, contact) {
+    function getRemoteProposalAll(acc_tk) {
       numQueries++;
-      doGetRemoteProposal(access_token, cdata, buildQueryNames(contact));
+      doGetRemoteProposal(acc_tk, null, ALL_QUERY.join(''));
     }
 
     // Performs all the work to obtain the remote proposal
-    function doGetRemoteProposal(access_token, contactData, query) {
-      document.body.dataset.state = 'waiting';
-
+    function doGetRemoteProposal(acc_tk, contactData, query) {
       /*
         Phone.lookup was analysed but we were not happy about how it worked
 
@@ -166,83 +142,265 @@ if (!fb.link) {
       var sentries = JSON.stringify(entries);
 
       */
-
-      fb.utils.runQuery(query, {
+      state = 'proposal';
+      currentNetworkRequest = fb.utils.runQuery(query, {
         success: fb.link.proposalReady,
         error: fb.link.errorHandler,
         timeout: fb.link.timeoutHandler
-      }, access_token);
+      }, acc_tk);
     }
 
+    // Invoked when remoteAll is canceled
+    function cancelCb(notifyParent) {
+      if (currentNetworkRequest) {
+        currentNetworkRequest.cancel();
+        currentNetworkRequest = null;
+      }
 
+      Curtain.hide();
+
+      if (notifyParent) {
+        parent.postMessage({
+            type: 'abort',
+            data: ''
+        }, fb.CONTACTS_APP_ORIGIN);
+      }
+    }
+
+    // Invoked when timeout or error and the user cancels all
+    function closeCb() {
+      Curtain.hide();
+    }
+
+    // Obtains a proposal with all friends
     function getRemoteAll() {
-      document.body.dataset.state = 'waiting';
+      Curtain.oncancel = cancelCb;
+      Curtain.show('wait', 'friends');
 
-      fb.utils.runQuery(ALL_QUERY.join(''), {
+      state = 'friends';
+
+      currentNetworkRequest = fb.utils.runQuery(ALL_QUERY.join(''), {
         success: fb.link.friendsReady,
         error: fb.link.errorHandler,
         timeout: fb.link.timeoutHandler
       }, access_token);
     }
 
-    // When the access_token is available it is executed
-    function tokenReady(at) {
-      access_token = at;
-      link.getRemoteProposal(at, contactid);
-    }
-
     // Obtains a linking proposal to be shown to the user
-    link.getProposal = function(cid) {
-      contactid = cid;
-
-      fb.oauth.getAccessToken(tokenReady, 'proposal');
-    }
+    link.getProposal = function(cid, acc_tk) {
+      link.getRemoteProposal(acc_tk, cid);
+    };
 
     // Executed when the server response is available
     link.proposalReady = function(response) {
-      var inError = false;
-
       if (typeof response.error !== 'undefined') {
-        inError = true;
-        window.console.log('FB: Error while retrieving link data',
+        window.console.error('FB: Error while retrieving link data',
                                   response.error.code, response.error.message);
+
+        if (response.error.code != 190) {
+          setCurtainHandlersErrorProposal();
+          Curtain.show('error', 'proposal');
+        }
+        else {
+          // access token problem. A new OAuth 2.0 flow has to start
+          handleTokenError();
+        }
+
+        return;
       }
 
-      if ((inError || response.data.length === 0) && numQueries <= 1) {
-        getRemoteProposalByNames(access_token, cdata);
+      if (response.data.length === 0 && numQueries === 1) {
+        getRemoteProposalAll(access_token);
       }
       else {
         var data = response.data;
         currentRecommendation = data;
 
+        var sortedByName = [];
+        var numFriendsProposed = data.length;
+        var searchAccentsArrays = {};
+        var index = 0;
+
         data.forEach(function(item) {
           if (!item.email) {
             item.email = '';
           }
+          var box = importUtils.getPreferredPictureBox();
+          item.picwidth = box.width;
+          item.picheight = box.height;
+
+          // Only do this if we need to prepare the search accents phase
+          if (numQueries === 2) {
+            // Saving the original order
+            sortedByName.push(item);
+            // Populate the arrays for doing the accents related search
+            Object.keys(SEARCH_ACCENTS_FIELDS).forEach(function(field) {
+              searchAccentsArrays[field] = searchAccentsArrays[field] || [];
+              if (item[field]) {
+                // The different words for each item
+                var words = item[field].split(/[ ]+/);
+                // The whole word itself is added
+                words.push(item[field]);
+                words.forEach(function(word) {
+                  var obj = {
+                    originalIndex: index
+                  };
+                  obj[field] = utils.text.normalize(word).toLowerCase();
+                  searchAccentsArrays[field].push(obj);
+                });
+              }
+            });
+            index++;
+          }
         });
 
-        utils.templates.append('#friends-list', data);
+        if (numQueries === 2) {
+          var accentsProposal = searchAccents(searchAccentsArrays, cdata);
+          if (accentsProposal.length === 0) {
+            data = sortedByName;
+            mainSection.classList.add('no-proposal');
+            numFriendsProposed = 0;
+          }
+          else {
+            currentRecommendation = [];
+            accentsProposal.forEach(function(proposalIndex) {
+              currentRecommendation.push(sortedByName[proposalIndex]);
+            });
+            numFriendsProposed = currentRecommendation.length;
+          }
+        } else {
+          viewButton.textContent = _('viewAll');
+          viewButton.onclick = UI.viewAllFriends;
+        }
 
-        document.body.dataset.state = 'selection';
-      }
+        utils.templates.append('#friends-list', currentRecommendation);
+        imgLoader.reload();
 
-      // Guarantee that the user always return to a known state
-      if (numQueries > 1) {
-        document.body.dataset.state = 'selection';
+        Curtain.hide(function onCurtainHide() {
+          sendReadyEvent();
+          window.addEventListener('message', function linkOnViewPort(e) {
+            if (e.origin !== fb.CONTACTS_APP_ORIGIN) {
+              return;
+            }
+            var data = e.data;
+            if (data && data.type === 'dom_transition_end') {
+              window.removeEventListener('message', linkOnViewPort);
+              utils.status.show(_('linkProposal', {
+                numFriends: numFriendsProposed
+              }));
+            }
+          });
+        });
       }
+    };
+
+
+    // This function needs to be called because link proposals through FB Query
+    //  do not work properly with words with special characters (bug 796714)
+    function searchAccents(searchArrays, contactData) {
+      var out = [];
+      var searchFields = Object.keys(SEARCH_ACCENTS_FIELDS);
+
+      function compareItems(target, item) {
+        var out;
+
+        if (typeof target === 'string') {
+          out = target.localeCompare(item);
+          if (out !== 0) {
+            if (item.indexOf(target) === 0) {
+              out = 0;
+            }
+          }
+        }
+
+        return out;
+      } // compareItems Function
+
+      searchFields.forEach(function(searchField) {
+        // The array is ordered according to the search field
+        // this enables an efficient binary search
+        var searchArray = searchArrays[searchField].sort(function(a, b) {
+          return a[searchField].localeCompare(b[searchField]);
+        });
+
+        var fieldToSearch = contactData[SEARCH_ACCENTS_FIELDS[searchField]];
+        if (fieldToSearch && fieldToSearch[0]) {
+          // Splitting in the different words
+          var dataToSearch = fieldToSearch[0].trim().split(/[ ]+/);
+
+          dataToSearch.forEach(function(aData) {
+            var targetString = utils.text.normalize(aData).toLowerCase();
+            var searchResult = utils.binarySearch(targetString, searchArray, {
+              arrayField: searchField,
+              compareFunction: compareItems
+            });
+
+            searchResult.forEach(function(aResult) {
+              var candidate = searchArray[aResult].originalIndex;
+              // Avoiding to show two times the same result element
+              if (out.indexOf(candidate) === -1) {
+                out.push(candidate);
+              }
+            });
+          });
+        }
+      });
+
+      return out;
     }
+
+    function sendReadyEvent() {
+      parent.postMessage({
+        type: 'ready', data: ''
+      }, fb.CONTACTS_APP_ORIGIN);
+    }
+
+    function setCurtainHandlersErrorProposal() {
+      Curtain.oncancel = function() {
+        cancelCb(true);
+      };
+
+      Curtain.onretry = function getRemoteProposal() {
+        Curtain.oncancel = function() {
+          cancelCb(true);
+        };
+        Curtain.show('wait', state);
+
+        link.getRemoteProposal(access_token, contactid);
+      };
+    }
+
+    link.baseHandler = function(type) {
+      if (state === 'friends') {
+        Curtain.onretry = getRemoteAll;
+        Curtain.oncancel = Curtain.hide;
+      } else if (state === 'proposal') {
+        setCurtainHandlersErrorProposal();
+      }
+      else if (state === 'linking') {
+        Curtain.onretry = function retry_link() {
+          Curtain.show('message', 'linking');
+          UI.selected({
+            target: {
+              dataset: {
+                uuid: friendUidToLink
+              }
+            }
+          });
+        };
+        Curtain.oncancel = Curtain.hide;
+      }
+
+      Curtain.show(type, state);
+    };
 
     link.timeoutHandler = function() {
-       // TODO: figure out with UX what to do in that case
-      window.alert('Timeout!!');
-      document.body.dataset.state = 'selection';
-    }
+      link.baseHandler('timeout');
+    };
 
     link.errorHandler = function() {
-       // TODO: figure out with UX what to do in that case
-      window.alert('Error!!');
-      document.body.dataset.state = 'selection';
-    }
+      link.baseHandler('error');
+    };
 
     /**
      *   Clears the list of contacts
@@ -254,14 +412,13 @@ if (!fb.link) {
       }
       var template = friendsList.querySelector('[data-template]');
 
-      friendsList.innerHTML = '';
+      utils.dom.removeChildNodes(friendsList);
       friendsList.appendChild(template);
     }
 
-
     link.friendsReady = function(response) {
-      if (typeof response.error === 'undefined') {
-        viewButton.textContent = 'View Only Recommended';
+      if (typeof response.error === 'undefined' && response.data) {
+        viewButton.textContent = _('viewRecommend');
         viewButton.onclick = UI.viewRecommended;
 
         allFriends = response;
@@ -276,46 +433,138 @@ if (!fb.link) {
 
         clearList();
 
-        utils.templates.append(friendsList, response.data);
+        var fragment = document.createDocumentFragment();
+        utils.templates.append(friendsList, response.data, fragment);
+        friendsList.appendChild(fragment);
+
+        imgLoader.reload();
+
+        Curtain.hide();
       }
       else {
         window.console.error('FB: Error while retrieving friends',
                               response.error.code, response.error.message);
-      }
 
-      document.body.dataset.state = 'selection';
-    }
-
-
-    UI.selected = function(event) {
-      var element = event.target;
-      var friendUid = element.dataset.uuid;
-
-      // First it is needed to check whether is an already imported friend
-      var req = fb.contacts.get(friendUid);
-      req.onsuccess = function() {
-        if (req.result) {
-          notifyParent(friendUid);
+        if (response.error.code !== 190) {
+          Curtain.onretry = getRemoteAll;
+          Curtain.oncancel = Curtain.hide;
         }
         else {
-          var importReq = fb.importer.importFriend(friendUid, access_token);
-          document.body.dataset.state = 'waiting';
+          // Error with the access token. It is very unlikely that this happens
+          Curtain.onretry = handleTokenError;
+        }
+        Curtain.show('error', 'friends');
+      }
+    };
 
-          importReq.onsuccess = function() {
-            document.body.dataset.state = 'selection';
-            notifyParent(friendUid);
-          }
+    function setCurtainHandlers() {
+      Curtain.oncancel = function curtain_cancel() {
+        cancelCb(true);
+      };
+    }
 
-          importReq.onerror = function() {
-            window.console.error('FB: Error while importing friend data');
-            document.body.dataset.state = 'selection';
+    link.start = function(contactId, acc_tk) {
+      access_token = acc_tk;
+      contactid = contactId;
+
+      setCurtainHandlers();
+      clearList();
+      imgLoader = new ImageLoader('#mainContent',
+                                  "li:not([data-uuid='#uid#'])");
+
+      if (!acc_tk) {
+        oauth2.getAccessToken(function proposal_new_token(new_acc_tk) {
+          access_token = new_acc_tk;
+          link.getProposal(contactId, new_acc_tk);
+        }, 'proposal', 'facebook');
+      }
+      else {
+        link.getProposal(contactId, acc_tk);
+      }
+    };
+
+    function retryOnErrorCb() {
+      UI.selected({
+        target: {
+          dataset: {
+            uuid: friendUidToLink
           }
         }
-      }
+      });
+    }
+
+    function handleTokenError() {
+      Curtain.hide();
+      var cb = function() {
+        allFriends = null;
+        link.start(contactid);
+        parent.postMessage({
+          type: 'token_error',
+          data: ''
+        }, fb.CONTACTS_APP_ORIGIN);
+      };
+      window.asyncStorage.removeItem(fb.utils.TOKEN_DATA_KEY, cb);
+    }
+
+    UI.selected = function(event) {
+      Curtain.show('message', 'linking');
+
+      var element = event.target.parentNode;
+      friendUidToLink = element.dataset.uuid;
+
+      // First it is needed to check whether is an already imported friend
+      var req = fb.contacts.get(friendUidToLink);
+      req.onsuccess = function() {
+        if (req.result) {
+          window.setTimeout(function delay() {
+            Curtain.hide(function hide() {
+              notifyParent({
+                uid: friendUidToLink
+              });
+            });
+          }, 1000);
+        }
+        else {
+          state = 'linking';
+          var callbacks = { };
+
+          callbacks.success = function(data) {
+            Curtain.hide(function() {
+              notifyParent(data);
+            });
+          };
+
+          callbacks.error = function(e) {
+            var error = e.target.error;
+            window.console.error('FB: Error while importing friend data ',
+                                 JSON.stringify(error));
+            Curtain.oncancel = Curtain.hide;
+            if (error.code != 190) {
+              Curtain.onretry = retryOnErrorCb;
+            }
+            else {
+              Curtain.onretry = handleTokenError;
+            }
+            Curtain.show('error', 'linking');
+          };
+
+          callbacks.timeout = function() {
+            link.baseHandler('timeout');
+          };
+
+          FacebookConnector.importContact(friendUidToLink, access_token,
+                                          callbacks);
+        }
+      };
+
       req.onerror = function() {
         window.console.error('FB: Error while importing friend data');
-      }
-    }
+        Curtain.oncancel = Curtain.hide;
+        Curtain.onretry = retryOnErrorCb;
+        Curtain.show('error', 'linking');
+      };
+    };
+
 
     UI.end = function(event) {
       var msg = {
@@ -324,15 +573,18 @@ if (!fb.link) {
       };
 
       parent.postMessage(msg, fb.CONTACTS_APP_ORIGIN);
-    }
+    };
 
-    function notifyParent(uid) {
+    function notifyParent(data) {
       var msg = {
         type: 'item_selected',
-        data: uid
+        data: data
       };
 
       parent.postMessage(msg, fb.CONTACTS_APP_ORIGIN);
+
+      // Uncomment this to make this work in B2G-Desktop
+      // parent.postMessage(msg, '*');
     }
 
     UI.viewAllFriends = function(event) {
@@ -342,16 +594,21 @@ if (!fb.link) {
       else {
         link.friendsReady(allFriends);
       }
-    }
+
+      return false;
+    };
 
     UI.viewRecommended = function(event) {
       // event.target === viewButton
       event.target.onclick = UI.viewAllFriends;
-      event.target.textContent = 'View All Facebook Friends';
+      event.target.textContent = _('viewAll');
 
       clearList();
       utils.templates.append(friendsList, currentRecommendation);
-    }
+      imgLoader.reload();
+
+      return false;
+    };
 
   })(document);
 }

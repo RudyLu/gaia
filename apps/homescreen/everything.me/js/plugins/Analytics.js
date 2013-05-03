@@ -1,8 +1,8 @@
 /*
  * Analytics class
  */
-Evme.Analytics = new function() {
-    var _this = this, logger, ga, idle, providers = [], immediateProviders = [], queueArr = [], maxQueueCount, getCurrentAppsRowsCols, STORAGE_QUERY = "analyticsLastSearchQuery",
+Evme.Analytics = new function Evme_Analytics() {
+    var self = this, ga, idle, providers = [], immediateProviders = [], queueArr = [], maxQueueCount, getCurrentAppsRowsCols, STORAGE_QUERY = "analyticsLastSearchQuery",
         // Google Analytics load props
         GAScriptLoadStatus, GAScriptLoadSubscribers = [];
     
@@ -22,29 +22,23 @@ Evme.Analytics = new function() {
     
     /**** PUBLIC METHODS ****/
     
-    this.init = function(_options) {
+    this.init = function init(_options) {
         // override defaults
         for (i in _options){ options[i] = _options[i]; }
         if (_options.config){
             for (i in _options.config){ options[i] = _options.config[i]; }
         }
         
-        // logger object passed from common.js
-        logger = options && options.logger || console;
-        
-        // log
-        logger.debug("Analytics.init(",options,")"); 
-        
         // if enabled
         if (options.enabled){
-            // bind to event handler (js/EventHandler.js)
-            Evme.EventHandler && Evme.EventHandler.bind(catchCallback);
+            // we send data according to the settings flag (Submit performance data)
+            SettingsListener.observe('debug.performance_data.shared', false, onSettingChange);
         
             getCurrentAppsRowsCols = options.getCurrentAppsRowsCols;
             getCurrentSearchQuery = options.getCurrentSearchQuery;
             getCurrentSearchSource = options.getCurrentSearchSource;
-            options.Brain.App.appRedirectBridge = function(appUrl, data){
-                setTimeout( function(){
+            options.Brain.App.appRedirectBridge = function appRedirectBridge(appUrl, data){
+                setTimeout(function onTimeout(){
                     Brain.App.appRedirectExecute(appUrl, data);
                 }, 1500);
             };
@@ -57,10 +51,10 @@ Evme.Analytics = new function() {
             });
             
             var requestsPerEventCount = 0;
-            
+
             // register providers
             for (name in options.providers){
-                var object = window[name],
+                var object = options.namespace[name],
                     params = options.providers[name];
                 
                 if (object && params.enabled && !(params.disableOnLowConnection && options.connectionLow)){
@@ -83,26 +77,31 @@ Evme.Analytics = new function() {
     };
     
     /**** PRIVATE METHODS ****/
+   
+   function onSettingChange(value) {
+        if (value) {
+            Evme.EventHandler.bind(catchCallback);
+        } else {
+            Evme.EventHandler.unbind(catchCallback);
+        }
+    }
 
     // event handler execution
     function catchCallback(_class, _event, _data) {
         try {
-            _this[_class] && _this[_class][_event] && _this[_class][_event](_data || {});
+            self[_class] && self[_class][_event] && self[_class][_event](_data || {});
         } catch(ex){
-            logger.error(ex);
         }
     }
     
     function registerProvider(object, params){
-        var provider = new object(_this.Sandbox);
-        provider.init(params, logger);
+        var provider = new object(self.Sandbox);
+        provider.init(params);
         providers.push(provider);
         
         if (provider.immediateDispatch){
             immediateProviders.push(provider);
         }
-        
-        logger.debug("Analytics.registerProvider(", object.name, params, ")");
     }
     
     function getProviderByName(name){
@@ -117,16 +116,14 @@ Evme.Analytics = new function() {
         idle.reset();
         processItem(params);
         queueArr.push(params);
-        
+
         if (immediateDispatch) {
             idle.flush();
         }
-        
-        immediateProviders.forEach(function(provider){
+
+        immediateProviders.forEach(function itemIterator(provider){
             provider.dispatch([params]);
         });
-        
-        logger.debug("Analytics.queue(", params, ") (", queueArr.length,")");
     }
     
     function processItem(params){
@@ -141,15 +138,12 @@ Evme.Analytics = new function() {
     function dispatch(){
         // leave if not idle or there are no items to dispatch
         if (!idle.isIdle || !queueArr.length) {
-            logger.debug("Analytics.dispatch aborted", idle.isIdle, queueArr.length); 
             return false;
         }
         
         var dispatchedItems = queueArr.splice(0, maxQueueCount);
         
-        logger.debug("Analytics.dispatch(", dispatchedItems, ")", queueArr.length); 
-        
-        providers.forEach(function(provider){
+        providers.forEach(function itemIterator(provider){
             !provider.immediateDispatch && provider.dispatch(dispatchedItems);
         });
         queueArr.length && setTimeout(dispatch, options.dispatchDelay)
@@ -171,7 +165,7 @@ Evme.Analytics = new function() {
     // Store queueArr in localStorage
     function storeQueue() {
         var str = "", firstFlag = true;
-        queueArr.forEach(function(item){
+        queueArr.forEach(function itemIterator(item){
             if (!firstFlag){
                 str+= "|";
             }
@@ -182,8 +176,6 @@ Evme.Analytics = new function() {
         });
         Evme.Storage.add("analyticsQueue", str);
         Evme.Storage.add("analyticsQueueTimestamp", new Date().getTime());
-        
-        logger.debug("Analytics.storeQueue", Evme.Storage.get("analyticsQueue"));
     }
     
     // Restore queueArr from localStorage
@@ -198,14 +190,9 @@ Evme.Analytics = new function() {
         if (elapsed < options.localStorageTTL){
             // restore queue
             var tempArr = (Evme.Storage.get("analyticsQueue") || "").split("|");
-            tempArr.forEach(function(item){
+            tempArr.forEach(function itemIterator(item){
                 queueArr.push(JSON.parse(item));
             });
-        
-            logger.debug("Analytics.restoreQueue", queueArr, elapsed);
-        }
-        else{
-            logger.debug("Analytics.restoreQueue - storage ttl exceeded", elapsed);
         }
         
         Evme.Storage.add("analyticsQueue", null);
@@ -230,7 +217,7 @@ Evme.Analytics = new function() {
         setGACustomVars(tracker);
         
         GAScriptLoadStatus = "loaded";
-        GAScriptLoadSubscribers.forEach(function(cb){
+        GAScriptLoadSubscribers.forEach(function itemIterator(cb){
             cb(tracker, options.googleAnalyticsAccount);
         });
     }
@@ -272,15 +259,15 @@ Evme.Analytics = new function() {
     
     /**** SANDBOX METHODS ****/
     
-    this.Sandbox = new function(){
+    this.Sandbox = new function Sandbox(){
         
         // get DoAT API session Id
-        this.getSessionId = function(){
+        this.getSessionId = function getSessionId(){
             return options.DoATAPI.getSessionId();
         };
         
         // Google Analytics script loader
-        this.onGAScriptLoad = function(cb){
+        this.onGAScriptLoad = function onGAScriptLoad(cb){
             // if not loaded yet
             if (GAScriptLoadStatus !== "loaded"){
                 // load it
@@ -299,27 +286,27 @@ Evme.Analytics = new function() {
             }
         }
         
-        this.DoATAPI = new function(){
-            this.report = function(params){
+        this.DoATAPI = new function DoATAPI(){
+            this.report = function report(params){
                 options.DoATAPI.report(params);
             };
         };
         
-        this.Logger = new function(){
-            this.warn = function(params){
+        this.Logger = new function Logger(){
+            this.warn = function warn(params){
                 options.DoATAPI.Logger.warn(params);
             };
             
-            this.error = function(params){
+            this.error = function error(params){
                 options.DoATAPI.Logger.error(params);
             };
             
-            this.info = function(params){
+            this.info = function info(params){
                 options.DoATAPI.Logger.info(params);
             };
         };
         
-        this.isNewSearchQuery = function(newQuery){
+        this.isNewSearchQuery = function isNewSearchQuery(newQuery){
             var lastSearchQuery = Evme.Storage.get(STORAGE_QUERY),
                 newQuery = newQuery.toLowerCase();
             if (newQuery !== lastSearchQuery){
@@ -332,12 +319,12 @@ Evme.Analytics = new function() {
     
     /**** EVENTS ****/
    
-    this.DoATAPI = new function(){
+    this.DoATAPI = new function DoATAPI(){
         var LOGGER_WARN_SLOW_API_RESPONSE_TIME = 2000,
             LOGGER_WARN_SLOW_API_RESPONSE_TEXT = "Slow API response",
             blacklistMethods = ["logger/", "stats/", "search/trending", "search/bgimage"];
         
-        this.success = function(data){
+        this.success = function success(data){
             // Supress report for blacklist methods
             for (var i=0, len=blacklistMethods.length; i<len; i++){
                 var method = blacklistMethods[i];
@@ -364,7 +351,7 @@ Evme.Analytics = new function() {
             }
         };
         
-        this.sessionInitOnPageLoad = function(data){
+        this.sessionInitOnPageLoad = function sessionInitOnPageLoad(data){
             data.elapsed = getElapsedTime(options.pageRenderStartTs);
             queue({
                 "class": "DoATAPI",
@@ -374,9 +361,8 @@ Evme.Analytics = new function() {
         };
     };
     
-    this.Analytics = new function(){
-        
-        this.gaEvent = function(data){
+    this.Analytics = new function Analytics(){
+        this.gaEvent = function gaEvent(data){
             var GAEvents = getProviderByName("GAEvents");
             
             GAEvents && GAEvents.dispatch([{
@@ -392,27 +378,28 @@ Evme.Analytics = new function() {
         };
     };
    
-    this.Core = new function(){
+    this.Core = new function Core(){
         var ROWS = 1, COLS = 0, redirectData;
            
-        this.redirectedToApp = function(data) {
+        this.redirectedToApp = function redirectedToApp(data) {
             var total = getCurrentAppsRowsCols(),
                 colIndex = data.index%(total[COLS]),
                 rowIndex = Math.floor(data.index/(total[COLS]));
             
             var queueData = {
                 "url": data.appUrl,
-                "rowIndex": rowIndex+1,
-                "colIndex": colIndex+1,
-                "totalRows": total[ROWS],
-                "totalCols": total[COLS],
                 "more": data.isMore ? 1 : 0,
                 "appName": data.name,
                 "appId": data.id,
+                "appType": data.appType,
                 "appIdName": data.id+":"+data.name,
                 "keyboardVisible": data.keyboardVisible,
                 "query": data.query,
-                "source": data.source
+                "source": data.source,
+                "rowIndex": data.rowIndex,
+                "colIndex": data.colIndex,
+                "totalRows": data.totalRows,
+                "totalCols": data.totalCols
             };
 
             queue({
@@ -451,13 +438,9 @@ Evme.Analytics = new function() {
                 "appName": queueData.appName,
                 "appId": queueData.appId
             };
-            
-            //storeQueue();
         };
         
-        this.returnedFromApp = function() {
-            // onunload restore queueArr from localStorage
-            //restoreQueue();
+        this.returnedFromApp = function returnedFromApp() {
 
             if (redirectData){
                 // end timer
@@ -482,7 +465,7 @@ Evme.Analytics = new function() {
             }            
         };
         
-        this.error = function(data){
+        this.error = function error(data){
             data.text = "Client error";
             data.ua = navigator.userAgent;
             data.platform = Evme.Utils.platform();
@@ -494,7 +477,7 @@ Evme.Analytics = new function() {
             });
         };
         
-        this.initError = function(data){
+        this.initError = function initError(data){
             queue({
                 "class": "Core",
                 "event": "initError",
@@ -502,7 +485,7 @@ Evme.Analytics = new function() {
             });
         };
         
-        this.initLoadFile = function(data){
+        this.initLoadFile = function initLoadFile(data){
             queue({
                 "class": "Core",
                 "event": "initLoadFile",
@@ -510,7 +493,7 @@ Evme.Analytics = new function() {
             });
         };
 
-        this.searchOnPageLoad = function(data){
+        this.searchOnPageLoad = function searchOnPageLoad(data){
             if (data.query){
                 queue({
                     "class": "Results",
@@ -524,7 +507,7 @@ Evme.Analytics = new function() {
             }
         };
     
-        this.firstPageLoad = function(data){
+        this.firstPageLoad = function firstPageLoad(data){
             data.page = getPageName(data.page);
             
             queue({
@@ -534,7 +517,7 @@ Evme.Analytics = new function() {
             });
         };
         
-        this.requestInvite = function(data) {
+        this.requestInvite = function requestInvite(data) {
             queue({
                 "class": "Core",
                 "event": "requestInvite",
@@ -543,8 +526,8 @@ Evme.Analytics = new function() {
         };
     };
    
-    this.Searchbar = new function() {
-        this.returnPressed = function(data) {
+    this.Searchbar = new function Searchbar() {
+        this.returnPressed = function returnPressed(data) {
             data.query = data.value;
             queue({
                 "class": "Searchbar",
@@ -563,7 +546,7 @@ Evme.Analytics = new function() {
             });
         };
         
-        this.idle = function(data){
+        this.idle = function idle(data){
             if (data.query.length > 2){
                 queue({
                     "class": "Results",
@@ -578,9 +561,8 @@ Evme.Analytics = new function() {
         };
     };
     
-    
-    this.Shortcuts = new function() {
-        this.show = function(data) {
+    this.Shortcuts = new function Shortcuts() {
+        this.show = function show(data) {
             if (!data.report) {
                 return;
             }
@@ -592,7 +574,7 @@ Evme.Analytics = new function() {
             });
         };
         
-        this.hide = function(data) {
+        this.hide = function hide(data) {
             if (!data.report) {
                 return;
             }
@@ -604,7 +586,7 @@ Evme.Analytics = new function() {
             });
         };
         
-        this.categoryPageShow = function(data) {
+        this.categoryPageShow = function categoryPageShow(data) {
             queue({
                 "class": "Shortcuts",
                 "event": "categoryPageShow",
@@ -613,8 +595,8 @@ Evme.Analytics = new function() {
         };
     };
         
-    this.Shortcut = new function() {
-        this.click = function(data) {
+    this.Shortcut = new function Shortcut() {
+        this.click = function click(data) {
             queue({
                 "class": "Shortcut",
                 "event": "click",
@@ -622,7 +604,7 @@ Evme.Analytics = new function() {
             });
         };
         
-        this.search = function(data) {
+        this.search = function search(data) {
             queue({
                 "class": "Results",
                 "event": "search",
@@ -636,45 +618,8 @@ Evme.Analytics = new function() {
         };
     };
     
-    this.HomepageTrending = new function() {
-        var loadedAll = false,
-            reportedFullCycle = false;
-        
-        this.click = function(data) {   
-            queue({
-                "class": "HomepageTrending",
-                "event": "click",
-                "data": data
-            });
-            
-            queue({
-                "class": "Results",
-                "event": "search",
-                "data": {
-                    "query": data.query,
-                    "page": "Trending",
-                    "feature": "trnd"
-                }
-            });
-        };
-        
-        this.loadedAll = function(){
-            loadedAll = true;
-        };
-        
-        this.show = function(data){
-            if (data.current == 0 && !reportedFullCycle && loadedAll){
-                queue({
-                    "class": "HomepageTrending",
-                    "event": "fullCycle"
-                });
-                reportedFullCycle = true;
-            }
-        };
-    };
-    
-    this.BackgroundImage = new function() {
-        this.showFullScreen = function(data) {
+    this.BackgroundImage = new function BackgroundImage() {
+        this.showFullScreen = function showFullScreen(data) {
             queue({
                 "class": "BackgroundImage",
                 "event": "showFullScreen",
@@ -683,8 +628,8 @@ Evme.Analytics = new function() {
         };
     };
     
-    this.Helper = new function() {        
-        this.click = function(data) {
+    this.Helper = new function Helper() {        
+        this.click = function click(data) {
             data.visible = data.visible ? 1 : 0;
             data.query = data.value !== "." ? data.value : "";
             
@@ -710,7 +655,7 @@ Evme.Analytics = new function() {
             }
         };
         
-        this.showAppsFromFirstSuggestion = function(data) {
+        this.showAppsFromFirstSuggestion = function showAppsFromFirstSuggestion(data) {
             queue({
                 "class": "Helper",
                 "event": "searchFromFirstSuggestion",
@@ -728,7 +673,7 @@ Evme.Analytics = new function() {
             });
         };
         
-        this.showAppsFromDefault = function(data) {
+        this.showAppsFromDefault = function showAppsFromDefault(data) {
             if (options.Brain.Searchbar.emptySource) {
                 
                 queue({
@@ -746,22 +691,22 @@ Evme.Analytics = new function() {
     };
     
     
-    this.Tips = new function() {
-        this.show = function(data) {
+    this.Tips = new function Tips() {
+        this.show = function show(data) {
             queue({
                 "class": "Tips",
                 "event": "show",
                 "data": data
             });
         };
-        this.hide = function(data) {
+        this.hide = function hide(data) {
             queue({
                 "class": "Tips",
                 "event": "hide",
                 "data": data
             });
         };
-        this.click = function(data) {
+        this.click = function click(data) {
             queue({
                 "class": "Tips",
                 "event": "click",
@@ -769,16 +714,26 @@ Evme.Analytics = new function() {
             });
         };
     };
+
+    this.App = new function App() {
+        this.addToHomeScreen = function addToHomeScreen(data) {
+            queue({
+                "class": "App",
+                "event": "addToHomeScreen",
+                "data": data
+            });
+        };
+    };
     
-    this.AppsMore = new function() {        
-        this.show = function(data) {
+    this.AppsMore = new function AppsMore() {        
+        this.show = function show(data) {
             queue({
                 "class": "AppsMore",
                 "event": "show",
                 "data": data
             });
             
-            if (Evme.Utils.isKeyboardVisible()){
+            if (Evme.Utils.isKeyboardVisible){
                 data.query = Evme.Utils.getCurrentSearchQuery();
                 queue({
                     "class": "Results",
@@ -793,162 +748,8 @@ Evme.Analytics = new function() {
         };
     };
     
-    this.Url = new function(){
-        var prevPage, currPage;
-        
-        this.goTo = function(data){
-            if (data.page == Url.PAGES.Homepage){
-                /*queue({
-                    "class": "Url",
-                    "event": "backToHomepage"
-                });*/
-                Evme.Storage.set(STORAGE_QUERY, "");
-            }
-        };
-    };
-    
-    this.Screens = new function(){
-        this.tabClick = function(data) {
-            queue({
-                "class": "Url",
-                "event": "goTo",
-                "data": {
-                    "page": getPageName(data.page),
-                    "source": data.source || options.PAGEVIEW_SOURCES.TAB
-                }
-            });
-        };
-        
-        this.searchHidden = function(data) {
-            queue({
-                "class": "Url",
-                "event": "goTo",
-                "data": {
-                    "page": data.active,
-                    "source": options.PAGEVIEW_SOURCES.BACK
-                }
-            });
-        };
-    };
-    
-    this.HomepageTip = new function() {
-        this.show = function(data) {
-            queue({
-                "class": "HomepageTip",
-                "event": "show",
-                "data": data
-            });
-        };
-        
-        this.buttonClick = function(data) {
-            queue({
-                "class": "HomepageTip",
-                "event": "buttonClick",
-                "data": data
-            });
-        };
-        
-        this.screenClick = function(data) {
-            queue({
-                "class": "HomepageTip",
-                "event": "backgroundClick",
-                "data": data
-            });
-        };
-    };
-    
-    this.Info = new function() {
-        this.pageShown = function(data) {
-            queue({
-                "class": "Info",
-                "event": "page",
-                "data": data
-            });
-        };
-        
-        this.homeShown = function(data) {
-            queue({
-                "class": "Info",
-                "event": "home",
-                "data": data
-            });
-        };
-    };
-    
-    this.Survey = new function() {
-        this.show = function(data) {
-            var _data = {
-                "survey": data.survey.group,
-                "question": data.question.question,
-                "prompt": data.survey.prompt
-            };
-            
-            queue({
-                "class": "Survey",
-                "event": "open",
-                "data": _data
-            });
-        };
-        
-        this.hide = function(data) {
-            var _data = {
-                "survey": data.survey.group,
-                "question": data.question.question,
-                "reason": data.reason
-            };
-            
-            queue({
-                "class": "Survey",
-                "event": "close",
-                "data": _data
-            });
-        };
-        
-        this.showLink = function(data) {
-            var _data = {
-                "survey": data.survey.group,
-                "question": data.question.question,
-                "prompt": data.survey.prompt,
-            };
-            
-            queue({
-                "class": "Survey",
-                "event": "promptShow",
-                "data": _data
-            });
-        };
-        
-        this.hideLink = function(data) {
-            var _data = {
-                "survey": data.survey.group,
-                "question": data.question.question,
-                "prompt": data.survey.prompt,
-            };
-            
-            queue({
-                "class": "Survey",
-                "event": "promptDismiss",
-                "data": _data
-            });
-        };
-        
-        this.vote = function(data) {
-            var _data = {
-                "survey": data.survey.group,
-                "question": data.question.question,
-                "answer": data.answer,
-            };
-            
-            queue({
-                "class": "Survey",
-                "event": "vote",
-                "data": _data
-            });
-        };
-    };
-    
-    this.Prompt = new function() {
-        this.show = function(data) {
+    this.Prompt = new function Prompt() {
+        this.show = function show(data) {
             if (!data.text || typeof data.text != "string") {
                 data.text = "N/A";
             }
@@ -960,7 +761,7 @@ Evme.Analytics = new function() {
             });
         };
         
-        this.click = function(data) {
+        this.click = function click(data) {
             if (!data.text || typeof data.text != "string") {
                 data.text = "N/A";
             }
@@ -972,7 +773,7 @@ Evme.Analytics = new function() {
             });
         };
         
-        this.dismiss = function(data) {
+        this.dismiss = function dismiss(data) {
             if (!data.text || typeof data.text != "string") {
                 data.text = "N/A";
             }
@@ -985,43 +786,8 @@ Evme.Analytics = new function() {
         };
     };
     
-    
-    this.Welcome = new function() {
-        this.show = function(data) {
-            queue({
-                "class": "Welcome",
-                "event": "show",
-                "data": data
-            });
-        };
-        
-        this.getTheApp = function(data) {
-            queue({
-                "class": "Welcome",
-                "event": "getTheApp",
-                "data": data
-            });
-        };
-        
-        this.dismiss = function(data) {
-            queue({
-                "class": "Welcome",
-                "event": "dismiss",
-                "data": data
-            });
-        };
-        
-        this.signup = function(data) {
-            queue({
-                "class": "Welcome",
-                "event": "signup",
-                "data": data
-            });
-        };
-    };
-    
-    this.ShortcutsCustomize = new function() {
-        this.show = function(data) {
+    this.ShortcutsCustomize = new function ShortcutsCustomize() {
+        this.show = function show(data) {
             queue({
                 "class": "ShortcutsCustomize",
                 "event": "show",
@@ -1029,52 +795,10 @@ Evme.Analytics = new function() {
             });
         };
         
-        this.done = function(data) {
+        this.done = function done(data) {
             queue({
                 "class": "ShortcutsCustomize",
                 "event": "done",
-                "data": data
-            });
-        };
-    };
-    
-    this.User = new function() {
-        this.loginShow = function(data) {
-            queue({
-                "class": "User",
-                "event": "loginShow",
-                "data": data
-            });
-        };
-        
-        this.loginCancel = function(data) {
-            queue({
-                "class": "User",
-                "event": "loginCancel",
-                "data": data
-            });
-        };
-        
-        this.loginClick = function(data) {
-            queue({
-                "class": "User",
-                "event": "loginClick",
-                "data": data
-            });
-        };
-        
-        this.loginSuccess = function(data) {
-            queue({
-                "class": "User",
-                "event": "loginSuccess",
-                "data": data
-            });
-        };
-        
-        this.loginFail = function(data) {
-            queue({
-                "class": "User",
-                "event": "loginFail",
                 "data": data
             });
         };

@@ -1,15 +1,12 @@
-requireApp('calendar/test/unit/helper.js', function() {
-  requireLib('timespan.js');
-  requireLib('interval_tree.js');
-});
+requireLib('timespan.js');
+requireLib('interval_tree.js');
 
 window.page = window.page || {};
 
-suite('controller', function() {
+suite('Controllers.Time', function() {
   var subject;
   var app;
-  var busytime;
-  var loaded;
+  var busytimeStore;
   var db;
 
   function logSpan(span) {
@@ -24,18 +21,10 @@ suite('controller', function() {
   }
 
   setup(function(done) {
-    loaded = [];
     app = testSupport.calendar.app();
     subject = new Calendar.Controllers.Time(app);
 
-    busytime = app.store('Busytime');
-    busytime.loadSpan = function(span, cb) {
-      loaded.push(span);
-      if (typeof(cb) !== 'undefined') {
-        setTimeout(cb, 0);
-      }
-    };
-
+    busytimeStore = app.store('Busytime');
     db = app.db;
 
     db.open(function() {
@@ -65,6 +54,30 @@ suite('controller', function() {
   });
 
   suite('#handleEvent', function() {
+
+    suite('sync cache lock', function() {
+      setup(function() {
+        subject.observe();
+        app.syncController.emit('syncStart');
+      });
+
+      test('locks after syncStart', function() {
+        assert.isTrue(subject.cacheLocked);
+      });
+
+      test('unlocks after sync end', function() {
+        var calledWith = false;
+
+        subject.purgeCache = function() {
+          calledWith = true;
+        };
+
+        app.syncController.emit('syncComplete');
+        assert.isFalse(subject.cacheLocked);
+        assert.isTrue(calledWith, 'purged');
+      });
+    });
+
 
     test('switching between days', function() {
       function type() {
@@ -128,16 +141,84 @@ suite('controller', function() {
     );
   });
 
+  suite('cache busytime', function() {
+    var span;
+    var busy;
+    var event;
+
+    setup(function() {
+      span = new Calendar.Timespan(0, Infinity);
+      busy = Factory('busytime');
+
+      subject.observeTime(span, function(result) {
+        event = result;
+      });
+
+      subject.cacheBusytime(busy);
+    });
+
+    test('#cacheBusytime', function() {
+      assert.equal(event.type, 'add');
+      assert.equal(event.data, busy);
+
+      var query = subject.queryCache(span);
+      assert.equal(query[0], busy);
+    });
+
+    test('remove', function() {
+      subject.removeCachedBusytime(busy._id);
+
+      assert.equal(event.type, 'remove');
+      assert.equal(event.data, busy);
+
+      var query = subject.queryCache(busy);
+      assert.length(query, 0);
+    });
+  });
+
+  suite('cache event', function() {
+    var event;
+    var busy;
+
+    setup(function(done) {
+      event = Factory('event');
+      busy = Factory('busytime', {
+        eventId: event._id
+      });
+
+      app.store('Event').persist(event, done);
+      subject.cacheEvent(event);
+    });
+
+    test('#cacheEvent', function(done) {
+      subject.findAssociated(busy, null, function(err, data) {
+        var result = data[0];
+        done(function() {
+          assert.equal(result.event, event);
+        });
+      });
+    });
+
+    test('#removeCachedEvent', function(done) {
+      subject.removeCachedEvent(event._id);
+      subject.findAssociated(busy, function(err, data) {
+        var result = data[0];
+        done(function() {
+          assert.notEqual(result.event, event);
+          assert.deepEqual(result.event, event);
+        });
+      });
+    });
+  });
+
   suite('#findAssociated', function() {
     // stores
     var alarmStore;
     var eventStore;
-    var busytimeStore;
 
     setup(function() {
       alarmStore = app.store('Alarm');
       eventStore = app.store('Event');
-      busytimeStore = app.store('Busytime');
     });
 
     // model instances
@@ -171,7 +252,7 @@ suite('controller', function() {
 
       trans.oncomplete = function() {
         done();
-      }
+      };
 
       eventStore.persist(event, trans);
       busytimeStore.persist(hasAlarm, trans);
@@ -179,6 +260,19 @@ suite('controller', function() {
       alarmStore.persist(alarm, trans);
     });
 
+    test('everything is cached', function(done) {
+      subject.cacheEvent(event);
+
+      var opts = { alarms: true, event: true };
+
+      subject.findAssociated(hasAlarm, opts, function(err, data) {
+        done(function() {
+          assert.ok(!err);
+          assert.equal(data[0].event, event);
+          assert.equal(data[0].busytime._id, alarm.busytimeId);
+        });
+      });
+    });
 
     test('empty', function(done) {
       var busytime = Factory('busytime');
@@ -196,6 +290,41 @@ suite('controller', function() {
       });
     });
 
+    test('when given a busytime id (not cached)', function(done) {
+      var expected = {
+        busytime: hasAlarm,
+        event: event
+      };
+
+      subject.findAssociated(hasAlarm._id, function(err, data) {
+        done(function() {
+          assert.length(data, 1, 'has data');
+          var item = data[0];
+
+          assert.equal(item.busytime._id, hasAlarm._id, 'has alarm');
+          assert.equal(item.event._id, event._id, 'has event');
+        });
+      });
+    });
+
+    test('when given a busytime id (cached)', function(done) {
+      var expected = {
+        busytime: hasAlarm,
+        event: event
+      };
+
+      // must be cached first
+      subject.cacheBusytime(hasAlarm);
+
+      // uses the cached busytime to find the full record
+      subject.findAssociated(hasAlarm._id, function(err, data) {
+        done(function() {
+          var item = data[0];
+          assert.deepEqual(item, expected);
+        });
+      });
+    });
+
     test('default', function(done) {
       // should default to not include alarms.
       var expected = {
@@ -209,6 +338,13 @@ suite('controller', function() {
           assert.ok(!err, 'error');
           assert.ok(item, 'result');
 
+          var eventId = item.event._id;
+
+          assert.ok(
+            subject._eventsCache[eventId],
+            'caches event'
+          );
+
           assert.deepEqual(item, expected, 'output');
         });
       });
@@ -216,10 +352,11 @@ suite('controller', function() {
 
     test('no event - with missing alarm', function(done) {
       var expected = {
-        busytime: noAlarm
+        busytime: noAlarm,
+        alarms: []
       };
 
-      var options = { event: false, alarm: true };
+      var options = { event: false, alarms: true };
 
       subject.findAssociated(noAlarm, options, function(err, result) {
         done(function() {
@@ -234,7 +371,7 @@ suite('controller', function() {
       var req = [noAlarm, hasAlarm];
       var options = {
         event: true,
-        alarm: true
+        alarms: true
       };
 
       subject.findAssociated(req, options, function(err, data) {
@@ -250,13 +387,14 @@ suite('controller', function() {
 
           var expectedNoAlarm = {
             event: event,
-            busytime: noAlarm
+            busytime: noAlarm,
+            alarms: []
           };
 
           var expectedAlarm = {
             event: event,
             busytime: hasAlarm,
-            alarm: alarm
+            alarms: [alarm]
           };
 
           assert.deepEqual(
@@ -266,10 +404,16 @@ suite('controller', function() {
           );
 
           assert.deepEqual(
-            resultAlarm,
-            expectedAlarm,
-            'busytime with alarm'
+            resultAlarm.eventId,
+            expectedAlarm.eventId,
+            'busytime with alarm - eventId'
           );
+
+          assert.deepEqual(
+              resultAlarm.busytimeId,
+              expectedAlarm.busytimeId,
+              'busytime with alarm - busytimeId'
+            );
         });
       });
     });
@@ -285,7 +429,7 @@ suite('controller', function() {
     subject.move = function() {
       Calendar.Controllers.Time.prototype.move.apply(this, arguments);
       calledMove = arguments;
-    }
+    };
 
     subject.selectedDay = new Date(2012, 1, 1);
     subject.moveToMostRecentDay();
@@ -329,7 +473,7 @@ suite('controller', function() {
     assert.equal(calledWith[1], date);
   });
 
-  suite('#_checkCache', function() {
+  suite('#purgeCache', function() {
     var spans;
     var max;
     var events;
@@ -389,6 +533,8 @@ suite('controller', function() {
       test(desc, function(done) {
         spans = subject._timespans;
         assert.length(spans, spanLength);
+        // sanity check
+        subject.cacheEvent(Factory('event'));
         cb();
         subject.on('loadingComplete', function() {
           // verify that we removed the last
@@ -396,6 +542,7 @@ suite('controller', function() {
           // current point.
           done(function() {
             assert.length(subject._timespans, max);
+            assert.deepEqual(subject._eventsCache, {}, 'removes event cache');
 
             if (toBeRemoved) {
               assert.deepEqual(events, toBeRemoved);
@@ -412,6 +559,31 @@ suite('controller', function() {
         });
       });
     }
+
+    test('when locked', function() {
+      var calledWith = false;
+      subject._updateBusytimeCache = function() {
+        calledWith = true;
+      };
+
+      subject.cacheLocked = true;
+
+      subject.cacheEvent(Factory('event'));
+      subject.cacheBusytime(Factory('busytime'));
+
+      subject.purgeCache();
+      assert.isFalse(calledWith, 'miss - purged busytimes');
+      assert.length(
+        Object.keys(subject._eventsCache), 1,
+        'miss - purged events'
+      );
+
+      subject.cacheLocked = false;
+
+      subject.purgeCache();
+      assert.isTrue(calledWith, 'hit - busytimes');
+      assert.length(Object.keys(subject._eventsCache), 0);
+    });
 
     cacheTest('future - previous is missing', function() {
       // XXX: this is a case where the current
@@ -472,7 +644,6 @@ suite('controller', function() {
       }));
 
       // during
-
       expectedItems.push(subject._collection.add(
         Factory('busytime', {
           _startDateMS: expected[0].start + 1,
@@ -492,7 +663,7 @@ suite('controller', function() {
           expectedItems,
           'should interval tree items outside of total span'
         );
-      }
+      };
     });
 
     cacheTest('past - does not fit', function() {
@@ -518,6 +689,7 @@ suite('controller', function() {
     var outOfRange;
 
     setup(function() {
+
       collection = subject._collection;
       events = {
         add: [],
@@ -544,8 +716,8 @@ suite('controller', function() {
         endDate: new Date(2012, 1, 8)
       });
 
-      store.emit('add time', inRange);
-      store.emit('add time', outOfRange);
+      subject.cacheBusytime(inRange);
+      subject.cacheBusytime(outOfRange);
     });
 
     test('add time', function() {
@@ -569,8 +741,11 @@ suite('controller', function() {
     });
 
     test('remove time', function() {
-      store.emit('remove time', inRange);
-      store.emit('remove time', outOfRange);
+      // turn on event observers
+      subject.observe();
+
+      busytimeStore.emit('remove', outOfRange._id);
+      busytimeStore.emit('remove', inRange._id);
 
       assert.isNull(
         collection.indexOf(outOfRange),
@@ -584,6 +759,7 @@ suite('controller', function() {
 
       assert.length(events.remove, 1);
       assert.equal(events.remove[0], inRange);
+
     });
 
     test('#queryCache', function() {
@@ -698,11 +874,85 @@ suite('controller', function() {
     });
   });
 
-  suite('#_loadMonthSpan', function() {
+  suite('#_onLoadingComplete', function() {
+    var past;
+    var present;
+    var future;
 
+    var startDate = new Date(2012, 0, 1);
+
+    setup(function(done) {
+      subject.observe();
+
+      var trans = busytimeStore.db.transaction(
+        'busytimes',
+        'readwrite'
+      );
+
+      past = Factory('busytime', {
+        startDate: new Date(2011, 11, 1),
+        endDate: new Date(2012, 0, 1)
+      });
+
+      present = Factory('busytime', {
+        startDate: new Date(2012, 0, 1),
+        endDate: new Date(2012, 1, 1)
+      });
+
+      future = Factory('busytime', {
+        startDate: new Date(2012, 1, 1),
+        endDate: new Date(2012, 2, 1)
+      });
+
+      trans.oncomplete = function() {
+        done();
+      };
+
+      busytimeStore.persist(past, trans);
+      busytimeStore.persist(present, trans);
+      busytimeStore.persist(future, trans);
+    });
+
+    setup(function(done) {
+      subject.on('loadingComplete', function() {
+        done();
+      });
+
+      subject.move(startDate);
+    });
+
+    test('load', function() {
+      var span = new Calendar.Timespan(
+        0,
+        Infinity
+      );
+
+      var results = subject.queryCache(span);
+      assert.length(results, 3);
+
+      // trim the private variables
+      results.forEach(function(item) {
+        delete item._startDateMS;
+        delete item._endDateMS;
+      });
+
+      assert.deepEqual(
+        results,
+        [
+          past,
+          present,
+          future
+        ]
+      );
+    });
+  });
+
+  suite('(span loading) #_loadMonthSpan', function() {
     var stored;
     var spanOfMonth;
     var initialMove;
+    var loadResults;
+    var loaded;
 
     suiteSetup(function() {
       spanOfMonth = Calendar.Calc.spanOfMonth;
@@ -734,6 +984,15 @@ suite('controller', function() {
     }
 
     setup(function(done) {
+      loaded = [];
+
+      busytimeStore.loadSpan = function(span, cb) {
+        loaded.push(span);
+        if (cb) {
+          setTimeout(cb, 0, null, []);
+        }
+      };
+
       initialMove = new Date(2012, 1, 5);
       subject.observe();
       subject.move(initialMove);
@@ -752,7 +1011,6 @@ suite('controller', function() {
       // have been loaded we also must
       // verify the order in which they where loaded.
       // 1. current, 2. next, 3, past
-
       var currentLoadSpan = expected[1];
 
       var futureLoadSpan = currentLoadSpan.trimOverlap(

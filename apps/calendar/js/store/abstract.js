@@ -1,4 +1,5 @@
 (function(window) {
+  var NUMERIC = /^([0-9]+)$/;
 
   /**
    * Creates an abstract store instance.
@@ -23,10 +24,6 @@
      * @type {Array}
      */
     _dependentStores: null,
-
-    get cached() {
-      return this._cached;
-    },
 
     _createModel: function(object, id) {
       if (typeof(id) !== 'undefined') {
@@ -58,6 +55,17 @@
       }
     },
 
+    probablyParseInt: function(id) {
+      // by an unfortunate decision we have both
+      // string ids and number ids.. based on the
+      // input we run parseInt
+      if (id.match && id.match(NUMERIC)) {
+        return parseInt(id, 10);
+      }
+
+      return id;
+    },
+
     /**
      * Adds an account to the database.
      *
@@ -85,14 +93,12 @@
       var model;
 
       var putReq;
-      var reqType;
+      var reqType = this._detectPersistType(object);
 
       // determine type of event
-      if (object._id) {
-        reqType = 'update';
+      if (reqType === 'update') {
         putReq = store.put(data);
       } else {
-        reqType = 'add';
         this._assignId(data);
         putReq = store.add(data);
       }
@@ -128,6 +134,13 @@
       });
     },
 
+    _allCached: function(callback) {
+      var list = this._cached;
+      Calendar.nextTick(function() {
+        callback(null, list);
+      });
+    },
+
     /**
      * Loads all records in the database
      * for this store.
@@ -137,47 +150,53 @@
      * As such this should only be used once
      * during the app life-cycle.
      */
-    load: function(callback) {
-      var value;
+    all: function(callback) {
+      if (this._allCallbacks) {
+        this._allCallbacks.push(callback);
+        return;
+      }
+
+      // list of pending callbacks
+      this._allCallbacks = [callback];
+
       var self = this;
       var trans = this.db.transaction(this._store);
       var store = trans.objectStore(this._store);
-      var loadFn;
 
-      if (this._onLoadCache) {
-        loadFn = '_onLoadCache';
-      } else {
-        loadFn = '_addToCache';
+      function process(data) {
+        return self._addToCache(self._createModel(data));
       }
 
+      function fireQueue(err, value) {
+        var callback;
+        while ((callback = self._allCallbacks.shift())) {
+          callback(err, value);
+        }
+      }
 
       store.mozGetAll().onsuccess = function(event) {
-        var data = event.target.result;
-        var i = 0;
-        var len = data.length;
-        var cached = self._cached;
-        var item;
-
-        for (; i < len; i++) {
-          self[loadFn](self._createModel(data[i]));
-        }
+        event.target.result.forEach(process);
       };
 
       trans.onerror = function(event) {
-        callback(event);
-      }
+        fireQueue(event.target.error.name);
+      };
 
       trans.oncomplete = function() {
-        callback(null, self._cached);
-        self.emit('load', self._cached);
-      }
+        fireQueue(null, self._cached);
+        self.all = self._allCached;
+      };
     },
 
     _addDependents: function() {},
     _removeDependents: function(trans) {},
 
+    _detectPersistType: function(object) {
+      return ('_id' in object) ? 'update' : 'add';
+    },
+
     _parseId: function(id) {
-      return parseInt(id);
+      return id;
     },
 
     _assignId: function(obj) {
@@ -232,11 +251,6 @@
       req.onsuccess = function(event) {
         var cursor = event.target.result;
         if (cursor) {
-          //XXX: We need to trigger a remove dependants
-          //     action here? Events are not tied
-          //     directly to anything else right now but they
-          //     may be in the future...
-
           // remove deps first intentionally to mimic, removes normal behaviour
           self._removeDependents(cursor.primaryKey, trans);
           self._removeFromCache(cursor.primaryKey);
@@ -244,6 +258,8 @@
           cursor.continue();
         }
       };
+
+      return req;
     },
 
     /**
@@ -268,7 +284,7 @@
       }
 
       var store = trans.objectStore(this._store);
-      var req = store.get(id);
+      var req = store.get(this._parseId(id));
 
       req.onsuccess = function() {
         var model;
@@ -278,11 +294,11 @@
         }
 
         callback(null, model);
-      }
+      };
 
       req.onerror = function(event) {
         callback(e);
-      }
+      };
     },
 
     /**
@@ -344,11 +360,11 @@
 
       req.onsuccess = function() {
         callback(null, req.result);
-      }
+      };
 
       req.onerror = function(e) {
         callback(e);
-      }
+      };
     },
 
     _objectData: function(data) {

@@ -1,6 +1,7 @@
 Calendar.ns('Provider').CaldavPullEvents = (function() {
 
   var Calc = Calendar.Calc;
+  var debug = Calendar.debug('pull events');
 
   /**
    * Event synchronization class for caldav provider.
@@ -9,7 +10,6 @@ Calendar.ns('Provider').CaldavPullEvents = (function() {
    *  - app: current calendar app (Calendar.App by default)
    *  - account: (Calendar.Models.Account) required
    *  - calendar: (Calendar.Models.Calendar) required
-   *  - cached: Currently cached events for this sync operation.
    *
    * Example:
    *
@@ -19,11 +19,7 @@ Calendar.ns('Provider').CaldavPullEvents = (function() {
    *    var pull = new Calendar.Provider.CaldavPullEvents(stream, {
    *      calendar: calendarModel,
    *      account: accountModel,
-   *      app: Calendar.App,
-   *      cached: [
-   *        'eventId': eventModel,
-   *        //...
-   *      ]
+   *      app: Calendar.App
    *    });
    *
    *    stream.request(function() {
@@ -61,20 +57,15 @@ Calendar.ns('Provider').CaldavPullEvents = (function() {
       this.app = Calendar.App;
     }
 
-    if (options.cached) {
-      this.cached = options.cached;
-    } else {
-      throw new Error('.cached options must be provided');
-    }
-
     stream.on('event', this);
+    stream.on('component', this);
     stream.on('occurrence', this);
-    stream.on('recurring end', this);
+    stream.on('missingEvents', this);
 
+    this.icalQueue = [];
     this.eventQueue = [];
     this.busytimeQueue = [];
-    this.removeList = Object.keys(this.cached);
-    this.syncStart = new Date();
+    this.alarmQueue = [];
 
     this._busytimeStore = this.app.store('Busytime');
   }
@@ -152,17 +143,74 @@ Calendar.ns('Provider').CaldavPullEvents = (function() {
     formatBusytime: function(time) {
       var id = this.busytimeIdFromRemote(time);
       var eventId = this.eventIdFromRemote(time, !time.isException);
+      var calendarId = this.calendar._id;
 
       time._id = id;
-      time.calendarId = this.calendar._id;
+      time.calendarId = calendarId;
       time.eventId = eventId;
 
-      return time;
+      if (time.alarms) {
+        var i = 0;
+        var len = time.alarms.length;
+        var alarm;
+
+        for (; i < len; i++) {
+          alarm = time.alarms[i];
+          alarm.eventId = eventId;
+          alarm.busytimeId = id;
+        }
+      }
+
+      return this._busytimeStore.initRecord(time);
     },
 
     handleOccurrenceSync: function(item) {
-      this._busytimeStore.addTime(item, true);
+      var alarms;
+
+      if ('alarms' in item) {
+        alarms = item.alarms;
+        delete item.alarms;
+
+        if (alarms.length) {
+          var i = 0;
+          var len = alarms.length;
+          var now = Date.now();
+
+          for (; i < len; i++) {
+            var alarm = {
+              startDate: {},
+              eventId: item.eventId,
+              busytimeId: item._id
+            };
+
+            // Copy the start object
+            for (var j in item.start) {
+              alarm.startDate[j] = item.start[j];
+            }
+            alarm.startDate.utc += (alarms[i].trigger * 1000);
+
+            var alarmDate = Calc.dateFromTransport(item.end);
+            if (alarmDate.valueOf() < now) {
+              continue;
+            }
+            this.alarmQueue.push(alarm);
+          }
+        }
+      }
+
+      this.app.timeController.cacheBusytime(item);
       this.busytimeQueue.push(item);
+    },
+
+    handleComponentSync: function(component) {
+      component.eventId = this.eventIdFromRemote(component);
+      component.calendarId = this.calendar._id;
+
+      if (!component.lastRecurrenceId) {
+        delete component.lastRecurrenceId;
+      }
+
+      this.icalQueue.push(component);
     },
 
     handleEventSync: function(event) {
@@ -176,20 +224,21 @@ Calendar.ns('Provider').CaldavPullEvents = (function() {
       // related to this event as we will be adding new
       // ones as part of the sync.
       this._busytimeStore.removeEvent(id);
+      this.app.timeController.cacheEvent(event);
 
-      if (id in this.cached) {
-        // existing event
-        var local = this.cached[id];
-        var idx = this.removeList.indexOf(id);
-        this.removeList.splice(idx, 1);
+      this.eventQueue.push(event);
 
-        if (local.remote.syncToken !== token) {
-          this.eventQueue.push(event);
-        }
-      } else {
-        this.eventQueue.push(event);
+      var component = event.remote.icalComponent;
+      delete event.remote.icalComponent;
+
+      // don't save components for exceptions.
+      // the parent has the ical data.
+      if (!event.remote.recurrenceId) {
+        this.icalQueue.push({
+          data: component,
+          eventId: event._id
+        });
       }
-
 
       if (exceptions) {
         for (var i = 0; i < exceptions.length; i++) {
@@ -198,13 +247,20 @@ Calendar.ns('Provider').CaldavPullEvents = (function() {
       }
     },
 
+
     handleEvent: function(event) {
       var data = event.data;
 
       switch (event.type) {
+        case 'missingEvents':
+          this.removeList = data[0];
+          break;
         case 'occurrence':
           var occur = this.formatBusytime(data[0]);
           this.handleOccurrenceSync(occur);
+          break;
+        case 'component':
+          this.handleComponentSync(data[0]);
           break;
         case 'event':
           var event = this.formatEvent(data[0]);
@@ -213,48 +269,70 @@ Calendar.ns('Provider').CaldavPullEvents = (function() {
       }
     },
 
-    commit: function(callback) {
+    /**
+     * Commit all pending records.
+     *
+     *
+     * @param {IDBTransaction} [trans] optional transaction.
+     * @param {Function} callback fired when transaction completes.
+     */
+    commit: function(trans, callback) {
       var eventStore = this.app.store('Event');
+      var icalComponentStore = this.app.store('IcalComponent');
       var calendarStore = this.app.store('Calendar');
       var busytimeStore = this.app.store('Busytime');
+      var alarmStore = this.app.store('Alarm');
 
       var calendar = this.calendar;
       var account = this.account;
 
-      var trans = calendarStore.db.transaction(
-        ['calendars', 'events', 'busytimes'], 'readwrite'
-      );
+      if (typeof(trans) === 'function') {
+        callback = trans;
+        trans = calendarStore.db.transaction(
+          ['calendars', 'events', 'busytimes', 'alarms', 'icalComponents'],
+          'readwrite'
+        );
+      }
 
       var self = this;
 
       this.eventQueue.forEach(function(event) {
+        debug('add event', event);
         eventStore.persist(event, trans);
       });
 
+      this.icalQueue.forEach(function(ical) {
+        debug('add component', ical);
+        icalComponentStore.persist(ical, trans);
+      });
+
       this.busytimeQueue.forEach(function(busy) {
+        debug('add busytime', busy);
         busytimeStore.persist(busy, trans);
       });
 
-      this.removeList.forEach(function(id) {
-        eventStore.remove(id, trans);
+      this.alarmQueue.forEach(function(alarm) {
+        debug('add alarm', alarm);
+        alarmStore.persist(alarm, trans);
       });
 
-      calendar.lastEventSyncToken = calendar.remote.syncToken;
-      calendar.lastEventSyncDate = this.syncStart;
-
-      if (!calendar.firstEventSyncDate) {
-        calendar.firstEventSyncDate = this.syncStart;
+      if (this.removeList) {
+        this.removeList.forEach(function(id) {
+          eventStore.remove(id, trans);
+        });
       }
 
-      calendarStore.persist(calendar, trans);
+      if (callback) {
+        trans.addEventListener('error', function(e) {
+          callback(e);
+        });
 
-      trans.addEventListener('error', function(e) {
-        callback(e);
-      });
+        trans.addEventListener('complete', function() {
+          callback(null);
+        });
+      }
 
-      trans.addEventListener('complete', function() {
-        callback(null);
-      });
+      return trans;
     }
 
   };

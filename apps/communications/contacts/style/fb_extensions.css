@@ -1,5 +1,5 @@
-iframe#fb-extensions {
-  position: absolute;
+#fb-extensions {
+  position: fixed;
   top: 100%;
   left: 0;
   z-index: 1000;
@@ -8,8 +8,8 @@ iframe#fb-extensions {
   border: 0;
   margin: 0;
   padding: 0;
-  -moz-transition: all .6s ease;
-  background-color: #26272c;
+  -moz-transition: -moz-transform .6s ease;
+  background: #f4f4f4;
 }
 
 #fb-extensions.opening {
@@ -19,15 +19,6 @@ iframe#fb-extensions {
 #fb-extensions.closing {
   -moz-transform: translateY(0);
 }
-
-#fb-extensions.openingImport {
-  top:0;
-}
-
-#fb-extensions.closingImport {
-  top:100%;
-}
-
 
 .facebook.removed dl,
 p.facebook.removed input {
@@ -47,4 +38,37 @@ p.facebook.removed input {
 .facebook.removed dl dd p {
   border-bottom: 1px solid #3b5998;
   border-left: 1px solid #3b5998;
+}
+
+.with-photo.removed.facebook img {
+  pointer-events: auto;
+  opacity: 0.95;
+}
+
+.with-photo.removed.facebook {
+  border: none;
+}
+
+#settings-article[data-state="fb-disabled"] #settingsFb,
+#settings-article[data-state="fb-disabled"] #fb-header  {
+  display: none;
+}
+
+#settingsFb[data-state="logged-out"] > #fb-update-option > #import-fb,
+#settingsFb[data-state="logged-out"] > #fb-update-option > #renew-pwd-msg,
+#settingsFb[data-state="logged-in"]  > #fb-update-option > #renew-pwd-msg {
+  display: none;
+}
+
+#settingsFb[data-state="renew-pwd"] > #fb-update-option > #import-fb:before {
+  background-image: url(/contacts/style/images/error_icon.png);
+}
+
+#settingsFb[data-state="logged-in"] > #fb-update-option > #import-fb:before {
+  background-image: url(/contacts/style/images/sync_icon.png);
+}
+
+#no-connection {
+  white-space: normal;
+  margin-top: 1rem;
 }

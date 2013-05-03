@@ -1,9 +1,3 @@
-/*
- *  The code is being shared between system/emergency-call/js/keypad.js
- *  and dialer/js/keypad.js. Be sure to update both file when you commit!
- *
- */
-
 'use strict';
 
 var kFontStep = 4;
@@ -36,6 +30,7 @@ var TonePlayer = {
      return;
 
    this._audio = new Audio();
+   this._audio.volume = 0.5;
    this._audio.mozSetup(2, this._sampleRate);
   },
 
@@ -269,17 +264,6 @@ var KeypadManager = {
           }
         }
       });
-
-      var reopenApp = function reopenApp() {
-        navigator.mozApps.getSelf().onsuccess = function getSelfCB(evt) {
-          var app = evt.target.result;
-          app.launch();
-        };
-      }
-
-      activity.onsuccess = reopenApp;
-      activity.onerror = reopenApp;
-
     } catch (e) {
       console.log('WebActivities unavailable? : ' + e);
     }
@@ -448,10 +432,8 @@ var KeypadManager = {
     var phoneNumber = this._phoneNumber;
 
     // If there are digits in the phone number, show the delete button.
-    if (typeof CallScreen == 'undefined') {
-      var visibility = (phoneNumber.length > 0) ? 'visible' : 'hidden';
-      this.deleteButton.style.visibility = visibility;
-    }
+    var visibility = (phoneNumber.length > 0) ? 'visible' : 'hidden';
+    this.deleteButton.style.visibility = visibility;
 
     if (this._onCall) {
       var view = CallScreen.activeCall.querySelector('.number');
@@ -471,3 +453,12 @@ var KeypadManager = {
      }
   }
 };
+
+// Set the 'lang' and 'dir' attributes to <html> when the page is translated
+window.addEventListener('localized', function showBody() {
+  document.documentElement.lang = navigator.mozL10n.language.code;
+  document.documentElement.dir = navigator.mozL10n.language.direction;
+  // <body> children are hidden until the UI is translated
+  document.body.classList.remove('hidden');
+});
+

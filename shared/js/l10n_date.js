@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- /
+/* -*- Mode: js; js-indent-level: 2; indent-tabs-mode: nil -*- */
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 
 'use strict';
@@ -16,20 +16,19 @@
  * planned in the ES-i18n spec:
  *   - a `toLocaleFormat()' that really works (i.e. fully translated);
  *   - a `fromNow()' method to handle relative dates ("pretty dates").
+ *
+ * WARNING: this library relies on the non-standard `toLocaleFormat()' method,
+ * which is specific to Firefox -- no other browser is supported.
  */
 
 navigator.mozL10n.DateTimeFormat = function(locales, options) {
   var _ = navigator.mozL10n.get;
 
-  function zeroPad(number) {
-    return (number < 10) ? ('0' + number) : number;
-  }
-
   // https://developer.mozilla.org/en-US/docs/JavaScript/Reference/Global_Objects/Date/toLocaleFormat
   function localeFormat(d, format) {
     var tokens = format.match(/(%E.|%O.|%.)/g);
 
-    for (var i = 0; i < tokens.length; i++) {
+    for (var i = 0; tokens && i < tokens.length; i++) {
       var value = '';
 
       // http://pubs.opengroup.org/onlinepubs/007908799/xsh/strftime.html
@@ -47,6 +46,24 @@ navigator.mozL10n.DateTimeFormat = function(locales, options) {
           break;
         case '%B':
           value = _('month-' + d.getMonth() + '-long');
+          break;
+        case '%Eb':
+          value = _('month-' + d.getMonth() + '-genitive');
+          break;
+
+        // like %H, but in 12-hour format and without any leading zero
+        case '%I':
+          value = d.getHours() % 12 || 12;
+          break;
+
+        // like %d, without any leading zero
+        case '%e':
+          value = d.getDate();
+          break;
+
+        // like %d, without any leading zero
+        case '%p':
+          value = d.getHours() <= 12 ? 'AM' : 'PM';
           break;
 
         // localized date/time strings
@@ -69,8 +86,47 @@ navigator.mozL10n.DateTimeFormat = function(locales, options) {
     return format;
   }
 
-  // variant of John Resig's PrettyDate.js
-  function prettyDate(time) {
+  /**
+   * Returns the parts of a number of seconds
+   */
+  function relativeParts(seconds) {
+    seconds = Math.abs(seconds);
+    var descriptors = {};
+    var units = [
+      'years', 86400 * 365,
+      'months', 86400 * 30,
+      'weeks', 86400 * 7,
+      'days', 86400,
+      'hours', 3600,
+      'minutes', 60
+    ];
+
+    if (seconds < 60) {
+      return {
+        minutes: Math.round(seconds / 60)
+      };
+    }
+
+    for (var i = 0, uLen = units.length; i < uLen; i += 2) {
+      var value = units[i + 1];
+      if (seconds >= value) {
+        descriptors[units[i]] = Math.floor(seconds / value);
+        seconds -= descriptors[units[i]] * value;
+      }
+    }
+    return descriptors;
+  }
+
+  /**
+   * Returns a translated string which respresents the
+   * relative time before or after a date.
+   * @param {String|Date} time before/after the currentDate.
+   * @param {String} useCompactFormat whether to use a compact display format.
+   * @param {Number} maxDiff returns a formatted date if the diff is greater.
+   */
+  function prettyDate(time, useCompactFormat, maxDiff) {
+    maxDiff = maxDiff || 86400 * 10; // default = 10 days
+
     switch (time.constructor) {
       case String: // timestamp
         time = parseInt(time);
@@ -85,31 +141,17 @@ navigator.mozL10n.DateTimeFormat = function(locales, options) {
       return _('incorrectDate');
     }
 
-    if (secDiff >= 0) { // past
-      var dayDiff = Math.floor(secDiff / 86400);
-      if (secDiff < 3600) {
-        return _('minutesAgo', { m: Math.floor(secDiff / 60) });
-      } else if (dayDiff === 0) {
-        return _('hoursAgo', { h: Math.floor(secDiff / 3600) });
-      } else if (dayDiff < 10) {
-        return _('daysAgo', { d: dayDiff });
-      }
+    if (secDiff > maxDiff) {
+      return localeFormat(new Date(time), '%x');
     }
 
-    if (secDiff < 0) { // future
-      secDiff = -secDiff;
-      dayDiff = Math.floor(secDiff / 86400);
-      if (secDiff < 3600) {
-        return _('inMinutes', { m: Math.floor(secDiff / 60) });
-      } else if (dayDiff === 0) {
-        return _('inHours', { h: Math.floor(secDiff / 3600) });
-      } else if (dayDiff < 10) {
-        return _('inDays', { d: dayDiff });
-      }
-    }
+    var f = useCompactFormat ? '-short' : '-long';
+    var parts = relativeParts(secDiff);
 
-    // too far: return an absolute date
-    return localeFormat(new Date(time), '%x');
+    var affix = secDiff >= 0 ? '-ago' : '-until';
+    for (var i in parts) {
+      return _(i + affix + f, { value: parts[i]});
+    }
   }
 
   // API
@@ -124,7 +166,7 @@ navigator.mozL10n.DateTimeFormat = function(locales, options) {
       return localeFormat(d, '%c');
     },
     localeFormat: localeFormat,
-    fromNow: prettyDate
+    fromNow: prettyDate,
+    relativeParts: relativeParts
   };
 };
-

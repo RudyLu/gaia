@@ -7,54 +7,28 @@
     "name": "The Gaia Team",
     "url": "https://github.com/mozilla-b2g/gaia"
   },
+  "fullscreen": true,
   "permissions": {
-    "device-storage:videos":{},
-    "deprecated-hwvideo":{}
+    "storage":{},
+    "device-storage:pictures":{ "access": "readwrite" },
+    "device-storage:videos":{ "access": "readwrite" },
+    "settings":{ "access": "readonly" },
+    "deprecated-hwvideo":{},
+    "audio-channel-content":{},
+    "systemXHR":{}
   },
   "locales": {
     "ar": {
       "name": "فيديو",
       "description": "Gaia فيديو"
     },
-    "ca": {
-      "name": "Vídeo",
-      "description": "Vídeo del Gaia"
-    },
-    "de": {
-      "name": "Video",
-      "description": "Gaia Video"
-    },
-    "el": {
-      "name": "Βίντεο",
-      "description": "Βίντεο Gaia"
-    },
     "en-US": {
       "name": "Video",
       "description": "Gaia Video"
     },
-    "es": {
-      "name": "Video",
-      "description": "Video de Gaia"
-    },
     "fr": {
       "name": "Vidéo",
       "description": "Lecteur vidéo Gaia"
-    },
-    "it": {
-      "name": "Video",
-      "description": "Gaia Video"
-    },
-    "pt-BR": {
-      "name": "Vídeo",
-      "description": "Vídeo do Gaia"
-    },
-    "ru": {
-      "name": "Видео",
-      "description": "Видео Gaia"
-    },
-    "tr": {
-      "name": "Video",
-      "description": "Gaia Video"
     },
     "zh-TW": {
       "name": "影片",
@@ -67,10 +41,29 @@
     "60": "/style/icons/60/Video.png"
   },
   "activities": {
+    "pick": {
+      "filters": {
+        "type": ["video/*", "video/webm", "video/mp4", "video/3gpp"]
+       },
+      "disposition": "inline",
+      "returnValue": true,
+      "href": "/index.html#pick"
+    },
     "view" : {
       "filters": {
-        "type": ["video/webm", "video/mp4"]
-      }
+        "type": ["video/webm", "video/mp4", "video/3gpp", "video/youtube"]
+      },
+      "href": "view.html",
+      "disposition": "inline",
+      "returnValue": true
+    },
+    "open" : {
+      "filters": {
+        "type": ["video/webm", "video/mp4", "video/3gpp", "video/youtube"]
+      },
+      "href": "view.html",
+      "disposition": "inline",
+      "returnValue": true
     }
   }
 }

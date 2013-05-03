@@ -2,7 +2,7 @@
   visibility: visible;
 }
 
-#battery.visible {
+#system-overlay.battery #battery {
   display: block;
 }
 
@@ -13,50 +13,30 @@
   top: 0;
   left: 0;
   width: 100%;
-  height: 40px;
-  padding: 0 5px;
+  height: 4.5rem;
+  font-size: 1.5rem;
+  font-weight: 500;
 }
 
 .icon-battery {
-  width: 40px;
-  height: 40px;
-  display: inline-block;
-  background-image: none;
+  display: block;
+  float: left;
+  width: 4.2rem;
+  height: 1.8rem;
+  margin: 0 1.3rem;
+  background-image: url('images/battery_empty_small.png');
   background-position: center center;
-  background-repeat: no-repeat no-repeat;
+  background-repeat: no-repeat;
+  background-size: 4.2rem;
 }
 
 #battery span {
   vertical-align: middle;
-  height: 40px;
-  line-height: 40px;
+  height: 4.5rem;
+  line-height: 4.5rem;
 }
 
-#battery .battery-notification {
-  display: none;
-}
-
-#battery[data-level="10"] .icon-battery {
-  background-image: url('images/battery_empty_small.png');
-}
-
-#battery[data-level="10"] .battery-notification.empty {
-  display: inline-block;
-}
-
-#battery[data-level="30"] .icon-battery {
-  background-image: url('images/battery_low_small.png');
-}
-
-#battery[data-level="30"] .battery-notification.low {
-  display: inline-block;
-}
-
-#battery[data-level="100"] .icon-battery {
-  background-image: url('images/battery_full_small.png');
-}
-
-#battery[data-level="100"] .battery-notification.full {
+.battery-notification {
   display: inline-block;
 }
 

@@ -1,7 +1,5 @@
-requireApp('calendar/test/unit/helper.js', function() {
-  requireLib('interval_tree.js');
-  requireLib('timespan.js');
-});
+requireLib('interval_tree.js');
+requireLib('timespan.js');
 
 suite('interval_tree', function() {
 
@@ -315,8 +313,8 @@ suite('interval_tree', function() {
         subject.items = [];
         subject.synced = false;
 
-        addedBefore = factory(10, middle.start, middle.end);
-        addedAfter = factory(12, middle.start, middle.end);
+        addedBefore = factory(10, middle[subject.START], middle[subject.END]);
+        addedAfter = factory(12, middle[subject.START], middle[subject.END]);
 
         // its going to shuffle
         // each item is going to displace

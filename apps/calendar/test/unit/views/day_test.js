@@ -1,17 +1,8 @@
 requireCommon('test/synthetic_gestures.js');
+requireApp('calendar/shared/js/gesture_detector.js');
+requireLib('timespan.js');
 
-requireApp('calendar/test/unit/helper.js', function() {
-  requireApp('calendar/shared/js/gesture_detector.js');
-  requireLib('ordered_map.js');
-  requireLib('timespan.js');
-  requireLib('templates/day.js');
-  requireLib('views/time_parent.js');
-  requireLib('views/day_based.js');
-  requireLib('views/day_child.js');
-  requireLib('views/day.js');
-});
-
-suite('views/day', function() {
+suiteGroup('Views.Day', function() {
   var subject,
       app,
       controller,
@@ -61,7 +52,7 @@ suite('views/day', function() {
       calledTime = null;
       subject.changeDate = function() {
         calledTime = arguments;
-      }
+      };
 
       // events are only listened to when
       // activated...
@@ -124,7 +115,7 @@ suite('views/day', function() {
 
     subject.changeDate = function() {
       calledWith = arguments;
-    }
+    };
 
     subject.render();
 
@@ -140,7 +131,7 @@ suite('views/day', function() {
 
       subject.changeDate = function() {
         calledWith = arguments;
-      }
+      };
 
       // start in active state
       subject.onactive();
@@ -174,6 +165,8 @@ suite('views/day', function() {
         Calendar.Calc.isSameDate(selDate, controller.day),
         'should not move controller'
       );
+
+      assert.deepEqual(subject.date, controller.position);
     });
 
     test('mostRecentDayType === selectedDay', function() {
@@ -188,6 +181,19 @@ suite('views/day', function() {
         selDate,
         'should move controller to selected day position'
       );
+
+      assert.deepEqual(subject.date, selDate);
+    });
+
+    test('inactive for a peroid then reactivate', function() {
+      subject.onactive();
+      controller.move(new Date(2011, 0, 1));
+
+      subject.oninactive();
+      controller.move(new Date(2012, 8, 1));
+
+      subject.onactive();
+      assert.deepEqual(subject.date, controller.position);
     });
 
   });

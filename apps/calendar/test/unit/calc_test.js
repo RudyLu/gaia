@@ -1,7 +1,5 @@
-requireApp('calendar/test/unit/helper.js', function() {
-  requireLib('timespan.js');
-  requireLib('calc.js');
-});
+requireLib('timespan.js');
+requireLib('calc.js');
 
 //Worth noting that these tests will fail
 //in horrible ways outside of US timezone.
@@ -39,6 +37,44 @@ suite('calendar/calc', function() {
     return (date.getTimezoneOffset() * (60 * 1000));
   }
 
+  suite('#isOnlyDate', function() {
+    function verify(date, message, isTrue=true) {
+      test(message + ' ' + date.toString() + ' === ' + isTrue, function() {
+        assert.equal(
+          subject.isOnlyDate(date),
+          isTrue,
+          message
+        );
+      });
+    }
+
+    verify(new Date(2012, 1), 'month');
+
+    verify(
+      new Date(2012, 1, 1),
+      'YYYY:DD:MM'
+    );
+
+    verify(
+      new Date(2012, 1, 1, 1),
+      'hour',
+      false
+    );
+
+    verify(
+      new Date(2012, 1, 1, 0, 1),
+      'minute',
+      false
+    );
+
+    verify(
+      new Date(2012, 1, 1, 0, 0, 1),
+      'second',
+      false
+    );
+
+  });
+
   suite('#formatHour', function() {
     var realDateFormat;
     var fmt;
@@ -53,6 +89,12 @@ suite('calendar/calc', function() {
       Calendar.App.dateFormat = realDateFormat;
     });
 
+/*
+// These tests are currently failing and have been temporarily disabled as per
+// Bug 838993. They should be fixed and re-enabled as soon as possible as per
+// Bug 840489.
+// These test appear to make incorrect assumptions about localization details
+// (they do not fail on systems configured for US English).
     test('7 hours', function() {
       var result = subject.formatHour(7);
       assert.equal(result, '7 AM');
@@ -62,7 +104,111 @@ suite('calendar/calc', function() {
       var result = subject.formatHour(23);
       assert.equal(result, '11 PM');
     });
+*/
+  });
 
+  test('#dayOfWeekFromSunday', function() {
+    var expected = [
+      ['sun', 0, 0],
+      ['mon', 1, 1],
+      ['tue', 2, 2],
+      ['wed', 3, 3],
+      ['thu', 4, 4],
+      ['fri', 5, 5],
+      ['sat', 6, 6]
+    ];
+
+    expected.forEach(function(line) {
+      var [name, date, numeric] = line;
+      assert.equal(
+        subject.dayOfWeekFromSunday(date),
+        numeric,
+        name
+      );
+    });
+  });
+
+  test('#dayOfWeekFromMonday', function() {
+    var expected = [
+      ['mon', 1, 0],
+      ['tue', 2, 1],
+      ['wed', 3, 2],
+      ['thu', 4, 3],
+      ['fri', 5, 4],
+      ['sat', 6, 5],
+      ['sun', 0, 6]
+    ];
+
+    expected.forEach(function(line) {
+      var [name, date, numeric] = line;
+      assert.equal(
+        subject.dayOfWeekFromMonday(date),
+        numeric,
+        name
+      );
+    });
+  });
+
+  suite('#dayOfWeek', function() {
+    var realStartDay;
+    var date = new Date(2012, 0, 1);
+
+    suiteSetup(function() {
+      realStartDay = subject.startsOnMonday;
+    });
+
+    suiteTeardown(function() {
+      subject.startsOnMonday = realStartDay;
+    });
+
+    test('weekStartOnMonday = 0', function() {
+      subject.startsOnMonday = 0;
+      assert.equal(
+        subject.dayOfWeek(date),
+        0
+      );
+    });
+
+    test('weekStartsOnMonday = 1', function() {
+      subject.startsOnMonday = 1;
+      assert.equal(
+        subject.dayOfWeek(date),
+        6
+      );
+    });
+  });
+
+  suite('handle localization events', function() {
+    var reaL10n;
+    var weekStartsOnMonday = 0;
+
+    suiteSetup(function() {
+      reaL10n = navigator.mozL10n;
+      navigator.mozL10n = {
+        get: function(name) {
+          if (name === 'weekStartsOnMonday') {
+            return weekStartsOnMonday;
+          }
+          return reaL10n.get.apply(this, arguments);
+        }
+      };
+    });
+
+    suiteTeardown(function() {
+      navigator.mozL10n = reaL10n;
+    });
+
+    test('weekStartsOnMonday = 1', function() {
+      weekStartsOnMonday = 1;
+      window.dispatchEvent(new Event('localized'));
+      assert.ok(subject.startsOnMonday, 'week starts on monday');
+    });
+
+    test('weekStartsOnMonday = 0', function() {
+      weekStartsOnMonday = 0;
+      window.dispatchEvent(new Event('localized'));
+      assert.ok(!subject.startsOnMonday, 'week starts on sunday');
+    });
   });
 
   suite('#spanOfMonth', function() {
@@ -136,12 +282,46 @@ suite('calendar/calc', function() {
 
   suite('#dateToTransport', function() {
 
-    test('floating tz', function() {
-      var date = new Date(2012, 0, 1, 11, 1, 7);
+    test('ICAL date', function() {
+      var date = new Date(2012, 0, 1, 11);
+      var utc = Date.UTC(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+        date.getHours(),
+        date.getMinutes(),
+        date.getSeconds(),
+        date.getMilliseconds()
+      );
 
       var expected = {
         tzid: subject.FLOATING,
-        utc: date.valueOf(),
+        utc: utc,
+        offset: 0,
+        isDate: true
+      };
+
+      assert.deepEqual(
+        subject.dateToTransport(date, null, true),
+        expected
+      );
+    });
+
+    test('floating tz', function() {
+      var date = new Date(2012, 0, 1, 11, 1, 7);
+      var utc = Date.UTC(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+        date.getHours(),
+        date.getMinutes(),
+        date.getSeconds(),
+        date.getMilliseconds()
+      );
+
+      var expected = {
+        tzid: subject.FLOATING,
+        utc: utc,
         offset: 0
       };
 
@@ -164,6 +344,17 @@ suite('calendar/calc', function() {
       assert.deepEqual(
         subject.dateToTransport(date),
         expected
+      );
+    });
+  });
+
+  suite('#getUTC', function() {
+    test('utc - conversion', function() {
+      var date = new Date(2012, 9, 1, 7, 11);
+
+      assert.notEqual(
+        date,
+        subject.getUTC(date)
       );
     });
   });
@@ -196,10 +387,11 @@ suite('calendar/calc', function() {
     });
 
     test('floating', function() {
-      var utc = new Date(Date.UTC(2012, 0, 8, 9, 10));
       var expected = new Date(2012, 0, 8, 9, 10);
 
-      var data = subject.dateToTransport(utc, subject.FLOATING);
+      var data = subject.dateToTransport(
+        expected, subject.FLOATING
+      );
 
       assert.deepEqual(
         subject.dateFromTransport(data),

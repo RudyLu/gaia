@@ -3,17 +3,30 @@ html, body {
   padding: 0;
   font-size: 10px;
   background-color: #26272c;
+  overflow: hidden;
+  height: 100%;
 }
 
 /* for the pick activity */
+#wallpapers {
+  overflow: auto;
+  height: calc(100% - 5rem);
+}
+
 .wallpaper {
-  display: block;
-  width: 200px;
-  height: 300px;
-  border: solid white 3px;
-  border-radius: 5px;
-  margin-left: 60px;
-  margin-top: 15px;
+  background-size:cover;
+  background-repeat: no-repeat;
+  border-bottom: 0.1rem solid #000000;
+  border-right: 0.1rem solid #000000;
+  position: relative;
+  overflow: hidden;
+  height: 15.9rem;
+  float: left;
+  width: 33%;
+}
+
+#wallpapers .wallpaper:nth-child(3n) {
+  border-right: none;
 }
 
 /* for the share activity */
@@ -31,12 +44,19 @@ html, body {
   left: 0;
   width: 100%;
   bottom: 0;
-  height: 50px;
+  height: 5rem;
 }
 
-#set-wallpaper {
+#buttons > #set-wallpaper {
   position: absolute;
   left: 50%;
+  width: 50%;
+  height: 100%;
+}
+
+#buttons > #cancel {
+  position: absolute;
+  left: 0;
   width: 50%;
   height: 100%;
 }

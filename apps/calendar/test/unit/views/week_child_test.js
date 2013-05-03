@@ -1,19 +1,13 @@
-requireApp('calendar/test/unit/helper.js', function() {
-  requireLib('timespan.js');
-  requireLib('ordered_map.js');
-  requireLib('templates/day.js');
-  requireLib('templates/week.js');
-  requireLib('views/day_based.js');
-  requireLib('views/week_child.js');
-});
+requireLib('timespan.js');
 
-suite('views/week_child', function() {
+suiteGroup('Views.WeekChild', function() {
   var subject;
   var app;
   var controller;
   var events;
   var template;
   var viewDate = new Date(2012, 1, 15);
+  var stubStickyFrame = document.createElement('section');
 
   setup(function() {
     app = testSupport.calendar.app();
@@ -22,7 +16,8 @@ suite('views/week_child', function() {
 
     subject = new Calendar.Views.WeekChild({
       app: app,
-      date: viewDate
+      date: viewDate,
+      stickyFrame: stubStickyFrame
     });
 
     template = Calendar.Templates.Day;
@@ -34,16 +29,19 @@ suite('views/week_child', function() {
   });
 
   test('#_renderEvent', function() {
-    var data = Factory('event', {
+    var event = Factory('event', {
       remote: {
         title: 'UX'
       }
     });
 
-    var result = subject._renderEvent(data);
-    assert.ok(result);
+    var busytime = Factory('busytime');
 
+    var result = subject._renderEvent(busytime, event);
+
+    assert.ok(result);
     assert.include(result, 'UX');
+    assert.include(result, busytime._id);
   });
 
   test('#_renderHeader', function() {
@@ -57,11 +55,23 @@ suite('views/week_child', function() {
     assert.include(out, format, 'has format');
   });
 
+  test('#_assignPosition', function() {
+      var busy = Factory('busytime', {
+        startDate: new Date(2012, 0, 1, 0, 15),
+        endDate: new Date(2012, 0, 1, 3, 30)
+      });
+      var el = document.createElement('div');
+      subject.date = new Date(2012, 0, 1);
+      subject._assignPosition(busy, el);
+
+      assert.equal(el.style.height, 'calc(325% + 1.5px)', 'height');
+  });
+
   test('#create', function() {
     var element = subject.create();
     var html = element.innerHTML;
     assert.ok(html);
-    assert.include(html, subject._renderHeader());
+    assert.include(stubStickyFrame.innerHTML, subject._renderHeader());
   });
 
 });

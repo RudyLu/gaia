@@ -8,6 +8,8 @@ Calendar.Calc = (function() {
 
     _hourDate: new Date(),
 
+    startsOnMonday: false,
+
     FLOATING: 'floating',
 
     ALLDAY: 'allday',
@@ -78,6 +80,24 @@ Calendar.Calc = (function() {
     },
 
     /**
+     * Calculates day of week when starting day is Monday.
+     */
+    dayOfWeekFromMonday: function(numeric) {
+      var day = numeric - 1;
+      if (day < 0)
+        return 6;
+
+      return day;
+    },
+
+    /**
+     * Calculates day of week when starting day is Sunday.
+     */
+    dayOfWeekFromSunday: function(numeric) {
+      return numeric;
+    },
+
+    /**
      * Checks is given date is today.
      *
      * @param {Date} date compare.
@@ -110,6 +130,31 @@ Calendar.Calc = (function() {
       }
 
       return Calendar.compare(a, b);
+    },
+
+    /**
+     * Checks if date object only contains date information (not time).
+     *
+     * Example:
+     *
+     *    var time = new Date(2012, 0, 1, 1);
+     *    this._isOnlyDate(time); // false
+     *
+     *    var time = new Date(2012, 0, 1);
+     *    this._isOnlyDate(time); // true
+     *
+     * @param {Date} date to verify.
+     * @return {Boolean} see above.
+     */
+    isOnlyDate: function(date) {
+      if (
+        date.getHours() === 0 &&
+        date.getMinutes() === 0 &&
+        date.getSeconds() === 0
+      ) {
+        return true;
+      }
+      return false;
     },
 
     /**
@@ -241,6 +286,20 @@ Calendar.Calc = (function() {
       );
     },
 
+    /**
+     * Converts a date to UTC
+     */
+    getUTC: function(date) {
+      return new Date(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate(),
+        date.getUTCHours(),
+        date.getUTCMinutes(),
+        date.getUTCSeconds(),
+        date.getUTCMilliseconds()
+      );
+    },
 
     /**
      * Converts transport time into a JS Date object.
@@ -260,15 +319,7 @@ Calendar.Calc = (function() {
       );
 
       if (zone && zone === Calc.FLOATING) {
-        return new Date(
-          date.getUTCFullYear(),
-          date.getUTCMonth(),
-          date.getUTCDate(),
-          date.getUTCHours(),
-          date.getUTCMinutes(),
-          date.getUTCSeconds(),
-          date.getUTCMilliseconds()
-        );
+        return Calendar.Calc.getUTC(date);
       }
 
       return date;
@@ -287,35 +338,43 @@ Calendar.Calc = (function() {
      * regardless of the current tzid's offset.
      *
      * @param {Date} date js date object.
-     * @param {Date} [tzid] optional tzid.
+     * @param {String} [tzid] optional tzid.
+     * @param {Boolean} isDate true when is a "date" representation.
      */
-    dateToTransport: function(date, tzid) {
+    dateToTransport: function(date, tzid, isDate) {
       var result = Object.create(null);
       result.utc = utc;
 
-      if (tzid && tzid === Calc.FLOATING) {
-        result.utc = date.valueOf();
-        result.offset = 0;
-      } else {
-        var utc = Date.UTC(
-          date.getFullYear(),
-          date.getMonth(),
-          date.getDate(),
-          date.getHours(),
-          date.getMinutes(),
-          date.getSeconds(),
-          date.getMilliseconds()
-        );
+      if (isDate) {
+        result.isDate = isDate;
+      }
 
+      if (tzid) {
+        result.tzid = tzid;
+      }
+
+      var utc = Date.UTC(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+        date.getHours(),
+        date.getMinutes(),
+        date.getSeconds(),
+        date.getMilliseconds()
+      );
+
+      // remember a "date" is always a floating
+      // point in time otherwise we don't use it...
+      if (isDate || tzid && tzid === Calc.FLOATING) {
+        result.utc = utc;
+        result.offset = 0;
+        result.tzid = Calendar.Calc.FLOATING;
+      } else {
         var localUtc = date.valueOf();
         var offset = utc - localUtc;
 
         result.utc = utc;
         result.offset = offset;
-      }
-
-      if (tzid) {
-        result.tzid = tzid;
       }
 
       return result;
@@ -403,10 +462,20 @@ Calendar.Calc = (function() {
 
     /**
      * Returns localized day of week.
+     *
+     * @param {Date|Number} date numeric or date object.
      */
     dayOfWeek: function(date) {
-      // XXX: we need to localize this further.
-      return date.getDay();
+      var number = date;
+
+      if (typeof(date) !== 'number') {
+        number = date.getDay();
+      }
+
+      if (Calc.startsOnMonday) {
+        return this.dayOfWeekFromMonday(number);
+      }
+      return this.dayOfWeekFromSunday(number);
     },
 
     /**
@@ -417,7 +486,7 @@ Calendar.Calc = (function() {
      */
     getWeekStartDate: function(date) {
       var currentDay = Calc.dayOfWeek(date);
-      var startDay = date.getDate() - currentDay;
+      var startDay = (date.getDate() - currentDay);
 
       return Calc.createDay(date, startDay);
     },
@@ -577,6 +646,16 @@ Calendar.Calc = (function() {
     }
 
   };
+
+  window.addEventListener('localized', function changeStartDay() {
+    var startDay = navigator.mozL10n.get('weekStartsOnMonday');
+
+    if (startDay && parseInt(startDay, 10)) {
+      Calc.startsOnMonday = true;
+    } else {
+      Calc.startsOnMonday = false;
+    }
+  });
 
   return Calc;
 

@@ -4,61 +4,54 @@
   <meta charset="utf-8">
   <meta name="viewport" content="initial-scale=1, maximum-scale=1">
   <title>Email</title>
+  <!-- Include building blocks we want our styles to override -->
+  <link rel="stylesheet" type="text/css" href="shared/style/input_areas.css"/>
+  <!-- Include our styles -->
   <link rel="stylesheet" type="text/css" href="style/mail.css">
   <link rel="stylesheet" type="text/css" href="style/message-cards.css">
   <link rel="stylesheet" type="text/css" href="style/folder-cards.css">
-  <link rel="stylesheet" type="text/css" href="style/compose-cards.css">
-  <link rel="stylesheet" type="text/css" href="style/setup-cards.css">
-  <link rel="stylesheet" type="text/css" href="style/value_selector.css">
   <!-- Include shared building blocks -->
-  <link rel="stylesheet" type="text/css" href="style/progress_activity/style.css"/>
   <link rel="stylesheet" type="text/css" href="shared/style/headers.css"/>
   <link rel="stylesheet" type="text/css" href="shared/style/switches.css"/>
   <link rel="stylesheet" type="text/css" href="shared/style/buttons.css"/>
-  <!-- Include building blocks that not in shared folder yet -->
-  <link rel="stylesheet" type="text/css" href="style/banner.css"/>
+  <link rel="stylesheet" type="text/css" href="shared/style/status.css"/>
+  <link rel="stylesheet" type="text/css" href="shared/style/confirm.css"/>
+  <link rel="stylesheet" type="text/css" href="shared/style/action_menu.css"/>
+  <link rel="stylesheet" type="text/css" href="shared/style/responsive.css"/>
+  <!-- Unstable building blocks -->
+  <link rel="stylesheet" type="text/css" href="shared/style_unstable/progress_activity.css"/>
+  <link rel="stylesheet" type="text/css" href="shared/style_unstable/tabs.css"/>
   <!-- Localization -->
   <link rel="resource" type="application/l10n" href="locales/locales.ini">
   <link rel="resource" type="application/l10n" href="shared/locales/date.ini">
   <!-- Shared code -->
-  <script type="text/javascript" src="shared/js/l10n.js"></script>
-  <script type="text/javascript" src="shared/js/l10n_date.js"></script>
-  <script type="text/javascript" src="shared/js/gesture_detector.js"></script>
+  <script type="text/javascript" defer src="shared/js/l10n.js"></script>
+  <script type="text/javascript" defer src="shared/js/l10n_date.js"></script>
+  <script type="text/javascript" defer src="shared/js/gesture_detector.js"></script>
   <!-- Specific code -->
-  <script type="text/javascript">
-    // when running in B2G, send output to the console, ANSI-style
-    if ('mozTCPSocket' in window.navigator) {
-      function consoleHelper() {
-        var msg = arguments[0] + ":";
-        for (var i = 1; i < arguments.length; i++) {
-          msg += " " + arguments[i];
-        }
-        msg += "\x1b[0m\n";
-        dump(msg);
-      }
-      window.console = {
-        log:   consoleHelper.bind(null, '\x1b[32mLOG'),
-        error: consoleHelper.bind(null, '\x1b[31mERR'),
-        info:  consoleHelper.bind(null, '\x1b[36mINF'),
-        warn:  consoleHelper.bind(null, '\x1b[33mWAR')
-      };
-    }
-    window.onerror = function errHandler(msg, url, line) {
-      console.error("onerror reporting:", msg, "@", url, ":", line);
-      return false;
-    };
-  </script>
-  <script type="text/javascript" src="js/mail-common.js"></script>
-  <script type="text/javascript" src="js/iframe-shims.js"></script>
-  <script type="text/javascript" src="js/message-cards.js"></script>
-  <script type="text/javascript" src="js/folder-cards.js"></script>
-  <script type="text/javascript" src="js/compose-cards.js"></script>
-  <script type="text/javascript" src="js/setup-cards.js"></script>
-  <script type="text/javascript" src="js/value_selector.js"></script>
+  <script type="text/javascript" defer src="js/contacts.js"></script>
+  <script type="text/javascript" defer src="js/input_areas.js"></script>
+  <script type="text/javascript" defer src="js/console-hook.js"></script>
+  <script type="text/javascript" defer src="js/mail-common.js"></script>
+  <script type="text/javascript" defer src="js/message-cards.js"></script>
+  <script type="text/javascript" defer src="js/folder-cards.js"></script>
   <!-- This one is an optimized vendor library containing our mail backend. -->
-  <script type="application/javascript;version=1.8"
-          src="js/ext/gaia-email-opt.js"></script>
-  <script type="text/javascript" src="js/mail-app.js"></script>
+  <!-- START BACKEND INJECT - do not modify -->
+  <script type="application/javascript;version=1.8" defer src="js/ext/alameda.js"></script>
+  <script type="application/javascript;version=1.8" defer src="js/ext/end.js"></script>
+  <!-- END BACKEND INJECT -->
+  <script type="text/javascript" defer src="/shared/js/lazy_loader.js"></script>
+  <script type="text/javascript" defer src="js/mail-app.js"></script>
+  <!-- Lazy Loaded Resources. See: App.loader.load()
+  <link rel="stylesheet" type="text/css" href="style/value_selector.css>
+  <link rel="stylesheet" type="text/css" href="style/compose-cards.css">
+  <link rel="stylesheet" type="text/css" href="style/setup-cards.css">
+  <script type="text/javascript" src="js/value_selector.js"></script>
+  <script type="text/javascript" src="js/iframe-shims.js"></script>
+  <script type="text/javascript" src="js/setup-cards.js"></script>
+  <script type="text/javascript" src="js/compose-cards.js"></script>
+  <script type="text/javascript" src="shared/js/mime_mapper.js"></script>
+  -->
 </head>
 
 <body role="application">
@@ -68,13 +61,13 @@
        should be fairly safe, for example.) -->
   <div id="cardContainer">
     <div id="cards" style="left: 0px;"></div>
-    <section role="dialog" class="banner customized collapsed">
+    <section role="status" class="banner customized collapsed">
       <button class="toaster-cancel-btn header-left-btn">
         <span class="icon icon-close"></span>
       </button>
       <p>Toaster Title</p>
-      <button data-l10n-id="toaster-undo" class="toaster-banner-undo">undo</button>
-      <button data-l10n-id="toaster-retry" class="toaster-banner-retry">retry</button>
+      <button data-l10n-id="toaster-undo" class="toaster-banner-undo"></button>
+      <button data-l10n-id="toaster-retry" class="toaster-banner-retry"></button>
     </section>
   </div>
 
@@ -87,17 +80,6 @@
        into them. -->
   <div id="templates" class="collapsed">
     <div id="templ-card">
-      <div class="card-account-picker card">
-        <div class="fld-accounts-header top-header">
-          <h2 class="fld-accounts-header-label header-label"
-              data-l10n-id="accounts-header">AccountS</h2>
-        </div>
-        <div class="scrollregion-below-header">
-          <div class="fld-accounts-container">
-          </div>
-        </div>
-      </div>
-
       <!-- Shows folders for navigation or move targeting.
            The navigation mode is less than full-width so we can see the
            messages display to its right.  -->
@@ -105,15 +87,42 @@
         <section class="fld-folders-header skin-organic" role="region">
           <header>
             <a href="#" class="fld-accounts-btn">
-              <span class="icon icon-user"></span>
+              <span class="icon icon-back"></span>
             </a>
             <h1 class="fld-folders-header-account-label"></h1>
           </header>
         </section>
-        <div class="scrollregion-below-header folder-scoller-region">
-          <div class="fld-accounts-container">
+        <div class="scrollregion-below-header folder-scroller-region">
+          <div class="fld-folders-container">
           </div>
-          <div class="fld-folders-container show">
+        </div>
+        <div class="fld-nav-toolbar bottom-toolbar">
+          <button class="fld-nav-settings-btn bottom-btn"></button>
+          <div class="fld-nav-last-synced">
+            <h3>
+              <span class="fld-nav-last-synced-label"
+                    data-l10n-id="account-last-synced-label"></span>
+              <span class="fld-nav-last-synced-value"></span>
+            </h3>
+          </div>
+          <span class="fld-nav-account-problem icon collapsed">!</span>
+        </div>
+      </div>
+      <!-- Shows accounts, to the left of folder list.
+           The navigation mode is less than full-width so we can see the
+           messages display to its right.  -->
+      <div class="card-account-picker card anim-overlay">
+        <section class="acct-picker-header skin-organic" role="region">
+          <header>
+            <a href="#" class="fld-accounts-btn">
+              <span class="icon icon-back"></span>
+            </a>
+            <h1 class="acct-picker-header-label"
+                data-l10n-id="settings-account-section"></h1>
+          </header>
+        </section>
+        <div class="scrollregion-below-header acct-scroller-region">
+          <div class="acct-list-container">
           </div>
           <div class="bottom-toolbar-spacer"></div>
         </div>
@@ -122,7 +131,7 @@
         </div>
       </div>
       <!-- Lists the messages in a folder -->
-      <div class="card-message-list card">
+      <div class="card-message-list card" data-tray-target>
         <!-- Non-search header -->
         <section class="msg-list-header msg-nonsearch-only" role="region">
           <header>
@@ -131,7 +140,7 @@
             </a>
             <menu type="toolbar">
               <a href="#" class="msg-compose-btn">
-                <span class="icon icon-add">add</span>
+                <span class="icon icon-compose">compose</span>
               </a>
             </menu>
             <h1 class="msg-list-header-folder-label header-label"></h1>
@@ -160,8 +169,9 @@
               <button type="reset" data-l10n-id="form-clear-input"></button>
             </form>
           </header>
+          <!-- Search filter switcher -->
           <header class="msg-search-controls-bar">
-            <ul role="tablist" class="filter" data-items="5">
+            <ul role="tablist" class="filter" data-type="filter" data-items="5">
               <li role="tab" class="msg-search-from msg-search-filter"
                   data-filter="author">
                 <a data-l10n-id="message-search-from">FroM</a></li>
@@ -181,12 +191,13 @@
             </ul>
           </header>
         </section>
-        <!-- Search filter switcher -->
+        <progress class="msg-list-progress hidden" value="0" total="1.0">
+        </progress>
         <!-- Scroll region -->
         <div class="msg-list-scrollouter">
           <!-- exists so we can force a minimum height -->
           <div class="msg-list-scrollinner">
-            <!-- The search textbox hides under the lip of the messages. 
+            <!-- The search textbox hides under the lip of the messages.
                  As soon as any typing happens in it, we push the search
                  controls card. -->
             <div class="msg-search-tease-bar msg-nonsearch-only">
@@ -199,11 +210,11 @@
                  regardless of their displayed status so we don't scroll them
                  out of the way -->
             <div class="msg-messages-sync-container">
-              <p role="status" class="msg-messages-syncing collapsed">
+              <p class="msg-messages-syncing collapsed">
                 <progress class="small"></progress>
                 <span data-l10n-id="messages-syncing">Message loadinG</span>
               </p>
-              <p role="status" class="msg-messages-sync-more collapsed">
+              <p class="msg-messages-sync-more collapsed">
                 <span data-l10n-id="messages-sync-more">SynC MorE</span>
               </p>
             </div>
@@ -217,18 +228,18 @@
         <div class="msg-list-action-toolbar bottom-toolbar">
           <button class="msg-refresh-btn bottom-btn msg-nonsearch-only"></button>
           <button class="msg-search-btn bottom-btn msg-nonsearch-only"></button>
-          <button class="msg-edit-btn bottom-btn msg-nonsearch-only"></button>
+          <button class="msg-edit-btn bottom-btn"></button>
         </div>
         <!-- Toolbar for multi-edit state -->
         <div class="msg-listedit-action-toolbar bottom-edit-toolbar bottom-toolbar collapsed">
+          <button class="msg-delete-btn bottom-btn"></button>
           <button class="msg-star-btn bottom-btn"></button>
           <button class="msg-mark-read-btn bottom-btn"></button>
-          <button class="msg-delete-btn bottom-btn"></button>
           <button class="msg-move-btn bottom-btn"></button>
         </div>
-        <p role="status" class="msg-list-empty collapsed">
-          <span data-l10n-id="messages-folder-empty">No messagE</span>
-        </p>
+        <div class="msg-list-empty-container collapsed">
+          <p class="msg-list-empty-message-text" data-l10n-id="messages-folder-empty">No messagE</p>
+        </div>
       </div>
 
       <!-- Message Reader -->
@@ -250,42 +261,43 @@
               data-l10n-id="reader-header">ReaD</h1>
           </header>
         </section>
-        <div class="scrollregion-below-header">
+        <div class="scrollregion-below-header scrollregion-horizontal-too">
           <div class="msg-envelope-bar">
-            <div class="msg-envelope-date"></div>
-            <div class="msg-envelope-from-line msg-envelope-line">
+            <div class="msg-envelope-from-line">
               <span class="msg-envelope-key"
                      data-l10n-id="envelope-from">FroM</span>
             </div>
             <!-- the details starts out collapsed, but can be toggled -->
-            <div class="msg-envelope-details collapsed">
-              <div class="msg-envelope-to-line msg-envelope-line">
+            <div class="msg-envelope-details">
+              <div class="msg-envelope-to-line">
                 <span class="msg-envelope-key"
                        data-l10n-id="envelope-to">tO</span>
               </div>
-              <div class="msg-envelope-cc-line msg-envelope-line">
+              <div class="msg-envelope-cc-line">
                 <span class="msg-envelope-key"
                        data-l10n-id="envelope-cc">cC</span>
               </div>
-              <div class="msg-envelope-bcc-line msg-envelope-line">
+              <div class="msg-envelope-bcc-line">
                 <span class="msg-envelope-key"
                        data-l10n-id="envelope-bcc">BcC</span>
               </div>
             </div>
-            <h3 class="msg-envelope-subject"></h3>
+            <div class="msg-envelope-subject-container">
+              <h3 class="msg-envelope-subject"></h3>
+              <span class="msg-envelope-date"></span>
+            </div>
           </div>
           <ul class="msg-attachments-container">
           </ul>
-          <div class="msg-body-container"></div>
+          <div class="msg-body-container"><progress></progress></div>
           <div class="bottom-toolbar-spacer"></div>
         </div>
         <!-- Tells us about remote/not downloaded images, asks to show -->
-        <div class="msg-reader-load-infobar">
+        <div class="msg-reader-load-infobar collapsed">
         </div>
         <div class="msg-reader-action-toolbar bottom-toolbar">
           <button class="msg-delete-btn bottom-btn"></button>
           <button class="msg-star-btn bottom-btn"></button>
-          <button class="msg-mark-read-btn bottom-btn"></button>
           <button class="msg-move-btn bottom-btn"></button>
           <button class="msg-forward-btn bottom-btn"></button>
         </div>
@@ -308,12 +320,12 @@
         </section>
         <div class="scrollregion-below-header">
           <div class="cmp-envelope-bar">
-            <div class="cmp-envelope-line">
+            <div class="cmp-envelope-line cmp-combo">
               <span class="cmp-to-label cmp-addr-label"
                      data-l10n-id="compose-to">tO:</span>
               <div class="cmp-to-container cmp-addr-container">
                 <div class="cmp-bubble-container">
-                    <input class="cmp-to-text cmp-addr-text" type="text" />
+                    <input class="cmp-to-text cmp-addr-text" type="email" />
                 </div>
                 <div class="cmp-to-add cmp-contact-add"></div>
               </div>
@@ -321,34 +333,43 @@
             <!-- XXX: spec calls for showing cc/bcc merged until selected,
                  but there is also the case where replying itself might need
                  to expand, so we are deferring that feature -->
-            <div class="cmp-envelope-line">
+            <div class="cmp-envelope-line cmp-combo">
               <span class="cmp-cc-label cmp-addr-label"
                      data-l10n-id="compose-cc">cC:</span>
               <div class="cmp-cc-container cmp-addr-container">
                 <div class="cmp-bubble-container">
-                  <input class="cmp-cc-text cmp-addr-text" type="text" />
+                  <input class="cmp-cc-text cmp-addr-text" type="email" />
                 </div>
                 <div class="cmp-cc-add cmp-contact-add"></div>
               </div>
             </div>
-            <div class="cmp-envelope-line">
+            <div class="cmp-envelope-line cmp-combo">
               <span class="cmp-bcc-label cmp-addr-label"
                      data-l10n-id="compose-bcc">BcC:</span>
               <div class="cmp-bcc-container cmp-addr-container">
                 <div class="cmp-bubble-container">
-                  <input class="cmp-bcc-text cmp-addr-text" type="text" />
+                  <input class="cmp-bcc-text cmp-addr-text" type="email" />
                 </div>
                 <div class="cmp-bcc-add cmp-contact-add"></div>
               </div>
             </div>
-            <div class="cmp-envelope-line">
+            <div class="cmp-envelope-line cmp-combo">
+              <span class="cmp-attachment-label cmp-addr-label"
+                     data-l10n-id="compose-attachments[zero]">AttachmentS:</span>
+              <div class="cmp-attachment-container cmp-addr-container">
+                <div class="cmp-attachments-size">
+                </div>
+                <div class="cmp-attachment-add cmp-file-add"></div>
+              </div>
+            </div>
+            <ul class="cmp-attachments-container">
+            </ul>
+            <div class="cmp-envelope-line cmp-subject">
               <span class="cmp-subject-label"
                      data-l10n-id="compose-subject">SubjecT:</span>
               <input class="cmp-subject-text" type="text" />
             </div>
           </div>
-          <ul class="cmp-attachments-container">
-          </ul>
           <textarea class="cmp-body-text" rows="1"></textarea>
           <div class="cmp-body-html">
           </div>
@@ -356,7 +377,7 @@
       </div>
 
       <!-- === Setup === -->
-      <!-- From hyperlink, ask the user if they want to setup now or bail. -->
+      <!-- From hyperlink, ask the user if they want to set up now or bail. -->
       <div class="card-setup-needed card">
       </div>
       <!-- Pick your service provider from popular options to save yourself
@@ -375,159 +396,300 @@
         </section>
         <h2 class="sup-pick-service-label sup-form-label"
             data-l10n-id="setup-pick-service">
-          To SenD and ReceivE email, you will need to setup an account.
+          To SenD and ReceivE email, you will need to set up an account.
         </h2>
         <div class="sup-services-container">
         </div>
       </div>
       <!-- Enter your e-mail address, password, name -->
-      <div class="card-setup-account-info form-card card">
-        <section class="sup-account-header" role="region">
-          <header>
-            <a href="#" class="sup-back-btn">
-              <span class="icon icon-back"></span>
-            </a>
-            <h1 class="sup-account-header-label"
-                data-l10n-id="setup-account-header">NeW MaiL AccounT SetuP</h1>
-          </header>
-        </section>
-        <h2 class="sup-info-label sup-form-label"
-            data-l10n-id="setup-info-header">
-          YouR LogiN InformatioN
-        </h2>
-        <div class="sup-form">
-          <input class="sup-info-name sup-form-text" type="text"
-                 inputmode="titlecase" placeholder="NamE" />
-          <input class="sup-info-email sup-form-text" type="email"
-                 placeholder="EmaiL AddresS" />
-          <input class="sup-info-password sup-form-text" type="password"
-                 placeholder="PassworD" />
-          <button class="sup-info-next-btn sup-form-btn recommend"
-                  data-l10n-id="setup-info-next" disabled="">NexT</button>
+      <section class="card-setup-account-info form-card card skin-organic"
+               role="region">
+        <header class="sup-account-header">
+          <a href="#" class="sup-back-btn collapsed">
+            <span class="icon icon-back"></span>
+          </a>
+          <menu type="toolbar">
+            <button class="sup-info-next-btn" disabled="">
+              <span data-l10n-id="setup-info-next">NexT</span>
+            </button>
+          </menu>
+          <h1 class="sup-account-header-label"
+              data-l10n-id="setup-account-header3">NeW AccounT</h1>
+        </header>
+        <div class="scrollregion-below-header">
+          <div class="sup-error-region collapsed">
+            <div class="sup-error-message"></div>
+            <div class="sup-error-code"></div>
+          </div>
+          <form class="sup-form sup-account-form">
+            <p>
+              <!-- x-inputmode is a temporary v1 B2G stop-gap -->
+              <input class="sup-info-name" type="text"
+                     data-l10n-id="setup-info-name"
+                     x-inputmode="verbatim"
+                     inputmode="verbatim"
+                     required />
+              <button type="reset"></button>
+            </p>
+            <p>
+              <input class="sup-info-email" type="email"
+                     data-l10n-id="setup-info-email"
+                     required />
+              <button type="reset"></button>
+            </p>
+            <p>
+              <input class="sup-info-password" type="password"
+                     data-l10n-id="setup-info-password"
+                     required />
+              <button type="reset"></button>
+            </p>
+          </form>
+          <a href="#" class="sup-manual-config-btn"
+                  data-l10n-id="setup-manual-config2">
+            ManuaL SetuP
+          </a>
         </div>
-      </div>
+      </section>
       <!-- I am setting up your account, please wait or read errors! -->
-      <div class="card-setup-progress card">
-        <section class="sup-account-header" role="region">
-          <header>
-            <a href="#" class="sup-back-btn">
-              <span class="icon icon-back"></span>
-            </a>
-            <h1 class="sup-account-header-label"
-                data-l10n-id="setup-account-header">NeW MaiL AccounT SetuP</h1>
-          </header>
-        </section>
+      <section class="card-setup-progress card skin-organic" role="region">
+        <header class="sup-account-header">
+          <a href="#" class="sup-back-btn">
+            <span class="icon icon-back"></span>
+          </a>
+          <h1 class="sup-account-header-label"
+              data-l10n-id="setup-account-header3">NeW AccounT</h1>
+        </header>
         <div class="sup-progress-region">
+          <progress class="sup-progress-spinner"></progress>
           <span class="sup-progress-label" data-l10n-id="setup-progress-wait">
-            PleasE WaiT WhilE I SetuP YouR AccounT
+            PleasE WaiT WhilE I SeT UP YouR AccounT
           </span>
-          <span class="sup-progress-spinner"></span>
         </div>
-        <div class="sup-error-region collapsed">
-          <span class="sup-error-message"></span>
-          <button class="sup-manual-config-btn sup-form-btn recommend"
-                  data-l10n-id="setup-manual-config">
-            ManuallY SetuP AccounT
-          </button>
-        </div>
-      </div>
+      </section>
       <!-- Account all setup, add another or read your mail? -->
-      <div class="card-setup-done card">
-        <section class="sup-account-header" role="region">
-          <header>
-            <h1 class="sup-account-header-label"
+      <section class="card-setup-done card skin-organic" role="region">
+        <header class="sup-account-header">
+          <h1 class="sup-account-header-label"
               data-l10n-id="setup-completed-header">MaiL AccounT SetuP</h1>
-          </header>
-        </section>
-        <h2 class="sup-account-done-label sup-form-label"
-            data-l10n-id="setup-completed-label">AlL DonE!</h2>
+        </header>
+        <div class="sup-progress-region">
+          <span class="sup-progress-label" data-l10n-id="setup-completed-label">
+            AlL DonE!
+          </span>
+        </div>
         <button class="sup-add-another-account-btn sup-form-btn"
-                data-l10n-id="setup-add-another-account">
+              data-l10n-id="setup-add-another-account">
           AdD AnotheR AccounT
         </button>
         <button class="sup-show-mail-btn sup-form-btn recommend"
                 data-l10n-id="setup-show-mail">
           ContinuE tO MaiL
         </button>
-      </div>
+      </section>
 
-      <div class="card-setup-manual-config form-card card">
-        <section class="sup-account-header" role="region">
-          <header>
-            <a href="#" class="sup-back-btn">
-              <span class="icon icon-back"></span>
-            </a>
-            <h1 class="sup-account-header-label header-label"
-                data-l10n-id="setup-manual-config-header">ManuaL SetuP</h1>
-          </header>
-        </section>
-        <div class="sup-form">
-          <span data-l10n-id="setup-manual-account-type">AccounT TypE</span>
-          <!-- These don't need L10N as they are protocol names. -->
-          <select class="mail-select sup-manual-account-type">
-            <option value="imap+smtp">IMAP+SMTP</option>
-            <option value="activesync">ActiveSync</option>
-          </select>
-
-          <div class="sup-manual-imap-smtp">
-            <h2 data-l10n-id="setup-manual-imap-header">ImaP SettingS</h2>
-            <input class="sup-manual-imap-username sup-form-text" type="text"
-                   placeholder="UsernamE" />
-            <input class="sup-manual-imap-hostname sup-form-text" type="text"
-                   placeholder="HostnamE" />
-            <input class="sup-manual-imap-port sup-form-text" type="text"
-                   placeholder="PorT" />
-            <span data-l10n-id="setup-manual-socket">SockeT TypE</span>
-            <select class="mail-select sup-manual-imap-socket">
-              <option value="SSL" data-l10n-id="setup-manual-socket-ssl">
-                SsL</option>
-            </select>
-
-            <h2 data-l10n-id="setup-manual-smtp-header">SmtP SettingS</h2>
-            <input class="sup-manual-smtp-username sup-form-text" type="text"
-                   placeholder="UsernamE" />
-            <input class="sup-manual-smtp-hostname sup-form-text" type="text"
-                   placeholder="HostnamE" />
-            <input class="sup-manual-smtp-port sup-form-text" type="text"
-                   placeholder="PorT" />
-            <span data-l10n-id="setup-manual-socket">SockeT TypE</span>
-            <select class="mail-select sup-manual-smtp-socket">
-              <option value="SSL" data-l10n-id="setup-manual-socket-ssl">
-                SsL</option>
-            </select>
+      <section class="card-setup-manual-config form-card card skin-organic"
+               role="region">
+        <header class="sup-account-header">
+          <a href="#" class="sup-back-btn">
+            <span class="icon icon-back"></span>
+          </a>
+          <menu type="toolbar">
+            <button class="sup-manual-next-btn" disabled>
+              <span data-l10n-id="setup-info-next">NexT</span>
+            </button>
+          </menu>
+          <h1 class="sup-account-header-label header-label"
+              data-l10n-id="setup-manual-config-header">ManuaL SetuP</h1>
+        </header>
+        <div class="scrollregion-below-header">
+          <div class="sup-error-region collapsed">
+            <div class="sup-error-message"></div>
+            <div class="sup-error-code"></div>
           </div>
+          <header class="collapsed"></header>
+          <form class="sup-manual-form">
+            <div class="sup-manual-common sup-form">
+              <p>
+                <!-- x-inputmode is a temporary v1 B2G stop-gap -->
+                <input class="sup-info-name" type="text"
+                       data-l10n-id="setup-info-name"
+                       x-inputmode="verbatim"
+                       inputmode="verbatim"
+                       required />
+                <button type="reset"></button>
+              </p>
+              <p>
+                <input class="sup-info-email" type="email"
+                       data-l10n-id="setup-info-email"
+                       required />
+                <button type="reset"></button>
+              </p>
+              <p>
+                <input class="sup-info-password" type="password"
+                       data-l10n-id="setup-info-password"
+                       required />
+                <button type="reset"></button>
+              </p>
+            </div>
 
-          <div class="sup-manual-activesync collapsed">
-            <h2 data-l10n-id="setup-manual-activesync-header">
-              ActivesynC SettingS</h2>
-            <input class="sup-manual-activesync-hostname sup-form-text"
-                   type="text" placeholder="HostnamE" />
-          </div>
+            <header>
+              <h2 data-l10n-id="setup-manual-account-type">AccounT TypE</h2>
+            </header>
+            <div class="sup-form sup-form-item">
+              <!-- These don't need L10N as they are protocol names. -->
+              <select class="sup-manual-account-type">
+                <option value="imap+smtp">IMAP+SMTP</option>
+                <option value="activesync">ActiveSync</option>
+              </select>
+            </div>
 
-          <button class="sup-manual-next-btn sup-form-btn recommend"
-                  data-l10n-id="setup-manual-next">NexT</button>
+            <section class="sup-manual-imap-smtp" role="region">
+              <header class="collapsed"></header>
+              <header>
+                <h2 data-l10n-id="setup-manual-imap-header">ImaP SettingS</h2>
+              </header>
+              <div class="sup-form">
+                <p>
+                  <input class="sup-manual-imap-username" type="text"
+                         data-l10n-id="setup-manual-username"
+                         data-maybe-required />
+                  <button type="reset"></button>
+                </p>
+                <p>
+                  <input class="sup-manual-imap-hostname" type="text"
+                         data-l10n-id="setup-manual-hostname"
+                         data-maybe-required />
+                  <button type="reset"></button>
+                </p>
+                <p>
+                  <input class="sup-manual-imap-port" type="text"
+                         data-l10n-id="setup-manual-port" value="993"
+                         data-maybe-required />
+                  <button type="reset"></button>
+                </p>
+                <p class="collapsed">
+                  <span data-l10n-id="setup-manual-socket">SockeT TypE</span>
+                  <select class="mail-select sup-manual-imap-socket">
+                    <option value="SSL" data-l10n-id="setup-manual-socket-ssl">
+                      SsL</option>
+                  </select>
+                </p>
+              </div>
+
+              <header>
+                <h2 data-l10n-id="setup-manual-smtp-header">SmtP SettingS</h2>
+              </header>
+              <div class="sup-form">
+                <p>
+                  <input class="sup-manual-smtp-username" type="text"
+                         data-l10n-id="setup-manual-username"
+                         data-maybe-required />
+                  <button type="reset"></button>
+                </p>
+                <p>
+                  <input class="sup-manual-smtp-hostname" type="text"
+                         data-l10n-id="setup-manual-hostname"
+                         data-maybe-required />
+                  <button type="reset"></button>
+                </p>
+                <p>
+                  <input class="sup-manual-smtp-port" type="text"
+                         data-l10n-id="setup-manual-port" value="465"
+                         data-maybe-required />
+                  <button type="reset"></button>
+                </p>
+                <p class="collapsed">
+                  <span data-l10n-id="setup-manual-socket">SockeT TypE</span>
+                  <select class="mail-select sup-manual-smtp-socket">
+                    <option value="SSL" data-l10n-id="setup-manual-socket-ssl">
+                      SsL</option>
+                  </select>
+                </p>
+              </div>
+            </section>
+
+            <section class="sup-manual-activesync collapsed" role="region">
+              <header class="collapsed"></header>
+              <header>
+                <h2 data-l10n-id="setup-manual-activesync-header">
+                  ActivesynC SettingS</h2>
+              </header>
+              <div class="sup-form">
+                <p>
+                  <input class="sup-manual-activesync-hostname" type="text"
+                         data-l10n-id="setup-manual-hostname"
+                         data-maybe-required />
+                  <button type="reset"></button>
+                </p>
+                <p>
+                  <input class="sup-manual-activesync-username" type="text"
+                         data-l10n-id="setup-manual-username"
+                         data-maybe-required />
+                  <button type="reset"></button>
+                </p>
+              </div>
+            </section>
+          </form>
         </div>
-      </div>
+      </section>
 
       <div class="card-setup-fix-password card">
         <div class="sup-account-header top-header">
           <h2 class="sup-account-header-label header-label"
               data-l10n-id="setup-bad-password-header">BaD PassworD</h2>
         </div>
+        <div class="scrollregion-below-header sup-form">
+          <form>
+            <h2 class="sup-bad-password-label sup-form-label"
+                data-l10n-id="setup-bad-password">BaD PassworD FoR</h2>
+            <h3 class="sup-bad-password-account"></h3>
+
+            <p>
+              <input class="sup-info-password" type="password"
+                     data-l10n-id="setup-new-password" />
+              <button type="reset"></button>
+            </p>
+
+            <button class="sup-use-password-btn sup-form-btn"
+                    data-l10n-id="setup-fix-password">UsE PassworD</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card-setup-fix-gmail-imap card">
+        <div class="sup-account-header top-header">
+          <h2 class="sup-account-header-label header-label"
+              data-l10n-id="setup-gmail-imap-header">ImaP DisableD</h2>
+        </div>
         <div class="scrollregion-below-header">
           <h2 class="sup-bad-password-label sup-form-label"
-              data-l10n-id="setup-bad-password">BaD PassworD FoR</h2>
+              data-l10n-id="setup-gmail-imap-message">EnablE ImaP</h2>
+          <span class="sup-gmail-imap-account"></span>
+
+          <button class="sup-dismiss-btn sup-form-btn"
+                  data-l10n-id="setup-gmail-imap-retry">RetrY</button>
+        </div>
+      </div>
+
+      <div class="card-setup-fix-gmail-twofactor card">
+        <div class="sup-account-header top-header">
+          <h2 class="sup-account-header-label header-label"
+              data-l10n-id="setup-gmail-twofactor-header">NeeD ApP PassworD</h2>
+        </div>
+        <div class="scrollregion-below-header">
+          <h2 class="sup-bad-password-label sup-form-label"
+              data-l10n-id="setup-gmail-twofactor-message">EnteR ApP PassworD</h2>
           <span class="sup-bad-password-account"></span>
 
-          <input class="sup-info-password sup-form-text" type="password"
+          <input class="sup-info-password" type="password"
                  placeholder="PassworD" />
           <button class="sup-use-password-btn sup-form-btn"
-                  data-l10n-id="setup-fix-password">UsE PassworD</button>
+                  data-l10n-id="setup-gmail-twofactor-fix">UsE PassworD</button>
         </div>
       </div>
 
       <!-- Main settings menu, root of all (mail) settings -->
-      <section class="card-settings-main card skin-organic" role="region">
+      <section class="card-settings-main card anim-vertical anim-overlay skin-organic" role="region">
         <header class="tng-main-header">
           <menu type="toolbar" class="tng-close-btn">
             <button data-l10n-id="settings-done">Done</button>
@@ -540,15 +702,17 @@
           <header class="tng-main-accounts-label">
             <h2 data-l10n-id="settings-account-section">AccountS</h2>
           </header>
-          <div class="tng-accounts-container"></div>
+          <ul class="tng-accounts-container">
             <li>
-              <a href="#" data-l10n-id="settings-account-add"
-                class="tng-account-add list-text">AdD AccounT</a>
+              <button href="#" data-l10n-id="settings-account-add"
+                class="tng-account-add">AdD AccounT</button>
             </li>
-          <header class="tng-main-about-label">
+          </ul>
+          <!-- Hide for v1: Hide general setting section to reduce effort-->
+          <header class="tng-main-about-label collapsed">
             <h2 data-l10n-id="settings-general-section">GeneraL SettingS</h2>
           </header>
-            <li>
+            <li class="collapsed">
               <span data-l10n-id="settings-check-mail" class="list-text">
                 ChecK MaiL</span>
               <em class="aside end">
@@ -570,7 +734,7 @@
                 </select>
               </em>
             </li>
-            <li>
+            <li class="collapsed">
               <span data-l10n-id="settings-show-images" class="list-text">
                 AlwayS ShoW ImageS</span>
               <em class="aside end">
@@ -580,7 +744,7 @@
                 </label>
               </em>
             </li>
-            <li>
+            <li class="collapsed">
               <span data-l10n-id="settings-download-attachments"
                 class="list-text">DownloaD AttachmentS</span>
               <em class="aside end">
@@ -590,7 +754,7 @@
                 </label>
               </em>
             </li>
-            <li>
+            <li class="collapsed">
               <span data-l10n-id="settings-notify-mail" class="list-text">
                 NotifY ME OF NeW MaiL</span>
               <em class="aside end">
@@ -631,15 +795,16 @@
           <li>
             <span data-l10n-id="settings-account-type" class="list-text">
               AccounT TypE</span>
-            <em class="aside end">
+            <div class="aside end">
               <span class="tng-account-type list-value">AccounT TypE</span>
-            </em>
+            </div>
           </li>
-          <li>
-            <span data-l10n-id="settings-account-synchronize" class="list-text">
-              SynchronizE</span>
-            <em class="aside end">
+          <li class="synchronize-setting">
+            <label data-l10n-id="settings-account-synchronize" class="list-text">SynchronizE</label>
+            <span class="button icon icon-dialog">
               <select class="mail-select tng-account-synchronize">
+                <option value="auto" data-l10n-id="settings-synchronize-auto">
+                  AutomatiC</option>
                 <option value="1d" data-l10n-id="settings-synchronize-one-day">
                   1 DaY</option>
                 <option value="3d" data-l10n-id="settings-synchronize-three-days">
@@ -650,14 +815,10 @@
                   2 WeekS</option>
                 <option value="1m" data-l10n-id="settings-synchronize-one-month">
                   1 MontH</option>
-                <option value="3m" data-l10n-id="settings-synchronize-three-months">
-                  3 MonthS</option>
-                <option value="6m" data-l10n-id="settings-synchronize-six-months">
-                  6 MonthS</option>
                 <option value="all" data-l10n-id="settings-synchronize-all">
                   AlL MessageS</option>
               </select>
-            </em>
+            </span>
           </li>
           <li>
             <a href="#" data-l10n-id="settings-account-credentials"
@@ -665,6 +826,10 @@
             <em class="aside end"></em>
           </li>
           <div class="tng-account-server-container"></div>
+          <li class="align-center">
+            <button href="#" data-l10n-id="settings-account-delete"
+              class="tng-account-delete danger">DeletE AccounT</button>
+          </li>
         </section>
       </section>
 
@@ -683,25 +848,26 @@
             <h2 data-l10n-id="settings-account-credentials"
               class="tng-account-credentials-label">CredentialS</h2>
           </header>
-          <li class="tng-account-server-username settings-input-list">
-            <span data-l10n-id="settings-username"
-              class="tng-server-username-title settings-input-title">
-                UsernamE</span>
-            <input disabled class="tng-server-username-input sup-form-text"
-              type="text" placeholder="UsernamE">
-          </li>
-          <li class="tng-account-server-password settings-input-list">
-            <span data-l10n-id="settings-password"
-              class="tng-server-password-title settings-input-title">
-                PassworD</span>
-            <!-- When the input is focused, a resize event will be fired
-                 and will trigger _showCard() in mail-common.js
-                 the UI state will become wrong after _showCard() is called
-                 so disable the input first to prevent the wrong state
-              -->
-            <input disabled class="tng-server-password-input sup-form-text"
-              type="password" placeholder="PassworD">
-          </li>
+          <div class="tng-form">
+            <li class="tng-account-server-username settings-input-list">
+              <h2 data-l10n-id="settings-username"
+                class="tng-server-username-title">
+                  UsernamE</h2>
+              <input disabled class="tng-server-username-input" type="text" />
+            </li>
+            <li class="tng-account-server-password settings-input-list">
+              <h2 data-l10n-id="settings-password"
+                class="tng-server-password-title">
+                  PassworD</h2>
+              <!-- When the input is focused, a resize event will be fired
+                   and will trigger _showCard() in mail-common.js
+                   the UI state will become wrong after _showCard() is called
+                   so disable the input first to prevent the wrong state
+                -->
+              <input class="tng-server-password-input" type="password"
+                     data-l10n-id="setup-new-password" />
+            </li>
+          </div>
           <button data-l10n-id="settings-save"
             class="tng-account-save settings-button recommend"></button>
         </section>
@@ -722,31 +888,36 @@
           <header>
             <h2 class="tng-account-server-label">ServeR TypE</h2>
           </header>
-          <li class="tng-account-server-hostname settings-input-list">
-            <span data-l10n-id="settings-hostname"
-              class="tng-server-hostname-title settings-input-title">
-                HostnamE</span>
-            <input disabled class="tng-server-hostname-input sup-form-text"
-              type="text" placeholder="HostnamE">
-          </li>
-          <li class="tng-account-server-port settings-input-list">
-            <span data-l10n-id="settings-port"
-              class="tng-server-port-title settings-input-title">PorT</span>
-            <input disabled class="tng-server-port-input sup-form-text"
-              type="text" placeholder="PorT">
-          </li>
+          <div class="tng-form">
+            <li class="tng-account-server-hostname settings-input-list">
+              <h2 data-l10n-id="settings-hostname"
+                class="tng-server-hostname-title">
+                  HostnamE</h2>
+              <input disabled class="tng-server-hostname-input"
+                type="text" />
+            </li>
+            <li class="tng-account-server-port settings-input-list">
+              <h2 data-l10n-id="settings-port"
+                class="tng-server-port-title">PorT</h2>
+              <input disabled class="tng-server-port-input"
+                type="text" />
+            </li>
+          </div>
+          <!-- nothing is editable, nothing is saved; collapse. -->
           <button data-l10n-id="settings-save"
-            class="tng-account-save settings-button recommend"></button>
+            class="tng-account-save settings-button recommend collapsed"></button>
         </section>
       </section>
 
       <!-- Developer debug page; for those in the know -->
-      <div class="card-settings-debug card">
-        <div class="tng-debug-header top-header">
-          <button class="tng-close-btn header-left-btn"
-                  data-l10n-id="settings-close">ClosE</button>
-          <h2 class="tng-main-header-label header-label"
-              >Debug!</h2>
+      <section class="card-settings-debug card skin-organic" role="region">
+        <header>
+          <a href="#" class="tng-close-btn">
+            <span class="icon icon-close"></span>
+          </a>
+          <h1 class="tng-main-header-label">Debug!</h1>
+        </header>
+        <div class="scrollregion-below-header">
           <ul>
             <li>
               <button class="tng-dbg-reset">Reset App</button>
@@ -762,12 +933,13 @@
             </li>
           </ul>
         </div>
-      </div>
+      </section>
     </div>
     <!-- Widget nodes for folder cards; styles use the fld prefix -->
     <div id="templ-fld">
       <a class="fld-account-item">
         <span class="fld-account-name"></span>
+        <span class="fld-account-problem icon collapsed">!</span>
         <span class="fld-account-unread"></span>
       </a>
       <a class="fld-folder-item">
@@ -795,63 +967,118 @@
         </div></a>
 
       <div class="msg-peep-bubble">
-        <span class="msg-peep-name"></span>
-        (<span class="msg-peep-address"></span>)
+        <span class="msg-peep-content"></span>
       </div>
 
       <li class="msg-attachment-item">
-        <span class="msg-attachment-icon">&amp;</span>
+        <span class="msg-attachment-icon"></span>
         <span class="msg-attachment-filename"></span>
         <span class="msg-attachment-filesize"></span>
+        <button class="msg-attachment-download">
+          <span class="icon icon-download"></span></button>
+        <span class="msg-attachment-downloading">
+          <progress class="small"></progress>
+        </span>
+        <button class="msg-attachment-view">
+          <span data-l10n-id="message-attachment-view"></span>
+        </button>
       </li>
 
-      <ul class="msg-edit-menu menu">
-        <li class="msg-edit-menu-star menu-item"
-            data-l10n-id="message-edit-menu-star">StaR</li>
-        <li class="msg-edit-menu-unstar menu-item"
-            data-l10n-id="message-edit-menu-unstar">UnstaR</li>
-        <li class="msg-edit-menu-mark-read menu-item"
-            data-l10n-id="message-edit-menu-mark-read">MarK ReaD</li>
-        <li class="msg-edit-menu-mark-unread menu-item"
-            data-l10n-id="message-edit-menu-mark-unread">MarK UnreaD</li>
-        <li class="msg-edit-menu-delete menu-item"
-            data-l10n-id="message-edit-menu-delete">DeletE</li>
-        <li class="msg-edit-menu-move menu-item"
-            data-l10n-id="message-edit-menu-move">MovE</li>
-      </ul>
-
-      <ul class="msg-contact-menu menu">
-        <li class="msg-contact-menu-view menu-item"
-            data-l10n-id="message-contact-menu-view">View contacT</li>
-        <li class="msg-contact-menu-reply menu-item"
-            data-l10n-id="message-contact-menu-reply">ReplY</li>
-      </ul>
+      <form class="msg-contact-menu" role="dialog" data-type="action">
+        <header></header>
+        <menu>
+          <button class="msg-contact-menu-new collapsed" data-l10n-id="message-contact-menu-new">
+            Send new maiL
+          </button>
+          <button class="msg-contact-menu-reply collapsed" data-l10n-id="message-contact-menu-reply">
+            ReplY
+          </button>
+          <button class="msg-contact-menu-view collapsed" data-l10n-id="message-contact-menu-view">
+            View contacT
+          </button>
+          <button class="msg-contact-menu-create-contact collapsed" data-l10n-id="message-contact-menu-create">
+            Save new contacT
+          </button>
+          <button class="msg-contact-menu-add-to-existing-contact collapsed" data-l10n-id="message-contact-menu-add-existing">
+            Add to existing contacT
+          </button>
+          <button class="msg-contact-menu-cancel" data-l10n-id="message-multiedit-cancel">
+            CanceL
+          </button>
+        </menu>
+      </form>
+      <form role="dialog" class="msg-delete-confirm" data-type="confirm">
+        <section>
+          <h1 data-l10n-id="confirm-dialog-title">ConfirmatioN</h1>
+          <p><span data-l10n-id="message-edit-delete-confirm"></span></p>
+        </section>
+        <menu>
+          <button id="msg-delete-cancel" data-l10n-id="message-multiedit-cancel">CanceL</button>
+          <button id="msg-delete-ok" class="danger" data-l10n-id="message-edit-menu-delete">OK</button>
+        </menu>
+      </form>
+      <form role="dialog" class="msg-browse-confirm" data-type="confirm">
+        <section>
+          <h1 data-l10n-id="confirm-dialog-title">Confirmation</h1>
+          <p></p>
+        </section>
+        <menu>
+          <button id="msg-browse-cancel" data-l10n-id="message-multiedit-cancel">CanceL</button>
+          <button id="msg-browse-ok" class="recommend" data-l10n-id="dialog-button-ok">OK</button>
+        </menu>
+      </form>
     </div>
     <!-- Widget nodes for the compose cards; styles use the cmp prefix -->
     <div id="templ-cmp">
       <div class="cmp-peep-bubble">
         <span class="cmp-peep-name"></span>
-        (<span class="cmp-peep-address"></span>)
+        <span class="cmp-peep-address collapsed"></span>
       </div>
-      <ul class="cmp-contact-menu menu">
-        <li class="cmp-contact-menu-delete menu-item"
-            data-l10n-id="message-edit-menu-delete">DeletE</li>
-      </ul>
+      <form class="cmp-contact-menu" role="dialog" data-type="action">
+        <header></header>
+        <menu>
+          <button class="cmp-contact-menu-delete" data-l10n-id="message-edit-menu-delete">
+            DeletE
+          </button>
+          <button class="cmp-contact-menu-cancel" data-l10n-id="message-multiedit-cancel">
+            CanceL
+          </button>
+        </menu>
+      </form>
+      <form role="dialog" class="cmp-draft-menu" data-type="action">
+        <menu>
+          <button id="cmp-draft-save" data-l10n-id="compose-draft-save">SaVe DrAft</button>
+          <button id="cmp-draft-discard" class="danger" data-l10n-id="compose-discard-confirm">DisCarD</button>
+          <button id="cmp-draft-cancel" data-l10n-id="message-multiedit-cancel">CanCeL</button>
+        </menu>
+      </form>
+      <form role="dialog" class="cmp-send-failed-confirm" data-type="confirm">
+        <section>
+          <h1 data-l10n-id="confirm-dialog-title">ConfirmatioN</h1>
+          <p><span data-l10n-id="compose-send-message-failed"></span></p>
+        </section>
+        <menu>
+          <button id="cmp-send-failed-cancel" data-l10n-id="message-multiedit-cancel">CanceL</button>
+          <button id="cmp-send-failed-ok" class="recommend" data-l10n-id="dialog-button-ok">OK</button>
+        </menu>
+      </form>
       <li class="cmp-attachment-item">
-        <span class="cmp-attachment-icon">&amp;</span>
+        <span class="cmp-attachment-icon"></span>
         <span class="cmp-attachment-filename"></span>
         <span class="cmp-attachment-filesize"></span>
+        <button class="cmp-attachment-remove">X</span>
       </li>
+      <form role="dialog" data-type="confirm" class="cmp-sending-container">
+        <section class="cmp-messages-sending">
+          <p data-l10n-id="compose-sending-message">
+            <progress></progress>
+            Sending messagE
+          </p>
+        </section>
+      </form>
     </div>
     <!-- Widget nodes for the setup cards; styles use the sup prefix -->
     <div id="templ-sup">
-      <!-- <button class="sup-service-choice"></button> -->
-      <li class="sup-service-choice">
-        <button>
-          <span class="icon-view"></span>
-          <a class="sup-service-choice-label"></a>
-        </button>
-      </li>
     </div>
     <!-- Widget nodes for the settings cards; styles use the tng prefix -->
     <div id="templ-tng">
@@ -860,16 +1087,22 @@
         <!-- we may want to expose some other info in this row -->
       </li>
 
-      <ul class="tng-account-menu menu">
-        <li class="tng-account-menu-delete menu-item"
-            data-l10n-id="settings-account-delete">DeletE AccounT</li>
-      </ul>
-
       <li class="tng-account-settings-server">
         <a href="#" class="tng-account-server-label list-text"></a>
       </li>
+      <form role="dialog" class="tng-account-delete-confirm" data-type="confirm">
+        <section>
+          <h1 data-l10n-id="confirm-dialog-title">ConfirmatioN</h1>
+          <p><span data-l10n-id="compose-discard-message"></span></p>
+        </section>
+        <menu>
+          <button id="account-delete-cancel" data-l10n-id="message-multiedit-cancel">CanceL</button>
+          <button id="account-delete-ok" class="danger" data-l10n-id="settings-account-delete-confirm">OK</button>
+        </menu>
+      </form>
     </div>
   </div>
+
 </body>
 </html>
 

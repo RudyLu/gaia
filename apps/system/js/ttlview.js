@@ -13,42 +13,61 @@ var TTLView = {
   hide: function tv_hide() {
     if (this.element)
       this.element.style.visibility = 'hidden';
+
+    window.removeEventListener('appwillopen', this);
+    window.removeEventListener('apploadtime', this);
+    window.removeEventListener('activitywillopen', this);
+    window.removeEventListener('activityloadtime', this);
   },
 
   show: function tv_show() {
-    var element = this.element;
-    if (!element) {
-      element = document.createElement('div');
-      element.id = 'debug-ttl';
-      element.innerHTML = '00000';
-      element.dataset.zIndexLevel = 'debug-ttl';
+    if (!this.element)
+      this.createElement();
+    this.element.style.visibility = 'visible';
 
-      this.element = element;
-      document.getElementById('screen').appendChild(element);
+    // this is fired when the app launching is initialized
+    window.addEventListener('appwillopen', this);
+    window.addEventListener('apploadtime', this);
 
-      var start = 0;
-      window.addEventListener('appwillopen', function willopen(e) {
-        var frame = e.target;
+    // this is to calculate the load time of inline activity
+    window.addEventListener('activitywillopen', this);
+    window.addEventListener('activityloadtime', this);
+  },
 
-        frame.dataset.lastStart = Date.now();
-        element.innerHTML = '00000';
+  createElement: function tv_createElement() {
+    var element = document.createElement('div');
+    element.id = 'debug-ttl';
+    element.innerHTML = '00000';
+    element.dataset.zIndexLevel = 'debug-ttl';
 
-        if (!('unpainted' in frame.dataset)) {
-          frame.addEventListener('appopen', function open(e) {
-            frame.removeEventListener(e.type, open);
-            element.innerHTML = Date.now() - frame.dataset.lastStart;
-          });
-          return;
-        }
+    this.element = element;
+    document.getElementById('screen').appendChild(element);
+  },
 
-        frame.addEventListener('mozbrowserfirstpaint', function paint(e) {
-          frame.removeEventListener(e.type, paint);
-          element.innerHTML = Date.now() - frame.dataset.lastStart;
-        });
-      });
+  handleEvent: function tv_handleEvent(evt) {
+    switch (evt.type) {
+      case 'apploadtime':
+      case 'activityloadtime':
+        this.updateLoadtime(evt.detail.time, evt.detail.type);
+        break;
+
+      case 'appwillopen':
+      case 'activitywillopen':
+        this.resetLoadtime();
+        break;
     }
+  },
 
-    element.style.visibility = 'visible';
+  resetLoadtime: function tv_resetLoadtime() {
+    if (!this.element)
+      this.createElement();
+    this.element.innerHTML = '00000';
+  },
+
+  updateLoadtime: function tv_updateLoadtime(time, type) {
+    if (!this.element)
+      this.createElement();
+    this.element.innerHTML = time + ' [' + type + ']';
   },
 
   toggle: function tv_toggle() {

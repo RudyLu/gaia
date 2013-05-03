@@ -9,10 +9,6 @@ var PermissionManager = (function() {
   window.addEventListener('mozChromeEvent', function pm_chromeEventHandler(e) {
     var detail = e.detail;
     switch (detail.type) {
-      case 'webapps-ask-install':
-        delete overlay.dataset.type;
-        handleInstallationPrompt(detail);
-        break;
       case 'permission-prompt':
         overlay.dataset.type = detail.permission;
         handlePermissionPrompt(detail);
@@ -35,62 +31,31 @@ var PermissionManager = (function() {
     }
     if (detail.fullscreenorigin != WindowManager.getDisplayedApp()) {
       // The message to be displayed on the approval UI.
-      var message = detail.fullscreenorigin + ' is now fullscreen';
+      var message =
+        _('fullscreen-request', { 'origin': detail.fullscreenorigin });
       fullscreenRequest = requestPermission(message,
                                             /* yesCallback */ null,
                                             /* noCallback */ function() {
                                               document.mozCancelFullScreen();
-                                            },
-                                            'OK',
-                                            'Cancel');
+                                            });
     }
   };
 
   var handlePermissionPrompt = function pm_handlePermissionPrompt(detail) {
     remember.checked = detail.remember ? true : false;
     var str = '';
-    var _ = navigator.mozL10n.get;
 
-    if (detail.isApp) {
-      // App
-      str = _('permission-ask', {
-        'permission': _(detail.permission), 'app': detail.appName
-      });
-    } else {
-      // Web content
-      str = _('permission-ask', {
-        'permission': _(detail.permission), 'app': detail.origin
-      });
+    var permissionID = 'perm-' + detail.permission.replace(':', '-');
+    if (detail.isApp) { // App
+      str = _(permissionID + '-appRequest', { 'app': detail.appName });
+    } else { // Web content
+      str = _(permissionID + '-webRequest', { 'site': detail.origin });
     }
 
     requestPermission(str, function pm_permYesCB() {
       dispatchResponse(detail.id, 'permission-allow', remember.checked);
     }, function pm_permNoCB() {
       dispatchResponse(detail.id, 'permission-deny', remember.checked);
-    });
-  };
-
-  var handleInstallationPrompt = function pm_handleInstallationPrompt(detail) {
-    var app = detail.app;
-    if (document.location.toString().indexOf(app.installOrigin) == 0) {
-      sendResponse(detail.id, true);
-      return;
-    }
-
-    var name = app.manifest.name;
-    var locales = app.manifest.locales;
-    var lang = navigator.language;
-    if (locales && locales[lang] && locales[lang].name)
-      name = locales[lang].name;
-
-    var str = navigator.mozL10n.get('install', {
-      'name': name, 'origin': app.origin
-    });
-
-    requestPermission(str, function pm_installYesCB() {
-      dispatchResponse(detail.id, 'webapps-install-granted');
-    }, function pm_installNoCB() {
-      dispatchResponse(detail.id, 'webapps-install-denied');
     });
   };
 
@@ -149,9 +114,7 @@ var PermissionManager = (function() {
     showPermissionPrompt(request.id,
                          request.message,
                          request.yescallback,
-                         request.nocallback,
-                         request.yesText,
-                         request.noText);
+                         request.nocallback);
   };
 
   // This is the event listener function for the yes/no buttons.
@@ -172,8 +135,7 @@ var PermissionManager = (function() {
   };
 
   var requestPermission = function(msg,
-                                   yescallback, nocallback,
-                                   yesText, noText) {
+                                   yescallback, nocallback) {
     var id = nextRequestID;
     nextRequestID = (nextRequestID + 1) % 1000000;
 
@@ -183,21 +145,18 @@ var PermissionManager = (function() {
         id: id,
         message: msg,
         yescallback: yescallback,
-        nocallback: nocallback,
-        yesText: yesText,
-        noText: noText
+        nocallback: nocallback
       });
       return id;
     }
 
-    showPermissionPrompt(id, msg, yescallback, nocallback, yesText, noText);
+    showPermissionPrompt(id, msg, yescallback, nocallback);
 
     return id;
   };
 
   var showPermissionPrompt = function(id, msg,
-                                      yescallback, nocallback,
-                                      yesText, noText) {
+                                      yescallback, nocallback) {
     // Put the message in the dialog.
     // Note plain text since this may include text from
     // untrusted app manifests, for example.
@@ -240,6 +199,21 @@ var PermissionManager = (function() {
   rememberSection.addEventListener('click', function onLabelClick() {
     remember.checked = !remember.checked;
   });
+
+  function discardPermissionRequest() {
+    if (currentRequestId == undefined)
+      return;
+
+    dispatchResponse(currentRequestId, 'permission-deny', false);
+    hidePermissionPrompt();
+  };
+
+  // On home/holdhome pressed, discard permission request.
+  // XXX: We should make permission dialog be embededd in appWindow
+  // Gaia bug is https://bugzilla.mozilla.org/show_bug.cgi?id=853711
+  // Gecko bug is https://bugzilla.mozilla.org/show_bug.cgi?id=852013
+  window.addEventListener('home', discardPermissionRequest);
+  window.addEventListener('holdhome', discardPermissionRequest);
 
 }());
 

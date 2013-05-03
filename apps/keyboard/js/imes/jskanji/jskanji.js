@@ -299,6 +299,7 @@
 
     var _keyboardMode = IMEMode.FULL_HIRAGANA;
 
+    var _layoutPage = LAYOUT_PAGE_DEFAULT;
 
     // ** The following functions are compulsory functions in IME
     // and explicitly called in `keyboard.js` **
@@ -317,10 +318,18 @@
     };
 
     this.click = function ime_click(keyCode) {
+      if (_layoutPage !== LAYOUT_PAGE_DEFAULT) {
+        _glue.sendKey(keyCode);
+        return;
+      }
       //debug('click ' + keyCode);
       // push keyCode to working queue
       qPush(keyCode);
       qNext();
+    };
+
+    this.setLayoutPage = function ime_setLayoutPage(page) {
+      _layoutPage = page;
     };
 
     this.select = function ime_select(kanji, kana) {
@@ -360,8 +369,9 @@
       }
     };
 
-    this.show = function ime_show(inputType) {
-      debug('Show. Input type: ' + inputType);
+    this.activate = function ime_activate(language, state, options) {
+      var inputType = state.type;
+      debug('Activate. Input type: ' + inputType);
       var layout = IMELayouts.JP;
       if (inputType === '' || inputType === 'text' ||
           inputType === 'textarea') {
@@ -1141,9 +1151,9 @@
     define('jskanji', [], function() { return jskanji; });
   }
 
-  // Expose to IMEManager if we are in Gaia homescreen
-  if (typeof IMEManager !== 'undefined') {
-    IMEController.IMEngines.jskanji = jskanji;
+  // Expose the engine to the Gaia keyboard
+  if (typeof InputMethods !== 'undefined') {
+    InputMethods.jskanji = jskanji;
   }
 
   /* copy from jszhuyin */
@@ -1597,7 +1607,7 @@
         if (callback) {
           callback(self._status);
         }
-      }
+      };
       // Check if we could initilize.
       if (this._status != DatabaseStorageBase.StatusCode.UNINITIALIZED) {
         doCallback();
@@ -1652,7 +1662,7 @@
         if (callback) {
           callback();
         }
-      }
+      };
 
       // Check if we could uninitilize the storage
       if (this._status == DatabaseStorageBase.StatusCode.UNINITIALIZED) {
@@ -1678,7 +1688,7 @@
         if (callback) {
           callback(homonymsArray);
         }
-      }
+      };
 
       // Check if the storage is ready.
       if (!this.isReady()) {
@@ -1690,7 +1700,7 @@
         // Query all terms
         homonymsArray = homonymsArray.concat(self._dataArray);
         doCallback();
-      }
+      };
 
       setTimeout(perform, 0);
     },
@@ -1702,7 +1712,7 @@
         if (callback) {
           callback(homonymsArray);
         }
-      }
+      };
 
       // Check if the storage is ready.
       if (!this.isReady()) {
@@ -1717,7 +1727,7 @@
           homonymsArray.push(self._dataArray[index]);
         }
         doCallback();
-      }
+      };
 
       setTimeout(perform, 0);
     },
@@ -1749,7 +1759,7 @@
            homonymsArray.push(self._dataArray[index]);
          }
          doCallback();
-       }
+       };
 
        setTimeout(perform, 0);
      },
@@ -2296,7 +2306,7 @@
         callback(result);
       });
 
-    },
+    };
     /* end getSuggestions */
 
     this.getTerms = function imedb_getTerms(kanaArr, callback) {

@@ -5,23 +5,19 @@
     <title>Pick Photo test</title>
     <style>
     button {
-      font-size: 40px;
+      font-size: 24px;
     }
     </style>
-    <script>
-    var go = function _go() {
-      var a = new MozActivity({ name: 'pick', data: {type: 'image/jpeg'}});
-      a.onsuccess = function(e) {
-        document.getElementById('result').textContent = e.result.filename;
-      };
-      a.onerror = function() { alert('Failure picking photo'); };
-    };
-    </script>
+    <script defer src="../js/pickphoto.js"></script>
   </head>
   <body>
     <h1>Pick Photo Test</h1>
-    <h2>Go to:</h2>
-    <button onclick="go()">Go</button></p>
-    Result is: <span id="result"></span>
+    <button id="b1">Pick image/jpeg</button></p>
+    <button id="b2">Pick image/png</button></p>
+    <button id="b3">Pick either</button></p>
+    <button id="b4">Pick any</button></p>
+    <button id="b5">Pick without crop</button></p>
+    <button id="b6">Pick small</button></p>
+    Result: <img id="result"></img>
   </body>
 </html>

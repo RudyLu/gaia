@@ -1,15 +1,17 @@
-requireApp('calendar/test/unit/helper.js', function() {
-  requireLib('timespan.js');
-  requireLib('interval_tree.js');
-  requireLib('responder.js');
-  requireLib('calc.js');
-  requireLib('store/event.js');
-
-  requireApp('models/account.js');
-  requireApp('models/calendar.js');
-});
+requireLib('timespan.js');
+requireLib('interval_tree.js');
+requireLib('responder.js');
+requireLib('calc.js');
+requireLib('store/event.js');
 
 suite('store/event', function() {
+
+  testSupport.calendar.loadObjects(
+    'Models.Account',
+    'Model.Calendar',
+    'Provider.Local'
+  );
+
   var subject;
   var db;
   var app;
@@ -38,36 +40,20 @@ suite('store/event', function() {
     });
   });
 
-  teardown(function(done) {
-    var trans = db.transaction('events', 'readwrite');
-    var accounts = trans.objectStore('events');
-    var res = accounts.clear();
-
-    res.onerror = function() {
-      done(new Error('could not wipe events db'));
-    }
-
-    res.onsuccess = function() {
-      done();
-    }
-  });
+  testSupport.calendar.accountEnvironment();
 
   teardown(function(done) {
-    var trans = db.transaction('busytimes', 'readwrite');
-    var accounts = trans.objectStore('busytimes');
-    var res = accounts.clear();
-
-    res.onerror = function() {
-      done(new Error('could not wipe busytimes db'));
-    }
-
-    res.onsuccess = function() {
-      done();
-    }
-  });
-
-  teardown(function() {
-    db.close();
+    testSupport.calendar.clearStore(
+      subject.db,
+      [
+        'accounts', 'calendars', 'events',
+        'busytimes', 'icalComponents'
+      ],
+      function() {
+        db.close();
+        done();
+      }
+    );
   });
 
   test('initialization', function() {
@@ -75,7 +61,6 @@ suite('store/event', function() {
     assert.equal(subject._store, 'events');
     assert.equal(subject.db, db);
   });
-
 
   test('#_createModel', function() {
     var input = Factory.build('event');
@@ -108,30 +93,34 @@ suite('store/event', function() {
     var account;
     var calendar;
 
-    setup(function() {
-      calStore = db.getStore('Calendar');
-      accStore = db.getStore('Account');
+    setup(function(done) {
+      event = Factory('event', {
+        calendarId: this.calendar._id
+      });
 
-      account = { _id: 'foo', providerType: 'Abstract' };
-      calendar = { _id: 'foo', accountId: 'foo' };
-      event = { calendarId: 'foo' };
-
-      calStore.cached.foo = calendar;
-      accStore.cached.foo = account;
+      subject.persist(event, done);
     });
 
-    test('#calendarFor', function() {
-      assert.equal(
-        subject.calendarFor(event),
-        calendar
-      );
+    test('#ownersOf', function(done) {
+      subject.ownersOf(event, function(err, owners) {
+        done(function() {
+          assert.instanceOf(owners.calendar, Calendar.Models.Calendar);
+          assert.instanceOf(owners.account, Calendar.Models.Account);
+
+          assert.equal(owners.calendar._id, this.calendar._id, 'calendar id');
+          assert.equal(owners.account._id, this.account._id, 'account id');
+        }.bind(this));
+      }.bind(this));
     });
 
-    test('#providerFor', function() {
-      assert.equal(
-        subject.providerFor(event),
-        Calendar.App.provider('Abstract')
-      );
+    test('#providerFor', function(done) {
+      subject.providerFor(event, function(err, provider) {
+        assert.equal(
+          provider,
+          Calendar.App.provider('Mock')
+        );
+        done();
+      });
     });
 
   });
@@ -216,10 +205,49 @@ suite('store/event', function() {
   suite('#remove', function() {
 
     //TODO: busytime removal tests?
+    //
+    suite('remove ical component', function() {
+      var component;
+      var event;
+      var componentStore;
+
+      setup(function(done) {
+        componentStore = db.getStore('IcalComponent');
+        event = Factory('event');
+        component = Factory('icalComponent', {
+          eventId: event._id
+        });
+
+        var trans = subject.db.transaction(
+          ['events', 'icalComponents'],
+          'readwrite'
+        );
+
+        trans.oncomplete = function() {
+          done();
+        };
+
+        subject.persist(event, trans);
+        componentStore.persist(component, trans);
+      });
+
+      setup(function(done) {
+        subject.remove(event._id, done);
+      });
+
+      test('after removing the event', function(done) {
+        componentStore.get(event._id, function(err, result) {
+          done(function() {
+            assert.ok(!result, 'removes component');
+          });
+        });
+      });
+    });
 
     suite('parent items /w children', function() {
       var parentId = 'parentStuff';
       var childId = 'child';
+      var id = 'foobar1';
 
       setup(function(done) {
         var item = Factory('event', {
@@ -317,14 +345,5 @@ suite('store/event', function() {
       });
     });
   });
-
-  suite('creation of dependancies', function() {
-    suite('busytime', function() {
-      var event;
-      setup(function() {
-      });
-    });
-  });
-
 
 });

@@ -1,10 +1,9 @@
-requireApp('calendar/test/unit/helper.js', function() {
-  requireApp('calendar/test/unit/service/helper.js');
-  requireLib('ext/ical.js');
-  requireLib('ext/caldav.js');
-  requireLib('ext/uuid.js');
-  requireLib('service/caldav.js');
-});
+requireApp('calendar/test/unit/service/helper.js');
+requireLib('ext/ical.js');
+requireLib('ext/caldav.js');
+requireLib('ext/uuid.js');
+requireLib('service/ical_recur_expansion.js');
+requireLib('service/caldav.js');
 
 suite('service/caldav', function() {
 
@@ -20,15 +19,22 @@ suite('service/caldav', function() {
   // setup fixtures...
   suiteSetup(function(done) {
     this.timeout(10000);
+    ServiceSupport.setExpansionLimit(100);
+
     fixtures = new ServiceSupport.Fixtures('ical');
     fixtures.load('minutely_recurring');
     fixtures.load('single_event');
     fixtures.load('recurring_event');
+    fixtures.load('recurring_exception');
     fixtures.onready = done;
   });
 
+  suiteTeardown(function() {
+    ServiceSupport.resetExpansionLimit();
+  });
+
   function caldavEventFactory(syncToken, name, status) {
-    var ical = ICAL.parse(fixtures[name || 'singleEvent']);
+    var ical = fixtures[name || 'singleEvent'];
 
     return {
       'getetag': {
@@ -44,6 +50,7 @@ suite('service/caldav', function() {
   };
 
   var icalEvent;
+  var icalEvents = {};
 
   function parseFixture(name) {
     setup(function(done) {
@@ -72,7 +79,9 @@ suite('service/caldav', function() {
   test('global xhr', function() {
     var xhr = Caldav.Xhr;
     var expected = {
-      mozSystem: true
+      mozSystem: true,
+      mozAnon: true,
+      useMozChunkedText: true
     };
 
     assert.deepEqual(xhr.prototype.globalXhrOptions, expected);
@@ -82,8 +91,7 @@ suite('service/caldav', function() {
     var events = [
       'getAccount',
       'findCalendars',
-      'getCalendar',
-      'getEvents'
+      'getCalendar'
     ];
 
     events.forEach(function(event) {
@@ -91,7 +99,7 @@ suite('service/caldav', function() {
 
       subject[event] = function() {
         calledWith = arguments;
-      }
+      };
 
       service.emit(event, 1, 2, 3, 4);
 
@@ -124,9 +132,9 @@ suite('service/caldav', function() {
     assert.include(data.toString(), 'VCALENDAR');
 
     // filter
-    var dateString = new ICAL.icaltime();
+    var dateString = new ICAL.Time();
     dateString.fromUnixTime(options.startDate.valueOf() / 1000);
-    assert.include(filter.toString(), dateString.toString());
+    assert.include(filter.toString(), dateString.toICALString());
 
     assert.instanceOf(result, Caldav.Request.CalendarQuery);
     assert.equal(result.connection, con);
@@ -174,7 +182,7 @@ suite('service/caldav', function() {
   });
 
   test('#_formatCalendar', function() {
-    var cal = Factory('caldav.calendar');
+    var cal = Factory.build('caldav.calendar');
     var result = subject._formatCalendar(cal);
 
     assert.equal(result.id, cal.url);
@@ -183,6 +191,8 @@ suite('service/caldav', function() {
     assert.equal(result.syncToken, cal.ctag);
     assert.equal(result.description, cal.description);
     assert.equal(result.color, cal.color);
+    assert.ok(cal.privilegeSet, 'has privilegeSet');
+    assert.equal(result.privilegeSet, cal.privilegeSet);
   });
 
   suite('#_formatEvent', function() {
@@ -201,6 +211,12 @@ suite('service/caldav', function() {
 
       test('output', function() {
         var expected = {
+          alarms: [
+            // From duration
+            { action: 'DISPLAY', trigger: -1800 },
+            // From absolute time
+            { action: 'DISPLAY', trigger: 22095000 }
+          ],
           syncToken: etag,
           url: url,
           id: event.uid,
@@ -211,12 +227,11 @@ suite('service/caldav', function() {
           isRecurring: false,
           location: event.location,
           start: subject.formatICALTime(event.startDate),
-          end: subject.formatICALTime(event.endDate),
-          icalComponent: event.component.parent.toJSON()
+          end: subject.formatICALTime(event.endDate)
         };
 
         assert.deepEqual(
-          subject._formatEvent(etag, url, event),
+          subject._formatEvent(etag, url, fixtures.singleEvent, event),
           expected
         );
       });
@@ -232,7 +247,10 @@ suite('service/caldav', function() {
       });
 
       test('output', function() {
-        var result = subject._formatEvent(etag, url, event);
+        var result = subject._formatEvent(
+          etag, url, fixtures.recurringEvent, event
+        );
+
         assert.ok(!result.recurrenceId);
         assert.length(result.exceptions, 2);
 
@@ -253,8 +271,16 @@ suite('service/caldav', function() {
                 'no exception check - exception: ' + key
               );
 
+              assert.ok(
+                !item.icalComponent,
+                'exceptions dont resend component'
+              );
+
               assert.deepEqual(
-                subject._formatEvent(etag, url, instance, result.icalComponent),
+                subject._formatEvent(
+                  etag, url,
+                  fixtures.recurringEvent, instance
+                ),
                 item,
                 'compare exception: ' + key
               );
@@ -265,32 +291,183 @@ suite('service/caldav', function() {
 
       });
     });
+  });
 
+  suite('#_displayAlarms', function() {
+    suite('multiple instances of alarms', function() {
+      // 5 minutes prior
+      parseFixture('recurringEvent');
+
+
+      test('relative alarms', function() {
+        var iter = icalEvent.iterator();
+        var i = 0;
+        var len = 5;
+
+        for (; i < len; i++) {
+          var next = iter.next();
+          var detail = icalEvent.getOccurrenceDetails(
+            next
+          );
+
+          var alarm = subject._displayAlarms(detail);
+          assert.length(alarm, 1, 'has alarms');
+
+          var start = detail.startDate.clone();
+          start.adjust(0, 0, -5, 0);
+
+          assert.equal(
+            alarm[0].trigger,
+            start.subtractDate(detail.startDate).toSeconds()
+          );
+        }
+      });
+    });
+
+    suite('recurring events /w exception', function() {
+      parseFixture('recurringException');
+
+      test('parse busytime start, not event start', function() {
+        var iter = icalEvent.iterator();
+        var i = 0;
+        var len = 5;
+
+        var numTested = 0;
+
+        for (; i < len; i++) {
+          var next = iter.next();
+          var detail = icalEvent.getOccurrenceDetails(
+            next
+          );
+
+          var allTriggers = [];
+
+          if (detail.startDate.toString() !==
+            detail.item.startDate.toString()) {
+
+            var alarms = detail.item.component.getAllSubcomponents('valarm');
+            alarms.forEach(function(instance) {
+              var action = instance.getFirstPropertyValue('action');
+              if (action && action === 'DISPLAY') {
+                var triggers = instance.getAllProperties('trigger');
+                var i = 0;
+                var len = triggers.length;
+
+                for (; i < len; i++) {
+
+                  var trigger = triggers[i];
+                  if (trigger.type == 'date-time') {
+                    numTested++;
+                  }
+
+                  allTriggers.push(trigger);
+                }
+              }
+            });
+          }
+          var alarms = subject._displayAlarms(detail);
+
+          allTriggers.forEach(function(trigger, i) {
+            assert.equal(
+              alarms[i].trigger,
+              subject._formatTrigger(trigger, detail.item.startDate)
+            );
+          });
+        }
+
+        assert.equal(numTested, 3);
+      });
+    });
+
+    suite('display alarms', function() {
+      // 30 minutes prior
+      parseFixture('singleEvent');
+
+      test('alarms', function() {
+        var iter = icalEvent.iterator();
+        var next = iter.next();
+        var details = icalEvent.getOccurrenceDetails(next);
+
+        var alarms = subject._displayAlarms(details);
+        assert.length(alarms, 2);
+
+        var date = icalEvent.startDate.clone();
+        date.adjust(0, 0, -30, 0);
+
+        assert.deepEqual(
+          alarms[0].trigger,
+          date.subtractDate(icalEvent.startDate).toSeconds()
+        );
+      });
+    });
   });
 
   test('#getAccount', function(done) {
     var calledWith;
     var given = Factory('caldav.account');
-    var result = {};
+    var result = {
+      url: '/myfoobar/'
+    };
 
     subject._requestHome = function() {
       calledWith = arguments;
       return {
         send: function(callback) {
           setTimeout(function() {
-            callback(result);
+            callback(null, result);
           }, 0);
         }
       };
     };
 
-    subject.getAccount(given, function(data) {
+    subject.getAccount(given, function(err, data) {
       done(function() {
-        assert.deepEqual(data, result);
+        assert.ok(!err, 'should succeed');
+        assert.equal(data.calendarHome, result.url);
         assert.instanceOf(calledWith[0], Caldav.Connection);
         assert.equal(calledWith[0].domain, given.domain);
-        assert.equal(calledWith[1], given.url);
+        assert.equal(calledWith[1], given.entrypoint);
       });
+    });
+  });
+
+  suite('#_formatTrigger', function(_formatTrigger) {
+
+    parseFixture('singleEvent');
+
+    test('duration type', function() {
+      var alarm = icalEvent.component.getAllSubcomponents('valarm')[0];
+      var trigger = alarm.getFirstProperty('trigger');
+
+      var start = icalEvent.startDate.clone();
+      start.adjust(0, 0, -30, 0);
+
+      var result = subject._formatTrigger(trigger, icalEvent.startDate);
+
+      assert.ok(typeof(result) === 'number');
+      assert.equal(trigger.type, 'duration');
+      assert.equal(
+        result,
+        start.subtractDate(icalEvent.startDate).toSeconds()
+      );
+    });
+
+    test('date-time type', function() {
+      var alarm = icalEvent.component.getAllSubcomponents('valarm')[2];
+      var trigger = alarm.getFirstProperty('trigger');
+
+      // Adjust our expected date to be the same as what's in single_event.ics
+      var start = icalEvent.startDate.clone();
+      start.adjust(255, 17, 30, 0);
+
+      var result = subject._formatTrigger(trigger, icalEvent.startDate);
+
+      assert.ok(typeof(result) === 'number');
+      assert.equal(trigger.type, 'date-time');
+      assert.equal(
+        result,
+        start.subtractDate(icalEvent.startDate).toSeconds()
+      );
     });
   });
 
@@ -300,39 +477,40 @@ suite('service/caldav', function() {
 
   suite('#_handleCaldavEvent', function() {
     var stream;
-    var occurrences = [];
     var events = [];
-    var iterator = [];
+    var occurrences = [];
+    var components = [];
     var expandCalls;
     var etag = 'xx1';
-    var iterStr = '<iterator json>';
 
     setup(function() {
       expandCalls = null;
       occurrences.length = 0;
       events.length = 0;
+      components.length = 0;
+
       stream = new Calendar.Responder();
+
+      stream.on('component', function(item) {
+        components.push(item);
+      });
 
       stream.on('event', function(item) {
         events.push(item);
       });
 
-      stream.on('recurring iterator', function(item) {
-        iterator.push(item);
-      });
-
-      stream.on('occurrences', function(itemkd) {
+      stream.on('occurrence', function(item) {
         occurrences.push(item);
       });
 
+      var expand = subject.expandRecurringEvent;
+
+      // spy
       subject.expandRecurringEvent = function() {
         expandCalls = arguments;
-        var args = Array.prototype.slice.call(arguments);
-        var cb = args.pop();
-        cb(null, iterStr);
+        expand.apply(this, arguments);
       };
     });
-
 
     suite('singleEvent', function() {
       parseFixture('singleEvent');
@@ -342,13 +520,29 @@ suite('service/caldav', function() {
         var response = caldavEventFactory();
 
         subject._handleCaldavEvent(url, response, stream, function(err) {
-          assert.ok(!err);
+          if (err) {
+            return done(err);
+          }
+
           done(function() {
-            assert.length(occurrences, 0);
-            assert.length(iterator, 0);
+            assert.length(occurrences, 1);
+            assert.length(events, 1);
+            var formatted = subject._formatEvent(
+              'abcd', url,
+              fixtures.singleEvent,
+              icalEvent
+            );
+
+            assert.length(components, 1);
+
+            assert.deepEqual(events, [formatted]);
             assert.deepEqual(
-              events,
-              [subject._formatEvent('abcd', url, icalEvent)]
+              components[0],
+              {
+                eventId: events[0].id,
+                isRecurring: false,
+                ical: fixtures.singleEvent
+              }
             );
           });
         });
@@ -365,26 +559,18 @@ suite('service/caldav', function() {
 
         subject._handleCaldavEvent(url, response, stream, function(err) {
           assert.ok(!err);
+          var formatted = subject._formatEvent(
+            'abc', url, fixtures.recurringEvent, icalEvent
+          );
+
           done(function() {
             assert.deepEqual(
               events,
-              [subject._formatEvent('abc', url, icalEvent)],
+              [formatted],
               'events'
             );
 
-            assert.deepEqual(
-              expandCalls[0].component.toJSON(),
-              icalEvent.component.toJSON(),
-              'expand event'
-            );
-
             var expandOptions = expandCalls[1];
-
-            assert.equal(
-              expandOptions.limit,
-              subject._defaultOccurrenceLimit,
-              'expand options limit'
-            );
 
             assert.deepEqual(
               expandOptions.maxDate.toJSDate(),
@@ -392,13 +578,214 @@ suite('service/caldav', function() {
               'expand options max date'
             );
 
+            occurrences.forEach(function(item) {
+              assert.equal(item.eventId, icalEvent.uid);
+            });
+
+            var lastOccurence = occurrences[occurrences.length - 1];
+
+            assert.length(components, 1, 'has component');
+
+            assert.hasProperties(
+              components[0],
+              {
+                eventId: events[0].id,
+                ical: fixtures.recurringEvent,
+                lastRecurrenceId: lastOccurence.recurrenceId
+              }
+            );
+
+            assert.ok(components[0].iterator, 'has iterator');
+
+            var iter = new ICAL.RecurExpansion(
+              components[0].iterator
+            );
+
             assert.deepEqual(
-              iterator,
-              [{ id: icalEvent.uid, iterator: iterStr }]
+              components[0].lastRecurrenceId,
+              subject.formatICALTime(iter.last),
+              'sends viable ical iterator'
             );
           });
         });
       });
+    });
+  });
+
+  suite('#expandComponents', function() {
+    var components;
+    var maxDate;
+    var max = 15;
+    var events;
+    var stream;
+
+    setup(function(done) {
+      // stream interface to capture events
+      stream = new Calendar.Responder();
+
+      // list of sent components
+      components = {};
+
+      // stream events
+      events = {
+        component: [],
+        occurrence: {}
+      };
+
+      // capture events
+      stream.on('component', function(item) {
+        events.component.push(item);
+      });
+
+      stream.on('occurrence', function(item) {
+        var id = item.eventId;
+        if (!(id in events.occurrence)) {
+          events.occurrence[id] = [];
+        }
+
+        events.occurrence[id].push(item);
+      });
+
+      subject.parseEvent(fixtures.recurringEvent, function(err, event) {
+        var iter = event.iterator();
+        var i = 0;
+
+        while (i++ < max)
+          var last = iter.next();
+
+        maxDate = subject.formatICALTime(last);
+        done();
+      });
+    });
+
+    function stage(eventId, expansions=5, skip=0) {
+      setup(function(done) {
+        if (expansions + skip > max) {
+          done(new Error('staging event beyond maximum'));
+        }
+
+        subject.parseEvent(fixtures.recurringEvent, function(err, event) {
+          var iter = event.iterator();
+          var last;
+
+          while (expansions--) {
+            last = iter.next();
+          }
+
+
+          // we need to change the id of the event here
+          // otherwise we will not be able to track the differences...
+          var vcalendar = event.component.parent;
+          var events = vcalendar.getAllSubcomponents('vevent');
+
+          // update all events and exceptions to have the new id.
+          events.forEach(function(comp) {
+            comp.updatePropertyWithValue('uid', eventId);
+          });
+
+          var result = Factory('icalComponent', {
+            ical: vcalendar.toString(),
+            // components always have calendar id prefixes
+            eventId: 'prefix-' + eventId,
+            lastRecurrenceId: subject.formatICALTime(last),
+            iterator: iter.toJSON()
+          });
+
+          components[eventId] = result;
+          done();
+        });
+      });
+    }
+
+    stage('fiveEvents', 5, 10);
+    stage('twoEvents', 13, 2);
+
+    setup(function(done) {
+      var list = [];
+      // build list for request
+      for (var key in components)
+        list.push(components[key]);
+
+      var options = {
+        // limit the operations so test
+        // is reasonably fast...
+        maxDate: maxDate
+      };
+
+      stream.onerror = function(err) {
+        done(err);
+      };
+
+      subject.expandComponents(list, options, stream, done);
+    });
+
+    test('all sent events', function() {
+      var expectedKeys = Object.keys(components);
+
+      assert.length(
+        events.component,
+        expectedKeys.length,
+        'returns same number of components sent'
+      );
+
+      // map all componetns by eventId
+      var gotComponents = {};
+      events.component.forEach(function(item) {
+        gotComponents[item.eventId] = item;
+      });
+
+      expectedKeys.forEach(function(eventId) {
+        var original = components[eventId];
+        var newComp = gotComponents[eventId];
+
+        // verify each component has increased lastRecurrenceId
+        // and has the same ical body.
+        assert.ok(newComp, 'sends "' + eventId + '"');
+
+        assert.notEqual(
+          newComp.eventId,
+          original.eventId,
+          'does not return prefixed eventId'
+        );
+
+        assert.equal(
+          newComp.ical,
+          original.ical,
+          'sends ical body'
+        );
+
+        assert.ok(
+          newComp.lastRecurrenceId.utc > original.lastRecurrenceId.utc,
+          'recurrence id has increased'
+        );
+      });
+
+      var eventId;
+      var occurrences = events.occurrence;
+
+      assert.deepEqual(
+        Object.keys(occurrences),
+        Object.keys(components),
+        'sends occurrences for all components'
+      );
+
+      for (eventId in occurrences) {
+        var occurrence = occurrences[eventId];
+        var len = occurrence.length;
+
+        var min = occurrence[0].recurrenceId.utc;
+        var max = occurrence[len - 1].recurrenceId.utc;
+
+        assert.ok(
+          min > components[eventId].lastRecurrenceId.utc,
+          'first occurrence is after min'
+        );
+
+        assert.ok(
+          max === maxDate.utc,
+          'expands up to minimum date'
+        );
+      }
     });
 
   });
@@ -429,7 +816,7 @@ suite('service/caldav', function() {
         // get real query
         query = realRequest.apply(this, arguments);
 
-        // when query is 'sent' firecallback
+        // when query is 'sent' fire a callback
         // but don't actually send it
         query.send = function() {
           var cb = arguments[arguments.length - 1];
@@ -443,7 +830,19 @@ suite('service/caldav', function() {
       };
     });
 
-    test('result', function(done) {
+    test('empty response', function(done) {
+      var stream = new Calendar.Responder();
+      var options = {
+        startDate: new Date(2012, 0, 1),
+        cached: {}
+      };
+
+      // should not crash on empty responses...
+      subject.streamEvents(givenAcc, givenCal, options, stream, done);
+      query.sax.emit('DAV:/response', 'one/', {});
+    });
+
+    test('success', function(done) {
       var stream = new Calendar.Responder();
       var events = [];
       var cals = {
@@ -452,29 +851,47 @@ suite('service/caldav', function() {
       };
 
       var options = {
-        startDate: new Date(2012, 0, 1)
+        startDate: new Date(2012, 0, 1),
+        cached: {
+          'two/': { id: '2', syncToken: 'two' },
+          // intentionally has no cals pair this
+          // is the item we will send the 'missing events' event for.
+          'three/': { id: '3', syncToken: 'three' }
+        }
       };
 
+      var expectedMissing = ['3'];
+      var missingEvents;
+
+      stream.on('missingEvents', function(data) {
+        missingEvents = data;
+      });
+
       // cb fires in next turn of event loop.
-      subject.streamEvents(givenAcc, givenCal, stream, options,
+      subject.streamEvents(givenAcc, givenCal, options, stream,
                            function(err, data) {
+
 
         done(function() {
           assert.ok(!err);
           assert.ok(!data);
+          assert.ok(calledWith, 'calls request');
 
-          assert.equal(calledHandle.length, 2);
+          assert.equal(
+            calledWith[2], options,
+            'sends options to request'
+          );
+
+          assert.equal(calledHandle.length, 1);
+
+          assert.deepEqual(
+            missingEvents, expectedMissing, 'sends missing events'
+          );
 
           assert.deepEqual(
             calledHandle[0][1],
             caldavEventFactory('one'),
             'should emit first cal'
-          );
-
-          assert.deepEqual(
-            calledHandle[1][1],
-            caldavEventFactory('two'),
-            'should emit second cal'
           );
         });
       });
@@ -487,8 +904,20 @@ suite('service/caldav', function() {
 
   suite('#formatICALTime', function() {
 
+    test('date', function() {
+      var time = new ICAL.Time({
+        year: 2012,
+        month: 1,
+        day: 15,
+        isDate: true
+      });
+
+      var out = subject.formatICALTime(time);
+      assert.isTrue(out.isDate, 'is date');
+    });
+
     test('floating time', function() {
-      var time = new ICAL.icaltime({
+      var time = new ICAL.Time({
         year: 2012,
         month: 1,
         day: 15,
@@ -511,6 +940,19 @@ suite('service/caldav', function() {
   });
 
   suite('#formatInputTime', function() {
+
+    test('isDate', function() {
+      var date = new Date(2012, 1, 1);
+      var transport = Calendar.Calc.dateToTransport(
+        date, null, true
+      );
+
+      var result = subject.formatInputTime(transport);
+      assert.isTrue(result.isDate, 'is date');
+
+      assert.deepEqual(result.toJSDate(), date);
+    });
+
     test('floating time', function() {
       var input = {
         offset: 0,
@@ -518,6 +960,7 @@ suite('service/caldav', function() {
         tzid: 'floating'
       };
 
+      // This test assumes local TZ
       var expectedDate = new Date(2012, 0, 1, 0);
 
       var result = subject.formatInputTime(input);
@@ -534,7 +977,8 @@ suite('service/caldav', function() {
         tzid: 'Los Angeles/America'
       };
 
-      var expectedDate = new Date(2012, 0, 1, 0);
+      // This test assumes PST TZ
+      var expectedDate = new Date('Sun, 01 Jan 2012 00:00:00 PST');
 
       var result = subject.formatInputTime(input);
       assert.deepEqual(new Date(result.toJSDate()), expectedDate);
@@ -545,18 +989,21 @@ suite('service/caldav', function() {
 
     test('error', function(done) {
       subject.parseEvent('BEGIN:VCALENDAR\nFOOOBAR', function(err) {
-        assert.instanceOf(err, ICAL.icalparser.Error);
+        assert.instanceOf(err, Error);
         done();
       });
     });
 
     test('single', function(done) {
-      var expectedComponent = ICAL.parse(fixtures.singleEvent);
-      // normalize expected output
-      expectedComponent = (new ICAL.icalcomponent(expectedComponent)).toJSON();
+      var expectedComponent = ICAL.parse(fixtures.singleEvent)[1];
+      var comp = new ICAL.Component(expectedComponent);
+      var timezone = comp.getFirstSubcomponent('vtimezone');
+      var tzid = timezone.getFirstPropertyValue('tzid');
 
       subject.parseEvent(fixtures.singleEvent, function(err, event) {
         done(function() {
+          assert.ok(ICAL.TimezoneService.has(tzid), 'has timezone ' + tzid);
+
           assert.instanceOf(event, ICAL.Event);
           assert.deepEqual(
             event.component.parent.toJSON(),
@@ -578,8 +1025,24 @@ suite('service/caldav', function() {
   });
 
   suite('#expandRecurringEvent', function() {
+    var now;
+
+    setup(function() {
+      now = new ICAL.Time({
+        year: 2012,
+        month: 1,
+        day: 1
+      });
+    });
+
+
     suite('with exceptions', function() {
       parseFixture('recurringEvent');
+
+      teardown(function() {
+        Calendar.Service.IcalRecurExpansion.forEachLimit =
+          100;
+      });
 
       function occurrencesUntil(limit, maxWindow) {
         var occurrences = [];
@@ -599,7 +1062,8 @@ suite('service/caldav', function() {
             end: subject.formatICALTime(details.endDate),
             recurrenceId: subject.formatICALTime(details.recurrenceId),
             eventId: details.item.uid,
-            isException: details.item.isRecurrenceException()
+            isException: details.item.isRecurrenceException(),
+            alarms: subject._displayAlarms(details)
           });
 
           if (maxWindow && next.compare(maxWindow) >= 0) {
@@ -616,13 +1080,14 @@ suite('service/caldav', function() {
 
         expected.splice(0, 6);
 
-        var max = expected.length;
+        Calendar.Service.IcalRecurExpansion.forEachLimit =
+          expected.length;
 
         var actual = [];
         var stream = new Calendar.Responder();
         var options = {
-          limit: max,
-          iterator: firstIter.toJSON()
+          iterator: firstIter.toJSON(),
+          now: now
         };
 
         stream.on('occurrence', function(item) {
@@ -631,12 +1096,19 @@ suite('service/caldav', function() {
 
         var json = icalEvent.component.parent.toJSON();
         subject.expandRecurringEvent(json, options, stream,
-                                     function(err, savedIter) {
+                                     function(err, savedIter, last) {
           if (err) {
             done(err);
             return;
           }
+
           assert.deepEqual(actual, expected, 'expected occurrences');
+
+          assert.deepEqual(
+            last,
+            expected[expected.length - 1].recurrenceId,
+            'sends last iteration'
+          );
 
           assert.deepEqual(
             savedIter,
@@ -649,7 +1121,7 @@ suite('service/caldav', function() {
       });
 
       test('without existing iterator', function(done) {
-        var maxWindow = new ICAL.icaltime({
+        var maxWindow = new ICAL.Time({
           year: 2013,
           month: 1,
           day: 15
@@ -660,8 +1132,8 @@ suite('service/caldav', function() {
         var actual = [];
         var stream = new Calendar.Responder();
         var options = {
-          limit: 10,
-          maxDate: subject.formatICALTime(maxWindow)
+          maxDate: subject.formatICALTime(maxWindow),
+          now: now
         };
 
         stream.on('occurrence', function(item) {
@@ -676,6 +1148,7 @@ suite('service/caldav', function() {
             return;
           }
 
+          assert.length(actual, expected.length);
           assert.deepEqual(actual, expected, 'expected occurrences');
 
           assert.deepEqual(
@@ -688,15 +1161,55 @@ suite('service/caldav', function() {
         });
       });
 
+      test('with (min|max)Date', function(done) {
+        var actual = [];
+        var [iter, occurrences] = occurrencesUntil(10);
+
+        var min = occurrences[2].recurrenceId;
+        var max = occurrences[5].recurrenceId;
+
+        min = JSON.parse(JSON.stringify(min));
+        min.utc -= 1;
+
+        var expected = occurrences.slice(2, 6);
+        var stream = new Calendar.Responder();
+
+        stream.on('occurrence', function(item) {
+          actual.push(item);
+        });
+
+        var options = {
+          minDate: min,
+          maxDate: max,
+          now: now
+        };
+
+        var json = icalEvent.component.parent.toJSON();
+        subject.expandRecurringEvent(json, options, stream,
+                                     function(err, savedIter) {
+          if (err) {
+            done(err);
+            return;
+          }
+
+          assert.length(actual, expected.length);
+          assert.deepEqual(actual, expected, 'expected occurrences');
+
+          done();
+        });
+
+      });
+
     });
   });
 
   suite('#findCalendars', function() {
     var results;
-    var given = { url: 'foo', domain: 'google' };
     var calledWith;
+    var given;
 
     setup(function() {
+      given = Factory('caldav.account');
       subject._requestCalendars = function() {
         calledWith = arguments;
         return {
@@ -712,12 +1225,16 @@ suite('service/caldav', function() {
 
     test('success', function(done) {
       results = {
-        '/one': Factory(
+        '/one': Factory.build(
           'caldav.calendar', { name: 'one' }
         ),
 
-        '/two': Factory(
+        '/two': Factory.build(
           'caldav.calendar', { name: 'one' }
+        ),
+
+        '/three': Factory.build(
+          'caldav.calendar', { name: 'no read', privilegeSet: ['foo'] }
         )
       };
 
@@ -734,7 +1251,7 @@ suite('service/caldav', function() {
           );
 
           assert.instanceOf(calledWith[0], Caldav.Connection);
-          assert.equal(calledWith[1], given.url);
+          assert.equal(calledWith[1], given.calendarHome);
 
           assert.deepEqual(
             data['/one'],
@@ -746,6 +1263,11 @@ suite('service/caldav', function() {
             data['/two'],
             subject._formatCalendar(results['/two']),
             'should format and include /two calendar'
+          );
+
+          assert.ok(
+            !data['/three'],
+            'skips calendars without read privleges'
           );
         });
       });
@@ -767,7 +1289,7 @@ suite('service/caldav', function() {
         assetReq[method] = cb;
 
         return assetReq;
-      }
+      };
     }
 
     function mockXhr() {
@@ -791,6 +1313,62 @@ suite('service/caldav', function() {
     test('#_assetRequest', function() {
       var req = subject._assetRequest(account, event.url);
       assert.instanceOf(req, Caldav.Request.Asset);
+    });
+
+    suite('#addAlarms', function() {
+      test('standard', function(done) {
+        var ops = 2;
+
+        subject.addAlarms({
+          addSubcomponent: function(result) {
+            assert.instanceOf(result, ICAL.Component);
+            assert.instanceOf(
+              result.getFirstPropertyValue('trigger'),
+              ICAL.Duration
+            );
+            assert.equal(result.getFirstPropertyValue('action'), 'DISPLAY');
+
+            if (!(--ops)) {
+              done();
+            }
+          }
+        }, [
+          {action: 'DISPLAY', trigger: '60'},
+          {action: 'DISPLAY', trigger: '600'}
+        ]);
+      });
+
+      test('yahoo - mirrored email', function(done) {
+        var ops = 4;
+        var componentCount = {
+          DISPLAY: 0,
+          EMAIL: 0
+        };
+
+        subject.addAlarms({
+          addSubcomponent: function(result) {
+            assert.instanceOf(result, ICAL.Component);
+            assert.instanceOf(
+              result.getFirstPropertyValue('trigger'),
+              ICAL.Duration
+            );
+            componentCount[result.getFirstPropertyValue('action')]++;
+
+            if (!(--ops)) {
+              assert.equal(componentCount.DISPLAY, 2);
+              assert.equal(componentCount.EMAIL, 2);
+              done();
+            }
+          }
+        }, [
+          {action: 'DISPLAY', trigger: '60'},
+          {action: 'DISPLAY', trigger: '600'}
+        ],
+        {
+          user: 'bob',
+          domain: 'https://caldav.calendar.yahoo.com'
+        });
+      });
     });
 
     suite('#createEvent', function(done) {
@@ -828,6 +1406,20 @@ suite('service/caldav', function() {
       test('server request', function(done) {
         subject.parseEvent(putCall[1], function(err, icalEvent) {
           done(function() {
+            var vcalendar = icalEvent.component.parent;
+
+            assert.equal(
+              vcalendar.getFirstPropertyValue('prodid'),
+              subject.icalProductId,
+              'has product id'
+            );
+
+            assert.equal(
+              vcalendar.getFirstPropertyValue('version'),
+              subject.icalVersion,
+              'has version'
+            );
+
             assert.hasProperties(icalEvent, {
               summary: event.title,
               description: event.description,
@@ -852,8 +1444,8 @@ suite('service/caldav', function() {
       test('service response', function() {
         assert.equal(result.syncToken, 'Etag', 'etag');
         assert.deepEqual(
-          result.icalComponent,
-          ICAL.parse(putCall[1]),
+          result.icalComponent.trim(),
+          ICAL.stringify(ICAL.parse(putCall[1])).trim(),
           'ical'
         );
       });
@@ -884,12 +1476,20 @@ suite('service/caldav', function() {
             description: 'new desc',
             location: 'new loc',
             start: Calendar.Calc.dateToTransport(start),
-            end: Calendar.Calc.dateToTransport(end)
+            end: Calendar.Calc.dateToTransport(end),
+            alarms: [
+              { action: 'DISPLAY', trigger: 5000 },
+              { action: 'DISPLAY', trigger: 30000 }
+            ]
           }
         });
 
-        update.remote.icalComponent = ICAL.parse(fixtures.singleEvent);
         update = update.remote;
+
+        var eventDetails = {
+          event: update,
+          icalComponent: fixtures.singleEvent
+        };
 
         mockAsset('put', function() {
           var args = Array.prototype.slice.call(arguments);
@@ -897,12 +1497,27 @@ suite('service/caldav', function() {
           cb(null, null, mockXhr());
         });
 
-        subject.updateEvent(account, calendar, update, function(err, result) {
+        subject.updateEvent(account, calendar, eventDetails,
+                            function(err, result) {
+
           subject.parseEvent(result.icalComponent,
                              function(parseErr, newEvent) {
 
             done(function() {
+              var vcalendar = newEvent.component.parent;
+
               assert.ok(!parseErr, parseErr);
+              assert.ok(
+                typeof(result.icalComponent) === 'string',
+                'updated result is returned as a string'
+              );
+
+              assert.equal(
+                vcalendar.getFirstPropertyValue('prodid'),
+                subject.icalProductId,
+                'update the prodid'
+              );
+
               assert.equal(
                 newEvent.sequence,
                 parseInt(original.sequence, 10) + 1,
@@ -926,6 +1541,22 @@ suite('service/caldav', function() {
               );
 
               assert.equal(result.syncToken, 'Etag', 'etag');
+
+              var alarms = newEvent.component.getAllSubcomponents('valarm');
+              assert.equal(alarms.length, 3, 'email alarm intact');
+
+              // The 'DISPLAY' alarms should have a 35000 total
+              var total = 0;
+              alarms.forEach(function(alarm) {
+                var action = alarm.getFirstPropertyValue('action');
+                if (action === 'DISPLAY') {
+                  var duration = new ICAL.Duration(
+                    alarm.getFirstPropertyValue('trigger')
+                  );
+                  total += duration.toSeconds();
+                }
+              });
+              assert.equal(total, 35000, 'display alarms changed');
             });
           });
         });
@@ -940,7 +1571,9 @@ suite('service/caldav', function() {
         assert.equal(assetReq.url, event.url);
         assert.ok(assetReq.connection);
         assert.deepEqual(options, {
-          etag: event.syncToken
+          // we will re-implement this correctly when
+          // we have real queues
+          //etag: event.syncToken
         });
 
         cb();

@@ -26,11 +26,15 @@ section {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  font-size: 10px;
+  font-size: 1.4rem;
+}
+
+.hidden {
+  display: none;
 }
 
 /* All of the main views fill the screen */
-#thumbnail-list-view, #thumbnail-select-view, #photo-view, #pick-view, #edit-view, #open-view, #crop-view {
+#thumbnail-list-view, #thumbnail-select-view, #fullscreen-view, #pick-view, #edit-view, #crop-view {
   position: absolute;
   top: 0px;
   left: 0px;
@@ -39,7 +43,7 @@ section {
   padding: 0px;
   margin: 0px;
   overflow: hidden;
-  font-size: 20px;
+  font-size: 2.1rem;
 }
 
 /*
@@ -66,28 +70,41 @@ section {
  * the overlay text shows up more clearly
  */
 #overlay-content {
-  margin-top: 30%;
-  margin-left: 10%;
-  margin-right: 10%;
-  padding: 10%;
-  border: solid black 4px;
-  border-radius: 10px;
-  background-color: rgba(0, 0, 0, 0.6);
-  font-family: "MozTT", sans-serif;
+  background:
+  url(images/ui/pattern.png) repeat left top,
+  url(images/ui/gradient.png) no-repeat left top;
+  background-size: auto auto, 100% 100%;
+  /* We can't use shortand with background size because is not implemented yet:
+  https://bugzilla.mozilla.org/show_bug.cgi?id=570326; */
+  overflow: hidden;
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  font-family: "MozTT", Sans-serif;
+  font-size: 0;
+  /* Using font-size: 0; we avoid the unwanted visual space (about 3px)
+  created by white-spaces and break lines in the code betewen inline-block elements */
   color: #fff;
-  -moz-user-select: none;
+  padding: 110px 25px 0px 25px;
 }
 
 #overlay-title {
-  text-align: center;
-  font-weight: bold;
-  font-size: 26px;
+  font-weight: normal;
+  font-size: 1.9rem;
+  color: #fff;
+  margin: 0 5px -10px 5px;
 }
 
 #overlay-text {
-  font-size: 18px;
+  padding: 10px 5px 0 5px;
+  border-top: 1px solid #686868;	
+  font-weight: 300;
+  font-size: 2.5rem;
+  color: #ebebeb;
 }
-
 
 /*
  * Thumbnails are implemented as <li> elements in a <ul> with background-image
@@ -99,12 +116,42 @@ section {
 
 #thumbnails {
   position: absolute;
+  left: 0;
+  width: calc(100% + 1px); /* one extra pixel for the right margin */
+  /* top and bottom are set depending on view below */
   padding: 0;
   margin: 0;
   overflow-y: scroll;
   overflow-x: hidden;
-  /* Cheating! Due to margins to the right, a row of 3 thumbnails is be thicker than 100% */
-  width: 104%;
+  /*
+   * the body background is black, but remind the UA of that here to
+   * keep the thumbnail view opaque if possible.
+   */
+  background-color: black;
+}
+
+/* thumbnails in regular thumbnail list view */
+#thumbnails.list {
+  top: 0;
+  bottom: 0;
+}
+
+/* thumbnails in thumbnail select view where there is a top bar */
+#thumbnails.select {
+  top: 50px;
+  bottom: 0;
+}
+
+/* thumbnails in pick view where there is a top bar and no bottom */
+#thumbnails.pick {
+  top: 50px;
+  bottom: 0;
+}
+
+#thumbnails.offscreen {
+  top: 0;
+  bottom: 0;
+  visibility: hidden;
 }
 
 .thumbnail {
@@ -119,15 +166,30 @@ section {
   -moz-user-select: none;
   /* thumbnail images will be displayed with background-image */
   /* these properties scale and position the images correctly */
-  background-size: cover;        /* allow some cropping */
   background-position: center;   /* keep the cropping at the edges */
   background-repeat: no-repeat;
+  /*
+   * When we have a background image it will cover the whole thumbnail
+   * but when we're swapping that image in it might be visible before
+   * the image. So we want a color that contrasts with the border so we
+   * at least get the effect of a grid rather than a black screen
+   */
+  background-color: #444;
 }
 
 .thumbnail.selected {
   outline: solid #00aacc 3px;
   outline-offset: -3px;
 }
+
+/*
+ * give the very last thumbnail a large bottom margin so that it doesn't
+ * get stuck hidden behind the overlaid toolbar.
+ */
+.thumbnail:last-child {
+  margin-bottom: 40px;
+}
+
 
 /* 320x480 phones */
 @media (orientation: portrait) and (width: 320px) {
@@ -139,8 +201,8 @@ section {
 
 @media (orientation: landscape) and (width: 480px) {
   .thumbnail {
-    width: 120px;
-    height: 120px;
+    width: 119px;
+    height: 119px;
   }
 }
 
@@ -148,55 +210,27 @@ section {
 @media (orientation: portrait) and (width: 480px),
        (orientation: landscape) and (width: 800px) {
     .thumbnail {
-        width: 160px;
-        height: 160px;
+        width: 159px;
+        height: 159px;
     }
 }
 
-/* thumbnails in regular thumbnail list view */
-#thumbnail-list-view > #thumbnails {
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0px;
-}
-
-/* thumbnails in thumbnail select view where there is a top bar */
-#thumbnail-select-view > #thumbnails {
-  top: 50px;
-  left: 0;
-  right: 0;
-  bottom: 0px;
-}
-
-/* thumbnails in pick view where there is a top bar and no bottom */
-#pick-view > #thumbnails {
-  top: 50px;
-  left: 0;
-  right: 0;
-  bottom: 0;
-}
-
-/* since photo-view can go fullscreen, it needs its own background color */
-#photo-view {
+/* since fullscreen-view is fullscreen, it needs its own background color */
+#fullscreen-view {
   background-color: #444;
 }
 
-#photo-frames {
+#frames {
   position: absolute;
   top: 0px;
-  bottom: 40px;
   left: 0px;
   width: 100%;
+  height: 100%;
   padding: 0px;
   margin: 0px;
 }
 
-#photo-view.toolbarhidden #photo-frames {
-  bottom: 0;
-}
-
-.photoFrame {
+.frame {
   position: absolute;
   top: 0px;
   left: 0px;
@@ -208,10 +242,10 @@ section {
   -moz-user-select: none;
 }
 
-.photoFrame > img {
+.frame > img {
   top: 0px;  /* javascript modifies this position with a transform */
   left: 0px;
-  position: relative;
+  position: absolute;
   border-width: 0px;
   padding: 0px;
   margin: 0px;
@@ -220,8 +254,21 @@ section {
   -moz-user-select: none;
 }
 
-.hidden {
-  display: none;
+/*
+ * these styles apply when we're swapping out a preview image to replace
+ * it with a full-resolution image, but the full image isn't ready yet.
+ * This happens when the user starts to zoom in on the image. We need
+ * some sort of simple visual effect to fill ~500ms of dead time so the
+ * user doesn't think the app has frozen up
+ */
+.frame > img.swapping {
+  opacity: 0.8;
+  outline: dashed #0ac 4px;
+  outline-offset: -4px;
+}
+
+.frame > video {
+  transform-origin: 0px 0px;
 }
 
 /* localization */
@@ -236,25 +283,30 @@ body.hidden *[data-l10n-id] {
 /* the indeterminate progress bar displayed while scanning */
 #progress {
   position: absolute;
-  top: 0px;
-  left: 0px;
-  width: 100%;
-  height: 4px;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
   border: none;
   overflow: hidden;
+  z-index: 3; /* has to be higher than pick-top */
 }
 
-#throbber.throb
-{
-  animation: .5s throb infinite steps(12);
+#throbber {
+  height: 24px;
+  background-image: url(images/progress.png);
+}
+
+#throbber.throb {
+  animation: 1s throb infinite steps(7);
 }
 
 @keyframes throb {
   from {
-    transform: translate(0px, 0px);
+    transform: translateY(0px);
   }
   to {
-    transform: translate(0px, -48px);
+    transform: translateY(-21px);
   }
 }
 
@@ -268,7 +320,7 @@ a.button {
   background-repeat: no-repeat;
 
   /* for buttons that display text */
-  font-size: smaller;
+  font-size: 1.4rem;
   text-align: center;
   line-height: 40px;
 }
@@ -279,6 +331,7 @@ a.button:active, a.button:focus {
 
 a.button.disabled {
   opacity: 0.4;
+  pointer-events: none;
 }
 
 footer {
@@ -293,7 +346,7 @@ footer {
 }
 
 .icon.icon-done {
-  background-image: url('images/actionicon_done.png') !important;
+  background-image: url('images/iconaction_done_30x30.png') !important;
 }
 
 #thumbnails-camera-button {
@@ -301,7 +354,7 @@ footer {
   width: 50%;
   height: 100%;
   left: 0;
-  background-image: url('images/camera.png');
+  background-image: url('images/iconaction_camera_30x30.png');
   border-right: 1px solid #000;
 }
 
@@ -310,7 +363,7 @@ footer {
   width: 50%;
   height: 100%;
   left: 50%;
-  background-image: url('images/select.png');
+  background-image: url('images/iconaction_select_30x30.png');
 }
 
 #thumbnails-delete-button {
@@ -318,7 +371,7 @@ footer {
   width: 50%;
   height: 100%;
   left: 0;
-  background-image: url('images/delete.png');
+  background-image: url('images/iconaction_delete_30x30.png');
   border-right: 1px solid #000;
 }
 
@@ -327,60 +380,60 @@ footer {
   width: 50%;
   height: 100%;
   left: 50%;
-  background-image: url('images/share.png');
+  background-image: url('images/iconaction_share_30x30.png');
 }
 
-#photos-toolbar {
+#fullscreen-toolbar {
   height: 40px;
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  transition: transform 200ms linear;
+  transition: transform 100ms linear;
 }
 
-#photo-view.toolbarhidden #photos-toolbar {
+#fullscreen-view.toolbarhidden #fullscreen-toolbar {
   transform: translate(0, 40px);
 }
 
-#photos-back-button {
+#fullscreen-back-button {
   position: absolute;
   width: 20%;
   height: 100%;
   left: 0;
-  background-image: url('images/actionicon_grid_view.png');
+  background-image: url('images/iconaction_camera_gridview_30x30.png');
 }
 
-#photos-camera-button {
+#fullscreen-camera-button {
   position: absolute;
   width: 20%;
   height: 100%;
   left: 20%;
-  background-image: url('images/camera.png');
+  background-image: url('images/iconaction_camera_30x30.png');
 }
 
-#photos-edit-button {
+#fullscreen-edit-button {
   position: absolute;
   width: 20%;
   height: 100%;
   left: 40%;
-  background-image: url('images/edit.png');
+  background-image: url('images/iconaction_camera_editphoto_30x30.png');
 }
 
-#photos-share-button {
+#fullscreen-share-button {
   position: absolute;
   width: 20%;
   height: 100%;
   left: 60%;
-  background-image: url('images/share.png');
+  background-image: url('images/iconaction_share_30x30.png');
 }
 
-#photos-delete-button {
+#fullscreen-delete-button {
   position: absolute;
   width: 20%;
   height: 100%;
   left: 80%;
-  background-image: url('images/delete.png');
+  background-image: url('images/iconaction_delete_30x30.png');
 }
 
 #pick-top {
@@ -392,34 +445,22 @@ footer {
   z-index: 2;
 }
 
-/* like .photoFrame */
+/* like .frame */
 #crop-frame {
   position: absolute;
   top: 50px;
+  bottom: 0px;
   left: 0px;
   width: 100%;
-  height: 100%;
   padding: 0px;
   margin: 0px;
   overflow: hidden;
   -moz-user-select: none;
 }
 
-/* like .photoFrame */
-#open-frame {
-  position: absolute;
-  top: 0px;
-  left: 0px;
-  width: 100%;
-  bottom: 50px;
-  padding: 0px;
-  margin: 0px;
-  overflow: hidden;
-  -moz-user-select: none;
-}
 
-/* copied from .photoFrame > img */
-#open-image, #crop-image {
+/* copied from .frame > img */
+#crop-image {
   top: 0px;  /* javascript modifies this position with a transform */
   left: 0px;
   position: relative;
@@ -429,31 +470,6 @@ footer {
   transform-origin: 0px 0px;
   pointer-events: none;
   -moz-user-select: none;
-}
-
-#open-bottom {
-  background: #888;
-  height: 50px;
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-}
-
-#open-camera-button {
-  position: absolute;
-  width: 50%;
-  height: 100%;
-  left: 0;
-  background-image: url('images/camera.png');
-}
-
-#open-delete-button {
-  position: absolute;
-  width: 50%;
-  height: 100%;
-  left: 50%;
-  background-image: url('images/delete.png');
 }
 
 #edit-view {
@@ -475,7 +491,7 @@ footer {
   position: absolute;
   top: 10px;
   left: 10px;
-  width: 300px;  /* I can't do right: 10px here. Bug? */
+  width: calc(100% - 20px);  /* I can't do right: 10px here. Bug? */
   height: calc(100% - 20px)  /* can't just set bottom: 10px here */
 }
 
@@ -513,7 +529,7 @@ footer {
 }
 
 #edit-effect-options a.selected.radio.button {
-  outline: solid orange 3px;
+  outline: solid #00aacc 3px;
   outline-offset: -3px;
 }
 
@@ -529,34 +545,34 @@ footer {
   border-right: solid black 1px;
   overflow: hidden;
   padding-top: 16px;
-  font-size: 12px;
+  font-size: 1.4rem;
   background-position: center;
 }
 
 #edit-crop-options a.selected.radio.button {
-  outline: solid orange 2px;
+  outline: solid #00aacc 2px;
   outline-offset: -2px;
 }
 
 #edit-crop-none {
   left: 0;
-  background-image: url('images/actionicon_undo.png');
+  background-image: url('images/iconaction_undo_30x30.png');
 }
 #edit-crop-aspect-free {
   left: 20%;
-  background-image: url('images/actionicon_cropfree.png');
+  background-image: url('images/iconaction_camera_freecrop_30x30.png');
 }
 #edit-crop-aspect-portrait {
   left: 40%;
-  background-image: url('images/actionicon_crop23.png');
+  background-image: url('images/iconaction_camera_crop2x3_30x30.png');
 }
 #edit-crop-aspect-landscape {
   left: 60%;
-  background-image: url('images/actionicon_crop32.png');
+  background-image: url('images/iconaction_camera_crop3x2_30x30.png');
 }
 #edit-crop-aspect-square {
   left: 80%;
-  background-image: url('images/actionicon_crop11.png');
+  background-image: url('images/iconaction_camera_crop1x1_30x30.png');
 }
 
 /* instead of using images inside the buttons above, just draw boxes */
@@ -640,7 +656,7 @@ a.filter-faded {
 }
 
 #edit-border-options a.selected.radio.button {
-  outline: solid orange 3px;
+  outline: solid #00aacc 3px;
 }
 
 #edit-border-none {
@@ -669,12 +685,12 @@ a.filter-faded {
   position: absolute;
   width: 25%;
   height: 100%;
-  font-size: 15px;
+  font-size: 1.4rem;
 }
 
 /* If the button is selected, it has a different background */
 #edit-toolbar > .button.selected {
-  background: #267594;
+  background: #02252C;
 }
 
 #edit-exposure-button {
@@ -705,7 +721,7 @@ a.filter-faded {
   width: 100%;
   height: 50px;
   background-color: #444;
-  font-size: smaller;
+  font-size: 1.4rem;
 }
 
 #sliderbar {
@@ -735,7 +751,7 @@ a.filter-faded {
   background-color: #eee;
   text-align: center;
   padding-top: 12px;
-  font-size: smaller;
+  font-size: 1.4rem;
   color: black;
 }
 

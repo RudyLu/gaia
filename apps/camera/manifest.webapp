@@ -10,24 +10,28 @@
     "url": "https://github.com/mozilla-b2g/gaia"
   },
   "permissions": {
-    "device-storage:pictures":{},
-    "device-storage:videos":{},
+    "storage":{},
+    "device-storage:pictures":{ "access": "readwrite" },
+    "device-storage:videos":{ "access": "readwrite" },
+    "settings":{ "access": "readonly" },
     "camera":{},
-    "geolocation":{}
+    "geolocation":{},
+    "audio-channel-notification":{}
   },
   "activities": {
     "record": {
       "filters": {
-        "type": "photos"
+        "type": ["photos", "videos"]
        },
       "disposition": "window"
     },
     "pick": {
       "filters": {
-        "type": ["image/jpeg"]
+        "type": ["image/*", "image/jpeg"]
        },
       "returnValue": true,
-      "disposition": "inline"
+      "disposition": "inline",
+      "href": "/index.html#pick"
     }
   },
   "locales": {
@@ -35,45 +39,13 @@
       "name": "الكاميرا",
       "description": " Gaiaالكاميرا"
     },
-    "ca": {
-      "name": "Càmera",
-      "description": "Càmera del Gaia"
-    },
-    "de": {
-      "name": "Kamera",
-      "description": "Gaia Kamera"
-    },
-    "el": {
-      "name": "Κάμερα",
-      "description": "Κάμερα Gaia"
-    },
     "en-US": {
       "name": "Camera",
       "description": "Gaia Camera"
     },
-    "es": {
-      "name": "Cámara",
-      "description": "Cámara de Gaia"
-    },
     "fr": {
       "name": "Photo",
       "description": "Appareil photo Gaia"
-    },
-    "it": {
-      "name": "Camera",
-      "description": "Camera di Gaia"
-    },
-    "pt-BR": {
-      "name": "Câmera",
-      "description": "Câmera do Gaia"
-    },
-    "ru": {
-      "name": "Камера",
-      "description": "Камера Gaia"
-    },
-    "tr": {
-      "name": "Kamera",
-      "description": "Gaia Kamera"
     },
     "zh-TW": {
       "name": "相機",

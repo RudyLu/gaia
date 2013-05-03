@@ -2,7 +2,9 @@
 requireApp('communications/contacts/test/unit/mock_form_dom.js.html');
 
 requireApp('communications/contacts/js/contacts_form.js');
+requireApp('communications/contacts/js/utilities/normalizer.js');
 requireApp('communications/contacts/js/utilities/templates.js');
+requireApp('communications/contacts/js/utilities/dom.js');
 requireApp('communications/contacts/test/unit/mock_contacts.js');
 requireApp('communications/contacts/test/unit/mock_contact_all_fields.js');
 requireApp('communications/contacts/test/unit/mock_fb.js');
@@ -16,7 +18,7 @@ var subject,
     realFb,
     mozL10n,
     mockContact,
-    deleteButton;
+    footer;
 
 suite('Render contact form', function() {
 
@@ -29,15 +31,15 @@ suite('Render contact form', function() {
       DateTimeFormat: function() {
         this.localeFormat = function(date, format) {
           return date;
-        }
+        };
       }
     };
     realContacts = window.Contacts;
-    window.Contacts = MockContactsApp;
+    window.Contacts = MockContacts;
     realFb = window.fb;
-    window.fb = MockFb;
+    window.fb = Mockfb;
     document.body.innerHTML = MockFormDom;
-    deleteButton = document.getElementById('delete-contact');
+    footer = document.querySelector('footer');
     subject = contacts.Form;
     subject.init(Contacts.getTags());
   });
@@ -55,6 +57,8 @@ suite('Render contact form', function() {
   });
 
   teardown(function() {
+    window.fb.setIsFbContact(false);
+    window.fb.setIsFbLinked(false);
   });
 
   suite('Render add form', function() {
@@ -67,7 +71,7 @@ suite('Render contact form', function() {
         assert.isTrue(cont.indexOf(element + '-0') > -1);
         assertEmpty(element + '-0');
         assert.isTrue(cont.indexOf(element + '-1') == -1);
-        assert.isTrue(deleteButton.classList.contains('hide'));
+        assert.isTrue(footer.classList.contains('hide'));
       }
     });
 
@@ -88,7 +92,7 @@ suite('Render contact form', function() {
       var valueEmail = document.querySelector('#email_0').value;
       assert.isFalse(valueEmail === params.tel);
       assert.equal(valueEmail, '');
-      assert.isTrue(deleteButton.classList.contains('hide'));
+      assert.isTrue(footer.classList.contains('hide'));
     });
 
     test('with email params', function() {
@@ -107,7 +111,7 @@ suite('Render contact form', function() {
       var valueEmail = document.querySelector('#email_0').value;
       assert.isTrue(valueEmail === params.email);
       assert.equal(value, '');
-      assert.isTrue(deleteButton.classList.contains('hide'));
+      assert.isTrue(footer.classList.contains('hide'));
     });
 
     test('with email and tel params', function() {
@@ -127,7 +131,7 @@ suite('Render contact form', function() {
       assert.isTrue(value === params.tel);
       var valueEmail = document.querySelector('#email_0').value;
       assert.isTrue(valueEmail === params.email);
-      assert.isTrue(deleteButton.classList.contains('hide'));
+      assert.isTrue(footer.classList.contains('hide'));
     });
   });
 
@@ -145,7 +149,7 @@ suite('Render contact form', function() {
       assertPhoneData(0);
       assertEmailData(0);
 
-      assert.isFalse(deleteButton.classList.contains('hide'));
+      assert.isFalse(footer.classList.contains('hide'));
 
       // Remove Field icon on photo is present
       var thumbnail = document.querySelector('#thumbnail-action');
@@ -155,12 +159,11 @@ suite('Render contact form', function() {
     test('FB Contact. e-mail, phone and photo from Facebook', function() {
       window.fb.setIsFbContact(true);
 
-      var fbContact = new MockFb.Contact(mockContact);
+      var deviceContact = new MockContactAllFields();
+      var fbContact = new Mockfb.Contact(deviceContact);
       fbContact.getDataAndValues().onsuccess = function() {
-        // Forcing photo comes from FB
-        this.result[1].hasPhoto = true;
-
-        subject.render(mockContact, null, this.result);
+        deviceContact.photo = null;
+        subject.render(deviceContact, null, this.result);
 
         var cont = document.body.innerHTML;
         var toCheck = ['phone', 'email'];
@@ -178,37 +181,69 @@ suite('Render contact form', function() {
         assertPhoneData(0);
         assertEmailData(0);
 
-        assert.isFalse(deleteButton.classList.contains('hide'));
+        assert.isFalse(footer.classList.contains('hide'));
 
         // Remove Field icon photo should not be present
         var thumbnail = document.querySelector('#thumbnail-action');
         assert.isTrue(thumbnail.querySelector('.icon-delete').
                         parentNode.classList.contains('hide'));
-      }
+
+        assert.isTrue(thumbnail.classList.contains('facebook'));
+        assert.isTrue(thumbnail.classList.contains('removed'));
+      };
     });
+
+    test('FB Contact. Address from Facebook', function() {
+      window.fb.setIsFbContact(true);
+
+      var fbContact = new Mockfb.Contact(mockContact);
+      fbContact.getDataAndValues().onsuccess = function() {
+        subject.render(mockContact, null, this.result);
+
+        var content = document.body.innerHTML;
+        var toCheck = ['address'];
+        for (var i = 0; i < toCheck.length; i++) {
+          var element = 'add-' + toCheck[i];
+          assert.isTrue(content.indexOf(element + '-0') > -1);
+          assert.isTrue(content.indexOf(element + '-1') === -1);
+
+          var domElement0 = document.querySelector('#' + element + '-' + '0');
+          assert.isTrue(domElement0.classList.contains('removed') &&
+                        domElement0.classList.contains('facebook'),
+                        'Class Removed and Facebook present');
+          assert.isTrue(domElement0.querySelector('.icon-delete') === null,
+                        'Icon delete not present');
+        }
+
+        assertAddressData(0, this.result[0]);
+
+        assert.isFalse(footer.classList.contains('hide'));
+      };
+    });
+
 
     test('FB Linked. e-mail and phone both from FB and device', function() {
       window.fb.setIsFbContact(true);
       window.fb.setIsFbLinked(true);
 
-      mockContact.tel[1] = {
-        'value': '+34616885989',
-        'type': 'Mobile',
-        'carrier': 'NTT'
-      };
-
-      mockContact.email[1] = {
-        'type': 'work',
-        'value': 'workwithme@tid.es'
-      };
-
-      var fbContact = new MockFb.Contact(mockContact);
+      var fbContact = new Mockfb.Contact(mockContact);
 
       fbContact.getDataAndValues().onsuccess = function() {
+        this.result[0].tel[1] = {
+          'value': '+34616885989',
+          'type': 'Mobile',
+          'carrier': 'NTT'
+        };
+
+        this.result[0].email[1] = {
+          'type': 'work',
+          'value': 'workwithme@tid.es'
+        };
         subject.render(mockContact, null, this.result);
 
         var cont = document.body.innerHTML;
         var toCheck = ['phone', 'email'];
+
         for (var i = 0; i < toCheck.length; i++) {
           var element = 'add-' + toCheck[i];
 
@@ -227,10 +262,27 @@ suite('Render contact form', function() {
         }
 
         for (var c = 0; c < 2; c++) {
-          assertPhoneData(c);
-          assertEmailData(c);
+          assertPhoneData(c, this.result[0]);
+          assertEmailData(c, this.result[0]);
         }
-      }
+      };
+    });
+
+    test('FB Linked. Photo local to the device', function() {
+      window.fb.setIsFbContact(true);
+      window.fb.setIsFbLinked(true);
+
+      var fbContact = new Mockfb.Contact(mockContact);
+      fbContact.getDataAndValues().onsuccess = function() {
+        subject.render(mockContact, null, this.result);
+
+        var thumbnail = document.querySelector('#thumbnail-action');
+        assert.isFalse(thumbnail.querySelector('.icon-delete').
+                        parentNode.classList.contains('hide'));
+
+        assert.isFalse(thumbnail.classList.contains('facebook'));
+        assert.isFalse(thumbnail.classList.contains('removed'));
+      };
     });
   });
 
@@ -245,20 +297,38 @@ suite('Render contact form', function() {
     }
   }
 
-  function assertPhoneData(c) {
+  function assertPhoneData(c, phoneData) {
+    var data = phoneData || mockContact;
+
     var valuePhone = document.querySelector('#number_' + c).value;
     var typePhone = document.querySelector('#tel_type_' + c).textContent;
     var carrierPhone = document.querySelector('#carrier_' + c).value;
-    assert.isTrue(valuePhone === mockContact.tel[c].value);
-    assert.isTrue(typePhone === mockContact.tel[c].type);
-    assert.isTrue(carrierPhone === mockContact.tel[c].carrier);
+    assert.isTrue(valuePhone === data.tel[c].value);
+    assert.isTrue(typePhone === data.tel[c].type);
+    assert.isTrue(carrierPhone === data.tel[c].carrier);
   }
 
-  function assertEmailData(c) {
+  function assertEmailData(c, emailData) {
+    var data = emailData || mockContact;
+
     var valueEmail = document.querySelector('#email_' + c).value;
     var typeEmail = document.querySelector('#email_type_' + c).textContent;
-    assert.isTrue(valueEmail === mockContact.email[c].value);
-    assert.isTrue(typeEmail === mockContact.email[c].type);
+    assert.isTrue(valueEmail === data.email[c].value);
+    assert.isTrue(typeEmail === data.email[c].type);
+  }
+
+  function assertAddressData(c, addrData) {
+    var data = addrData || mockContact;
+
+    var valueType = document.querySelector('#address_type_' + c).textContent;
+    assert.isTrue(valueType === data.adr[c].type[0],
+                  'Type Value as Expected');
+    valueType = document.querySelector('#locality_' + c).value;
+    assert.isTrue(valueType === data.adr[c].locality,
+                  'Type Value as Expected');
+    valueType = document.querySelector('#countryName_' + c).value;
+    assert.isTrue(valueType === data.adr[c].countryName,
+                  'Type Value as Expected');
   }
 
 });

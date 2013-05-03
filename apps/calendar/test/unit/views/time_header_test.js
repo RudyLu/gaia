@@ -1,12 +1,6 @@
 requireCommon('test/synthetic_gestures.js');
 
-requireApp('calendar/test/unit/helper.js', function() {
-  requireLib('models/calendar.js');
-  requireLib('templates/calendar.js');
-  requireLib('views/time_header.js');
-});
-
-suite('views/time_header', function() {
+suiteGroup('Views.TimeHeader', function() {
 
   var subject;
   var app;
@@ -98,6 +92,19 @@ suite('views/time_header', function() {
 
   test('#_updateTitle', function() {
     subject._updateTitle();
+
+    assert.equal(
+      subject.title.dataset.date,
+      controller.position.toString(),
+      'sets element date'
+    );
+
+    assert.equal(
+      subject.title.dataset.l10nDateFormat,
+      subject.scales.month,
+      'sets element scale'
+    );
+
     assert.equal(
       subject.title.textContent,
       subject.getScale('month')
@@ -114,7 +121,7 @@ suite('views/time_header', function() {
 
       subject._updateTitle = function() {
         calledWith = arguments;
-      }
+      };
       // setup initial scale
       subject.render();
       calledWith = null;

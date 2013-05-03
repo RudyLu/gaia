@@ -1425,6 +1425,10 @@ function write (chunk) {
       return this._parse.write(chunk);
     },
 
+    close: function() {
+      this._parse.close();
+    },
+
     get closed() {
       return this._parse.closed;
     },
@@ -2021,6 +2025,7 @@ function write (chunk) {
   Xhr.prototype = {
     globalXhrOptions: null,
     xhrClass: Native,
+    xhr: null,
     method: 'GET',
     async: true,
     waiting: false,
@@ -2031,17 +2036,8 @@ function write (chunk) {
     headers: {},
     data: null,
 
-    _seralize: function _seralize() {
+    _serialize: function _serialize() {
       return this.data;
-    },
-
-    /**
-     * Aborts request if its in progress.
-     */
-    abort: function abort() {
-      if (this.xhr) {
-        this.xhr.abort();
-      }
     },
 
     /**
@@ -2057,56 +2053,109 @@ function write (chunk) {
     },
 
     /**
+     * Aborts the request if it has already been sent.
+     * @param {Function=} cb An optional callback function.
+     */
+    abort: function(cb) {
+      if (this.waiting) {
+        this.xhr.abort();
+        this.waiting = false;
+      }
+
+      if (cb !== undefined) {
+        cb();
+      }
+    },
+
+    /**
      * Sends request to server.
      *
      * @param {Function} callback success/failure handler.
      */
     send: function send(callback) {
-      var header, xhr;
+      var header;
 
       if (typeof(callback) === 'undefined') {
         callback = this.callback;
       }
 
-      if (this.globalXhrOptions) {
-        xhr = new this.xhrClass(this.globalXhrOptions);
-      } else {
-        xhr = new this.xhrClass();
-      }
-
-      this.xhr = xhr;
+      this.xhr = new this.xhrClass(
+          this.globalXhrOptions ? this.globalXhrOptions : undefined);
 
       // This hack is in place due to some platform
       // bug in gecko when using mozSystem xhr
       // the credentials only seem to work as expected
       // when constructing them manually.
       if (!this.globalXhrOptions || !this.globalXhrOptions.mozSystem) {
-        xhr.open(this.method, this.url, this.async, this.user, this.password);
+        this.xhr.open(
+            this.method, this.url, this.async, this.user, this.password);
       } else {
-        xhr.open(this.method, this.url, this.async);
-        xhr.setRequestHeader('Authorization', this._credentials(
+        this.xhr.open(this.method, this.url, this.async);
+        this.xhr.setRequestHeader('Authorization', this._credentials(
           this.user,
           this.password
         ));
       }
 
+      var useMozChunkedText = false;
+      if (this.globalXhrOptions && this.globalXhrOptions.useMozChunkedText) {
+        useMozChunkedText = true;
+        this.xhr.responseType = 'moz-chunked-text';
+      }
+
       for (header in this.headers) {
         if (Object.hasOwnProperty.call(this.headers, header)) {
-          xhr.setRequestHeader(header, this.headers[header]);
+          this.xhr.setRequestHeader(header, this.headers[header]);
         }
       }
 
-      xhr.onreadystatechange = function onReadyStateChange() {
-        var data;
-        if (xhr.readyState === 4) {
-          data = xhr.responseText;
-          this.waiting = false;
-          callback(null, xhr);
+
+      var hasProgressEvents = false;
+
+      // check for progress event support.
+      if ('onprogress' in this.xhr) {
+        hasProgressEvents = true;
+        var last = 0;
+
+        if (useMozChunkedText) {
+          this.xhr.onprogress = (function onChunkedProgress(event) {
+            if (this.ondata) {
+              this.ondata(this.xhr.responseText);
+            }
+          }.bind(this));
+        } else {
+          this.xhr.onprogress = (function onProgress(event) {
+            var chunk = this.xhr.responseText.substr(last, event.loaded);
+            last = event.loaded;
+            if (this.ondata) {
+              this.ondata(chunk);
+            }
+          }.bind(this));
         }
-      }.bind(this);
+      }
+
+      this.xhr.onreadystatechange = (function onReadyStateChange() {
+        var data;
+        if (this.xhr.readyState === 4) {
+          data = this.xhr.responseText;
+
+          // emulate progress events for node...
+          // this really lame we should probably just
+          // use a real http request for node but this
+          // will let us do some testing via node for now.
+          if (!hasProgressEvents && this.ondata) {
+            this.ondata(data);
+          }
+
+          this.waiting = false;
+          callback(null, this.xhr);
+        }
+      }.bind(this));
 
       this.waiting = true;
-      xhr.send(this._seralize());
+      this.xhr.send(this._serialize());
+
+      return this.xhr;
     }
   };
 
@@ -2464,12 +2513,10 @@ function write (chunk) {
       'DAV:/status': HttpStatusHandler,
       'DAV:/resourcetype': ArrayHandler,
       'DAV:/current-user-privilege-set': PrivilegeSet,
-      'DAV:/principal-URL': HrefHandler,
-      'DAV:/current-user-principal': HrefHandler,
       'urn:ietf:params:xml:ns:caldav/calendar-data': CalendarDataHandler,
       'DAV:/value': TextHandler,
       'DAV:/owner': HrefHandler,
-      'DAV:/getetag': HrefHandler,
+      'DAV:/getetag': TextHandler,
       'DAV:/displayname': TextHandler,
       'urn:ietf:params:xml:ns:caldav/calendar-home-set': HrefHandler,
       'urn:ietf:params:xml:ns:caldav/calendar-timezone': TextHandler,
@@ -2559,9 +2606,58 @@ function write (chunk) {
 ));
 (function(module, ns) {
 
+  function CaldavHttpError(code) {
+    this.code = code;
+    var message;
+    switch(this.code) {
+      case 401:
+        message = 'Wrong username or/and password';
+        break;
+      case 404:
+        message = 'Url not found';
+        break;
+      case 500:
+        message = 'Server error';
+        break;
+      default:
+        message = this.code;
+    }
+    Error.call(this, message);
+  }
+
+  CaldavHttpError.prototype = {
+    __proto__: Error.prototype,
+    constructor: CaldavHttpError
+  }
+
+  // Unauthenticated error for 
+  // Google Calendar
+  function UnauthenticatedError() {
+    var message = "Wrong username or/and password";
+    Error.call(this, message);
+  }
+
+  UnauthenticatedError.prototype = {
+    __proto__: Error.prototype,
+    constructor: UnauthenticatedError
+  }
+
+  module.exports = {
+    CaldavHttpError: CaldavHttpError,
+    UnauthenticatedError: UnauthenticatedError
+  };
+
+}.apply(
+  this,
+  (this.Caldav) ?
+    [Caldav('request/errors'), Caldav] :
+    [module, require('../caldav')]
+));
+(function(module, ns) {
+
   var SAX = ns.require('sax');
   var XHR = ns.require('xhr');
-
+  var Errors = ns.require('request/errors');
 
   /**
    * Creates an (Web/Cal)Dav request.
@@ -2613,24 +2709,31 @@ function write (chunk) {
      * @param {Function} callback node style callback.
      *                            Receives three arguments
      *                            error, parsedData, xhr.
+     * @return {Caldav.Xhr} The xhr request so that the caller
+     *                      has a chance to abort the request.
      */
     send: function(callback) {
       var self = this;
       var req = this.xhr;
       req.data = this._createPayload();
 
+      req.ondata = function xhrOnData(chunk) {
+        self.sax.write(chunk);
+      };
+
       // in the future we may stream data somehow
-      req.send(function xhrResult() {
-        var xhr = req.xhr;
+      req.send(function xhrResult(err, xhr) {
         if (xhr.status > 199 && xhr.status < 300) {
           // success
-          self.sax.write(xhr.responseText).close();
+          self.sax.close();
           self._processResult(req, callback);
         } else {
           // fail
-          callback(new Error('http error code: ' + xhr.status));
+          callback(new Errors.CaldavHttpError(xhr.status));
         }
       });
+
+      return req;
     }
   };
 
@@ -2715,6 +2818,8 @@ function write (chunk) {
      *
      * @param {Object} [options] calendar options.
      * @param {Function} callback node style [err, data, xhr].
+     * @return {Caldav.Xhr} The underlying xhr request so that the caller
+     *                      has a chance to abort the request.
      */
     get: function(options, callback) {
       if (typeof(options) === 'function') {
@@ -2724,7 +2829,7 @@ function write (chunk) {
 
       var req = this._buildRequest('GET', options);
 
-      req.send(function(err, xhr) {
+      return req.send(function(err, xhr) {
         callback(err, xhr.responseText, xhr);
       });
     },
@@ -2735,6 +2840,8 @@ function write (chunk) {
      * @param {Object} [options] see get.
      * @param {String} data post content.
      * @param {Function} callback node style [err, data, xhr].
+     * @return {Caldav.Xhr} The underlying xhr request so that the caller
+     *                      has a chance to abort the request.
      */
     put: function(options, data, callback) {
       if (typeof(options) === 'string') {
@@ -2750,7 +2857,7 @@ function write (chunk) {
       var req = this._buildRequest('PUT', options);
       req.data = data;
 
-      req.send(function(err, xhr) {
+      return req.send(function(err, xhr) {
         callback(err, xhr.responseText, xhr);
       });
     },
@@ -2760,6 +2867,8 @@ function write (chunk) {
      *
      * @param {Object} [options] see get.
      * @param {Function} callback node style [err, data, xhr].
+     * @return {Caldav.Xhr} The underlying xhr request so that the caller
+     *                      has a chance to abort the request.
      */
     delete: function(options, callback) {
       if (typeof(options) === 'function') {
@@ -2769,7 +2878,7 @@ function write (chunk) {
 
       var req = this._buildRequest('DELETE', options);
 
-      req.send(function(err, xhr) {
+      return req.send(function(err, xhr) {
         callback(err, xhr.responseText, xhr);
       });
     }
@@ -2956,6 +3065,8 @@ function write (chunk) {
 ));
 (function(module, ns) {
 
+  var Errors = ns.require('request/errors');
+  
   /**
    * Creates a propfind request.
    *
@@ -3006,6 +3117,10 @@ function write (chunk) {
 
     Propfind: ns.require('request/propfind'),
 
+    /**
+     * @return {Caldav.Xhr} The underlying xhr request so that the caller
+     *                      has a chance to abort the request.
+     */
     _findPrincipal: function(url, callback) {
       var find = new this.Propfind(this.connection, {
         url: url
@@ -3014,7 +3129,7 @@ function write (chunk) {
       find.prop('current-user-principal');
       find.prop('principal-URL');
 
-      find.send(function(err, data) {
+      return find.send(function(err, data) {
         var principal;
 
         if (err) {
@@ -3027,8 +3142,14 @@ function write (chunk) {
         if (!principal) {
           principal = findProperty('principal-URL', data, true);
         }
-
-        callback(null, principal);
+        
+        if ('unauthenticated' in principal) {
+          callback(new Errors.UnauthenticatedError());          
+        } else if (principal.href){
+          callback(null, principal.href);
+        } else {
+          callback(new Errors.CaldavHttpError(404));
+        }
       });
     },
 
@@ -3040,7 +3161,7 @@ function write (chunk) {
 
       find.prop(['caldav', 'calendar-home-set']);
 
-      find.send(function(err, data) {
+      return find.send(function(err, data) {
         if (err) {
           callback(err);
           return;
@@ -3059,13 +3180,15 @@ function write (chunk) {
      *
      * @param {Function} callback node style where second argument
      *                            are the details of the home calendar.
+     * @return {Caldav.Xhr} The underlying xhr request so that the caller
+     *                      has a chance to abort the request.
      */
     send: function(callback) {
       var self = this;
-      self._findPrincipal(self.url, function(err, url) {
+      return self._findPrincipal(self.url, function(err, url) {
 
         if (!url) {
-          callback(new Error('Cannot resolve principal url'));
+          callback(err);
           return;
         }
 
@@ -3382,4 +3505,3 @@ function write (chunk) {
     [Caldav, Caldav] :
     [module, require('./caldav')]
 ));
-

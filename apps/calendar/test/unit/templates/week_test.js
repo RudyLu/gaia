@@ -1,9 +1,4 @@
-requireApp('calendar/test/unit/helper.js', function() {
-  requireLib('template.js');
-  requireLib('templates/week.js');
-});
-
-suite('templates/week', function() {
+suiteGroup('Templates.Week', function() {
   var subject;
 
   suiteSetup(function() {
@@ -39,19 +34,19 @@ suite('templates/week', function() {
 
   test('#event', function() {
     var calId = 'calid';
-    var eventId = 'eventId';
+    var busytimeId = 'busyid';
     var title = 'foo';
 
     var result = subject.event.render({
       calendarId: calId,
-      eventId: eventId,
+      busytimeId: busytimeId,
       title: title
     });
 
     assert.ok(result, 'has html');
 
     assert.include(result, calId, 'has calendarId');
-    assert.include(result, eventId, 'has eventId');
+    assert.include(result, busytimeId, 'has busytime id');
     assert.include(result, title, 'has title');
   });
 
@@ -59,6 +54,11 @@ suite('templates/week', function() {
     var result = subject.header.render('foo');
     assert.ok(result);
     assert.include(result, 'foo');
+  });
+
+  test('#frame', function() {
+    var result = subject.frame.render();
+    assert.ok(result);
   });
 
 });

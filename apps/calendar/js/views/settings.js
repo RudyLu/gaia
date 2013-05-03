@@ -6,13 +6,16 @@
   function Settings(options) {
     Calendar.View.apply(this, arguments);
 
-    this._initEvents();
     this._hideSettings = this._hideSettings.bind(this);
-    this.syncProgressTarget = document.body;
+    this._updateTimeouts = Object.create(null);
+
+    this._observeUI();
   }
 
   Settings.prototype = {
     __proto__: _super,
+
+    waitBeforePersist: 600,
 
     /**
      * Local update is a flag
@@ -26,8 +29,6 @@
      * Name of the class that will be applied to the
      * body element when sync is in progress.
      */
-    syncClass: 'sync-in-progress',
-
     selectors: {
       element: '#settings',
       calendars: '#settings .calendars',
@@ -65,73 +66,80 @@
         case 'remove':
           this._remove.apply(this, event.data);
           break;
-
-        // hide sync button
-        case 'sync start':
-          this.syncProgressTarget.classList.add(this.syncClass);
-          break;
-
-        // show sync button
-        case 'sync complete':
-          this.syncProgressTarget.classList.remove(this.syncClass);
-          break;
       }
     },
 
-    _initEvents: function() {
+    _observeUI: function() {
+      this.syncButton.addEventListener('click', this._onSyncClick.bind(this));
+
+      this.calendars.addEventListener(
+        'change', this._onCalendarDisplayToggle.bind(this)
+      );
+    },
+
+    _observeStore: function() {
       var store = this.app.store('Calendar');
 
       // calendar store events
       store.on('update', this);
       store.on('add', this);
       store.on('remove', this);
+    },
 
-      // sync controller events
-      var controller = this.app.syncController;
-      controller.on('sync start', this);
-      controller.on('sync complete', this);
+    _persistCalendarDisplay: function(id, displayed) {
+      var store = this.app.store('Calendar');
+      var self = this;
 
-      // dom events
-      this.syncButton.addEventListener('click', this._onSyncClick.bind(this));
-      this.calendars.addEventListener(
-        'change', this._onCalendarDisplayToggle.bind(this)
-      );
+      // clear timeout id
+      delete this._updateTimeouts[id];
 
-      var el = document.getElementById('time-views');
+      function persist(err, id, model) {
+        if (err) {
+          console.log('View.Setting cannot save calendar', err);
+          return;
+        }
+
+        if (self.ondisplaypersist) {
+          self.ondisplaypersist(model);
+        }
+      }
+
+      function fetch(err, calendar) {
+        if (err) {
+          console.log('View.Setting cannot fetch calendar', id);
+          return;
+        }
+
+        calendar.localDisplayed = displayed;
+        store.persist(calendar, persist);
+      }
+
+      store.get(id, fetch);
     },
 
     _onCalendarDisplayToggle: function(e) {
-      // Possible race conditions on save
-      // 1. get calendar
       var input = e.target;
-      var store = Calendar.App.store('Calendar');
-      var model = store.cached[input.value];
       var self = this;
+      var id = input.value;
+      var timeoutId = this._updateTimeouts[id];
 
-      model.localDisplayed = !!input.checked;
-      store.persist(model, function() {
-        // OK to avoid race conditions
-        // and unnecessary update calls we mark
-        // the view as _localUpdate and make our changes.
-        // we also add a once event for 'persist' to later
-        // turn this back off after all events have triggered.
-        self._localUpdate = true;
-        store.once('persist', function() {
-          self._localUpdate = false;
-        });
-      });
+      if (this._updateTimeouts[id]) {
+        clearTimeout(this._updateTimeouts[id]);
+      }
+
+      this._updateTimeouts[id] = setTimeout(
+        this._persistCalendarDisplay.bind(this, id, !!input.checked),
+        this.waitBeforePersist
+      );
     },
 
     _onSyncClick: function() {
-      // trigger the sync the sync start/complete events
+      // trigger the sync the syncStart/complete events
       // will hide/show the button.
-      this.app.syncController.sync();
+      this.app.syncController.all();
     },
 
     _update: function(id, model) {
-      if (this._localUpdate)
-        return;
-
       var htmlId = 'calendar-' + id;
       var el = document.getElementById(htmlId);
       var check = el.querySelector('input[type="checkbox"]');
@@ -157,18 +165,33 @@
     },
 
     render: function() {
-      var list = this.calendars;
       var store = this.app.store('Calendar');
-      var key;
-      var html = '';
 
-      for (key in store.cached) {
-        html += template.item.render(
-          store.cached[key]
-        );
-      }
+      store.all(function(err, calendars) {
+        if (err) {
+          console.log(
+            'Error fetching calendars in View.Settings'
+          );
+          return;
+        }
 
-      list.innerHTML = html;
+        // clear list of calendars
+        this.calendars.innerHTML = '';
+
+        // append each calendar
+        var id;
+        for (id in calendars) {
+          this._add(id, calendars[id]);
+        }
+
+        // observe new calendar events
+        this._observeStore();
+
+        if (this.onrender) {
+          this.onrender();
+        }
+
+      }.bind(this));
     },
 
     /**

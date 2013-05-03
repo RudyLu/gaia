@@ -1,42 +1,40 @@
-form[role="dialog"] h1 {
-  font-size: 1.3rem;
+html {
+  font: 10px/2em "MozTT", Sans-serif;
+}
+#pair-view div {
+  font-size: 1.7rem;
 }
 
-form[role="dialog"] p {
-  font-size: 50%;
+#pair-view #pair-description {
+  font-size: 1.4rem;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
 }
 
-form[role="dialog"] p small {
-  font-size: 1.0rem;
+#pair-view #device-info #label-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-form[role="dialog"] p strong {
-  font-size: 1.6rem;
+#pair-view .pair-method {
+  text-align: center;
+  font-size: 1.9rem;
 }
 
-form[role="dialog"] p input {
-  font-size: 1.6rem;
-}
-
-form[role="dialog"] menu {
-  padding: 1rem;
-}
-
-form[role="dialog"] menu button {
-  height: 2.8rem;
-  line-height: 2.8rem;
-}
-
-#alert-view menu button {
-  width: 100%;
+#pair-view .pair-method input {
+  font-size: 1.5rem;
 }
 
 #device-info {
   background-repeat: no-repeat;
-  background-position: left center;
-  padding-left: 2rem;
+  background-position: left 0rem top 50%;
+  padding-left: 3rem;
 }
 
-.bluetooth-default { 
-  background-image: url(images/settings_bluetooth.png); 
+.bluetooth-default {
+  /* https://bugzilla.mozilla.org/show_bug.cgi?id=853693 */
+  /* need a transparent background of icons_sprite.gif */
 }
+

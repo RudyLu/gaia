@@ -4,28 +4,49 @@
 'use strict';
 
 /**
- * Open a URL with a web activity
+ * Constants
  */
+var DEBUG = false;
 
-function openURL(url) {
-  var a = new MozActivity({
-    name: 'view',
-    data: { type: 'url', url: url }
-  });
+/**
+ * Debug method
+ */
+function debug(msg, optObject) {
+  if (DEBUG) {
+    var output = '[DEBUG # Settings] ' + msg;
+    if (optObject) {
+      output += JSON.stringify(optObject);
+    }
+    console.log(output);
+  }
 }
 
 /**
- * Dial a number with a web activity
+ * Move settings to foreground
+ */
+function reopenSettings() {
+  navigator.mozApps.getSelf().onsuccess = function getSelfCB(evt) {
+    var app = evt.target.result;
+    app.launch('settings');
+  };
+}
+
+/**
+ * Open a link with a web activity
  */
 
-function dialNumber(number) {
-  var a = new MozActivity({
-    name: 'dial',
-    data: {
-      type: 'webtelephony/number',
-      number: number
-    }
-  });
+function openLink(url) {
+  if (url.startsWith('tel:')) { // dial a phone number
+    new MozActivity({
+      name: 'dial',
+      data: { type: 'webtelephony/number', number: url.substr(4) }
+    });
+  } else if (!url.startsWith('#')) { // browse a URL
+    new MozActivity({
+      name: 'view',
+      data: { type: 'url', url: url }
+    });
+  }
 }
 
 /**
@@ -35,6 +56,9 @@ function dialNumber(number) {
  */
 
 function openDialog(dialogID, onSubmit, onReset) {
+  if ('#' + dialogID == document.location.hash)
+    return;
+
   var origin = document.location.hash;
   var dialog = document.getElementById(dialogID);
 
@@ -64,29 +88,34 @@ function openDialog(dialogID, onSubmit, onReset) {
  * First click = play, second click = pause.
  */
 
-function audioPreview(element) {
+function audioPreview(element, type) {
   var audio = document.querySelector('#sound-selection audio');
   var source = audio.src;
   var playing = !audio.paused;
 
-  audio.src = 'style/ringtones/' + element.querySelector('input').value;
-  if (source == audio.src && playing) {
-    audio.stop();
+  // Both ringer and notification are using notification channel
+  audio.mozAudioChannelType = 'notification';
+
+  var url = '/shared/resources/media/' + type + '/' +
+            element.querySelector('input').value;
+  audio.src = url;
+  if (source === audio.src && playing) {
+    audio.pause();
+    audio.src = '';
   } else {
     audio.play();
   }
 }
 
 /**
- * Helper class providing some functions for formatting file size strings
+ * Helper class for formatting file size strings
+ * required by *_storage.js
  */
 
 var FileSizeFormatter = (function FileSizeFormatter(fixed) {
-  // in: size in Bytes
-  function getReadableFileSize(size, digits) {
-    if (digits === undefined) {
-      digits = 0;
-    }
+  function getReadableFileSize(size, digits) { // in: size in Bytes
+    if (size === undefined)
+      return {};
 
     var units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
     var i = 0;
@@ -95,7 +124,7 @@ var FileSizeFormatter = (function FileSizeFormatter(fixed) {
       ++i;
     }
 
-    var sizeString = size.toFixed(digits);
+    var sizeString = size.toFixed(digits || 0);
     var sizeDecimal = parseFloat(sizeString);
 
     return {
@@ -104,9 +133,68 @@ var FileSizeFormatter = (function FileSizeFormatter(fixed) {
     };
   }
 
+  return { getReadableFileSize: getReadableFileSize };
+})();
+
+/**
+ * Helper class for getting available/used storage
+ * required by *_storage.js
+ */
+
+var DeviceStorageHelper = (function DeviceStorageHelper() {
+  function getStat(type, callback) {
+    var deviceStorage = navigator.getDeviceStorage(type);
+
+    if (!deviceStorage) {
+      console.error('Cannot get DeviceStorage for: ' + type);
+      return;
+    }
+    deviceStorage.freeSpace().onsuccess = function(e) {
+      var freeSpace = e.target.result;
+      deviceStorage.usedSpace().onsuccess = function(e) {
+        var usedSpace = e.target.result;
+        callback(usedSpace, freeSpace, type);
+      };
+    };
+  }
+
+  function getStats(types, callback) {
+    var results = {};
+
+    var current = types.length;
+
+    for (var i = 0; i < types.length; i++) {
+      getStat(types[i], function(totalBytes, freeBytes, type) {
+
+        results[type] = totalBytes;
+        results['free'] = freeBytes;
+        current--;
+        if (current == 0)
+          callback(results);
+
+      });
+    }
+  }
+
+  function getFreeSpace(callback) {
+    var deviceStorage = navigator.getDeviceStorage('sdcard');
+
+    if (!deviceStorage) {
+      console.error('Cannot get free space size in sdcard');
+      return;
+    }
+    deviceStorage.freeSpace().onsuccess = function(e) {
+      var freeSpace = e.target.result;
+      callback(freeSpace);
+    };
+  }
+
   return {
-    getReadableFileSize: getReadableFileSize
+    getStat: getStat,
+    getStats: getStats,
+    getFreeSpace: getFreeSpace
   };
+
 })();
 
 /**
@@ -119,7 +207,15 @@ function bug344618_polyfill() {
   var range = document.createElement('input');
   range.type = 'range';
   if (range.type == 'range') {
+    // In some future version of gaia that will only be used with gecko v23+,
+    // we can remove the bug344618_polyfill stuff.
     console.warn("bug344618 has landed, there's some dead code to remove.");
+    var sel = 'label:not(.without_bug344618_polyfill) > input[type="range"]';
+    var ranges = document.querySelectorAll(sel);
+    for (var i = 0; i < ranges.length; i++) {
+      var label = ranges[i].parentNode;
+      label.classList.add('without_bug344618_polyfill');
+    }
     return; // <input type="range"> is already supported, early way out.
   }
 
@@ -213,7 +309,6 @@ function bug344618_polyfill() {
     slider.onmousedown = onClick;
     thumb.onmousedown = onDragStart;
     label.onmousemove = onDragMove;
-    label.onmouseout = onDragStop;
     label.onmouseup = onDragStop;
 
     // expose the 'refresh' method on <input>
@@ -222,9 +317,215 @@ function bug344618_polyfill() {
   };
 
   // apply to all input[type="range"] elements
-  var ranges = document.querySelectorAll('label > input[type="range"]');
+  var selector = 'label:not(.bug344618_polyfill) > input[type="range"]';
+  var ranges = document.querySelectorAll(selector);
   for (var i = 0; i < ranges.length; i++) {
     polyfill(ranges[i]);
   }
 }
 
+/**
+ * Connectivity accessors
+ */
+
+// create a fake mozMobileConnection if required (e.g. desktop browser)
+var getMobileConnection = function() {
+  var navigator = window.navigator;
+  if (('mozMobileConnection' in navigator) &&
+      navigator.mozMobileConnection &&
+      navigator.mozMobileConnection.data)
+    return navigator.mozMobileConnection;
+
+  var initialized = false;
+  var fakeICCInfo = { shortName: 'Fake Free-Mobile', mcc: '208', mnc: '15' };
+  var fakeNetwork = { shortName: 'Fake Orange F', mcc: '208', mnc: '1' };
+  var fakeVoice = {
+    state: 'notSearching',
+    roaming: true,
+    connected: true,
+    emergencyCallsOnly: false
+  };
+
+  function fakeEventListener(type, callback, bubble) {
+    if (initialized)
+      return;
+
+    // simulates a connection to a data network;
+    setTimeout(function fakeCallback() {
+      initialized = true;
+      callback();
+    }, 5000);
+  }
+
+  return {
+    addEventListener: fakeEventListener,
+    iccInfo: fakeICCInfo,
+    get data() {
+      return initialized ? { network: fakeNetwork } : null;
+    },
+    get voice() {
+      return initialized ? fakeVoice : null;
+    }
+  };
+};
+
+var getBluetooth = function() {
+  var navigator = window.navigator;
+  if ('mozBluetooth' in navigator)
+    return navigator.mozBluetooth;
+  return {
+    enabled: false,
+    addEventListener: function(type, callback, bubble) {},
+    onenabled: function(event) {},
+    onadapteradded: function(event) {},
+    ondisabled: function(event) {},
+    getDefaultAdapter: function() {}
+  };
+};
+
+// create a fake mozWifiManager if required (e.g. desktop browser)
+var getWifiManager = function() {
+  var navigator = window.navigator;
+  if ('mozWifiManager' in navigator)
+    return navigator.mozWifiManager;
+
+  /**
+   * fake network list, where each network object looks like:
+   * {
+   *   ssid              : SSID string (human-readable name)
+   *   bssid             : network identifier string
+   *   capabilities      : array of strings (supported authentication methods)
+   *   relSignalStrength : 0-100 signal level (integer)
+   *   connected         : boolean state
+   * }
+   */
+
+  var fakeNetworks = {
+    'Mozilla-G': {
+      ssid: 'Mozilla-G',
+      bssid: 'xx:xx:xx:xx:xx:xx',
+      capabilities: ['WPA-EAP'],
+      relSignalStrength: 67,
+      connected: false
+    },
+    'Livebox 6752': {
+      ssid: 'Livebox 6752',
+      bssid: 'xx:xx:xx:xx:xx:xx',
+      capabilities: ['WEP'],
+      relSignalStrength: 32,
+      connected: false
+    },
+    'Mozilla Guest': {
+      ssid: 'Mozilla Guest',
+      bssid: 'xx:xx:xx:xx:xx:xx',
+      capabilities: [],
+      relSignalStrength: 98,
+      connected: false
+    },
+    'Freebox 8953': {
+      ssid: 'Freebox 8953',
+      bssid: 'xx:xx:xx:xx:xx:xx',
+      capabilities: ['WPA2-PSK'],
+      relSignalStrength: 89,
+      connected: false
+    }
+  };
+
+  function getFakeNetworks() {
+    var request = { result: fakeNetworks };
+
+    setTimeout(function() {
+      if (request.onsuccess) {
+        request.onsuccess();
+      }
+    }, 1000);
+
+    return request;
+  }
+
+  return {
+    // true if the wifi is enabled
+    enabled: false,
+    macAddress: 'xx:xx:xx:xx:xx:xx',
+
+    // enables/disables the wifi
+    setEnabled: function fakeSetEnabled(bool) {
+      var self = this;
+      var request = { result: bool };
+
+      setTimeout(function() {
+        if (request.onsuccess) {
+          request.onsuccess();
+        }
+        if (bool) {
+          self.onenabled();
+        } else {
+          self.ondisabled();
+        }
+      });
+
+      self.enabled = bool;
+      return request;
+    },
+
+    // returns a list of visible/known networks
+    getNetworks: getFakeNetworks,
+    getKnownNetworks: getFakeNetworks,
+
+    // selects a network
+    associate: function fakeAssociate(network) {
+      var self = this;
+      var connection = { result: network };
+      var networkEvent = { network: network };
+
+      setTimeout(function fakeConnecting() {
+        self.connection.network = network;
+        self.connection.status = 'connecting';
+        self.onstatuschange(networkEvent);
+      }, 0);
+
+      setTimeout(function fakeAssociated() {
+        self.connection.network = network;
+        self.connection.status = 'associated';
+        self.onstatuschange(networkEvent);
+      }, 1000);
+
+      setTimeout(function fakeConnected() {
+        network.connected = true;
+        self.connected = network;
+        self.connection.network = network;
+        self.connection.status = 'connected';
+        self.onstatuschange(networkEvent);
+      }, 2000);
+
+      return connection;
+    },
+
+    // forgets a network (disconnect)
+    forget: function fakeForget(network) {
+      var self = this;
+      var networkEvent = { network: network };
+
+      setTimeout(function() {
+        network.connected = false;
+        self.connected = null;
+        self.connection.network = null;
+        self.connection.status = 'disconnected';
+        self.onstatuschange(networkEvent);
+      }, 0);
+    },
+
+    // event listeners
+    onenabled: function(event) {},
+    ondisabled: function(event) {},
+    onstatuschange: function(event) {},
+
+    // returns a network object for the currently connected network (if any)
+    connected: null,
+
+    connection: {
+      status: 'disconnected',
+      network: null
+    }
+  };
+};

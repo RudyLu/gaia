@@ -4,21 +4,30 @@
 
   function CreateAccount(options) {
     Calendar.View.apply(this, arguments);
+    this.cancel = this.cancel.bind(this);
     this._initEvents();
   }
 
   CreateAccount.prototype = {
     __proto__: Calendar.View.prototype,
 
+    _changeToken: 0,
+
     presets: Calendar.Presets,
+
 
     selectors: {
       element: '#create-account-view',
-      accounts: '#create-account-presets'
+      accounts: '#create-account-presets',
+      cancelButton: '#create-account-view .cancel'
     },
 
     get accounts() {
       return this._findElement('accounts');
+    },
+
+    get cancelButton() {
+      return this._findElement('cancelButton');
     },
 
     _initEvents: function() {
@@ -33,27 +42,46 @@
 
       store.on('remove', render);
       store.on('add', render);
+
+      this.cancelButton.addEventListener('click', this.cancel);
     },
 
     render: function() {
-      var list = this.presets;
+      var presets = this.presets;
       var store = this.app.store('Account');
-      var output;
+      var listElement = this.accounts;
+      var currentToken = ++this._changeToken;
 
-      this.accounts.innerHTML = '';
+      listElement.innerHTML = '';
 
-      Object.keys(list).forEach(function(preset) {
-        var obj = list[preset];
+      function renderPreset(presetName) {
+        listElement.insertAdjacentHTML(
+          'beforeend',
+          template.provider.render({ name: presetName })
+        );
+      }
 
-        if (obj.singleUse) {
-          if (store.presetActive(preset)) {
-            return;
-          }
+      store.availablePresets(presets, function(err, available) {
+        if (this._changeToken !== currentToken) {
+          // another render call takes priority over this one.
+          return;
         }
 
-        output = template.provider.render({ name: preset });
-        this.accounts.insertAdjacentHTML('beforeend', output);
-      }, this);
+        if (err) {
+          console.log('Error displaying presets', err);
+          return;
+        }
+
+        available.forEach(renderPreset);
+
+        if (this.onrender)
+          this.onrender();
+
+      }.bind(this));
+    },
+
+    cancel: function() {
+      window.back();
     }
   };
 

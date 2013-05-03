@@ -9,17 +9,19 @@ function create(tagName, parent, props, callback, adjacentNode) {
     }
     if (callback && tagName == 'script'){
         var loaded = false;
-        var loadFunction = function(){
+        
+        function onLoad(){
             if (loaded) {
                 return;
             }
             loaded=true;
             callback();
-        };
-        o.onload = loadFunction;
-        o.onreadystatechange = function(){
+        }
+        
+        o.onload = onLoad;
+        o.onreadystatechange = function onReadyStateChange(){
             if (this.readyState == 'loaded'){
-                loadFunction();
+                onLoad();
             }
         };
     }
@@ -37,20 +39,20 @@ function create(tagName, parent, props, callback, adjacentNode) {
 
 function parseQuery() {
     var r = {};
-   (location.search || '').replace(/(?:[?&]|^)([^=]+)=([^&]*)/g, function(ig, k, v) {r[k] = v;});
+   (location.search || '').replace(/(?:[?&]|^)([^=]+)=([^&]*)/g, function regexMatch(ig, k, v) {r[k] = v;});
    return r;
 }
 
 function proxify(origObj,proxyObj,funkList){
-    var replaceFunk = function(org,proxy,fName)
-    {
-        org[fName] = function()
-        {
-           return proxy[fName].apply(proxy,arguments);
+    function replaceFunk(org,proxy,fName) {
+        org[fName] = function applier() {
+           return proxy[fName].apply(proxy, arguments);
         };
-    };
+    }
 
-    for(var v in funkList) {replaceFunk(origObj,proxyObj,funkList[v]);}
+    for(var v in funkList) {
+    	replaceFunk(origObj, proxyObj, funkList[v]);
+	}
 }
 
 function unique(a) {
@@ -86,48 +88,6 @@ function trim(str){
         return str.replace(/^\s+|\s+$/g, '');
     }
 }
-
-var Logger = function(){
-    function getLoggerLevel(){
-    	if (/http:\/\/.+\.(loc)\.flyapps\.me\//.test(location.href) || /http:\/\/loc\.flyapps\.me\//.test(location.href) || /http:\/\/.+test\.flyapps\.me\//.test(location.href)){
-            return Log.DEBUG;
-        }
-        else if (/http:\/\/.+\.(stg|test)\.flyapps\.me\//.test(location.href)){
-            return Log.INFO;
-        }
-        else if (/http:\/\/.+\.flyapps\.me\//.test(location.href) || /http:\/\/everything\.me\//.test(location.href)){
-            return Log.ERROR;
-        }
-        return Log.DEBUG;
-    }
-
-    function getLoggerOutput(){
-        var loggerOutput = parseQuery()['doatloggeroutput'];
-        if (loggerOutput){
-            switch (loggerOutput){
-                case 'console':
-                    return Log.consoleLogger;
-                    break;
-                case 'inline':
-                    return Log.writeLogger;
-                    break;
-                case 'alert':
-                    return Log.alertLogger;
-                    break;
-                case 'popup':
-                    return Log.popupLogger;
-                    break;
-                default:
-                    if (window[loggerOutput]){
-                        return window[loggerOutput]
-                    }
-            }
-        }
-        return Log.consoleLogger;
-    }
-
-    return new Log(getLoggerLevel(), getLoggerOutput());
-};
 
 function addListener(){
     if (typeof arguments[0] === 'string'){

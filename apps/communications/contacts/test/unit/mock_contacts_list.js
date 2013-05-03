@@ -4,6 +4,7 @@
   return [
     {
       'id': '1',
+      'updated': new Date(),
       'additionalName': [''],
       'adr': [
         {
@@ -29,7 +30,7 @@
       'org': ['Test'],
       'tel': [
         {
-          'value': '+346578888888',
+          'value': '+346578888881',
           'type': 'Mobile',
           'carrier': 'TEF'
         }
@@ -42,6 +43,7 @@
     },
     {
       'id': '2',
+      'updated': new Date(),
       'additionalName': [''],
       'adr': [
         {
@@ -67,7 +69,7 @@
       'org': ['Test'],
       'tel': [
         {
-          'value': '+346578888888',
+          'value': '+346578888882',
           'type': 'Mobile',
           'carrier': 'TEF'
         }
@@ -80,6 +82,7 @@
     },
     {
       'id': '3',
+      'updated': new Date(),
       'additionalName': [''],
       'adr': [
         {
@@ -105,7 +108,7 @@
       'org': ['Test'],
       'tel': [
         {
-          'value': '+346578888888',
+          'value': '+346578888883',
           'type': 'Mobile',
           'carrier': 'TEF'
         }

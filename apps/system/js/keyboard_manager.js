@@ -1,67 +1,94 @@
 'use strict';
 
 var KeyboardManager = (function() {
-  // XXX TODO: Retrieve it from Settings, allowing 3rd party keyboards
-  var host = document.location.host;
-  var domain = host.replace(/(^[\w\d]+\.)?([\w\d]+\.[a-z]+)/, '$2');
+  function getKeyboardURL() {
+    // TODO: Retrieve it from Settings, allowing 3rd party keyboards
+    var host = document.location.host;
+    var domain = host.replace(/(^[\w\d]+\.)?([\w\d]+\.[a-z]+)/, '$2');
+    var protocol = document.location.protocol;
 
-  var keyboardURL = document.location.protocol + '//keyboard.' + domain;
-  if (keyboardURL.substring(0, 6) == 'app://') { // B2G bug 773884
-    keyboardURL += '/index.html';
+    return protocol + '//keyboard.' + domain + '/';
   }
 
-  var dispatchEvent = function km_dispatchEvent(name, data) {
-    var evt = document.createEvent('CustomEvent');
-    evt.initCustomEvent(name, true, true, data);
-    window.dispatchEvent(evt);
-  };
+  function generateKeyboard(container, keyboardURL, manifestURL) {
+    var keyboard = document.createElement('iframe');
+    keyboard.src = keyboardURL;
+    keyboard.setAttribute('mozbrowser', 'true');
+    keyboard.setAttribute('mozpasspointerevents', 'true');
+    keyboard.setAttribute('mozapp', manifestURL);
+    //keyboard.setAttribute('remote', 'true');
 
-  var keyboardFrame = document.getElementById('keyboard-frame');
-  keyboardFrame.src = keyboardURL;
+    container.appendChild(keyboard);
+    return keyboard;
+  }
 
-  var keyboardOverlay = document.getElementById('keyboard-overlay');
+  // Generate a <iframe mozbrowser> containing the keyboard.
+  var container = document.getElementById('keyboard-frame');
+  var keyboardURL = getKeyboardURL() + 'index.html';
+  var manifestURL = getKeyboardURL() + 'manifest.webapp';
+  var keyboard = generateKeyboard(container, keyboardURL, manifestURL);
 
-  // TODO Think on a way of doing this
-  // without postMessages between Keyboard and System
-  window.addEventListener('message', function receiver(evt) {
-    var message = JSON.parse(evt.data);
-    if (message.action === 'hideKeyboard') {
-      keyboardFrame.classList.add('hide');
-      keyboardFrame.classList.remove('visible');
+  // Listen for mozbrowserlocationchange of keyboard iframe.
+  var previousHash = '';
+
+  var urlparser = document.createElement('a');
+  keyboard.addEventListener('mozbrowserlocationchange', function(e) {
+    urlparser.href = e.detail;
+    if (previousHash == urlparser.hash)
       return;
+    previousHash = urlparser.hash;
+
+    var type = urlparser.hash.split('=');
+    switch (type[0]) {
+      case '#show':
+        var updateHeight = function updateHeight() {
+          container.removeEventListener('transitionend', updateHeight);
+          if (container.classList.contains('hide')) {
+            // The keyboard has been closed already, let's not resize the
+            // application and ends up with half apps.
+            return;
+          }
+
+          var detail = {
+            'detail': {
+              'height': parseInt(type[1])
+            }
+          };
+
+          dispatchEvent(new CustomEvent('keyboardchange', detail));
+        };
+
+        if (container.classList.contains('hide')) {
+          container.classList.remove('hide');
+          container.addEventListener('transitionend', updateHeight);
+          return;
+        }
+
+        updateHeight();
+        break;
+
+      case '#hide':
+        // inform window manager to resize app first or
+        // it may show the underlying homescreen
+        dispatchEvent(new CustomEvent('keyboardhide'));
+        container.classList.add('hide');
+        break;
     }
+  });
 
-    if (message.action !== 'updateHeight')
-      return;
-
-    keyboardOverlay.hidden = true;
-
-    if (message.hidden) {
-      // To reset dialog height
-      dispatchEvent('keyboardhide');
-
-      keyboardFrame.classList.add('hide');
-      keyboardFrame.classList.remove('visible');
-      return;
-    }
-
-    var height = window.innerHeight - message.keyboardHeight;
-
-    if (!keyboardFrame.classList.contains('hide')) {
-      keyboardOverlay.style.height = height + 'px';
-      keyboardOverlay.hidden = false;
-      dispatchEvent('keyboardchange', { height: message.keyboardHeight });
-    } else {
-      keyboardFrame.classList.remove('hide');
-      keyboardFrame.addEventListener('transitionend', function keyboardShown() {
-        keyboardFrame.removeEventListener('transitionend', keyboardShown);
-        keyboardOverlay.style.height = height + 'px';
-        keyboardOverlay.hidden = false;
-        keyboardFrame.classList.add('visible');
-        dispatchEvent('keyboardchange', { height: message.keyboardHeight });
-      });
-    }
-
+  // For Bug 812115: hide the keyboard when the app is closed here,
+  // since it would take a longer round-trip to receive focuschange
+  // Also in Bug 856692 we realise that we need to close the keyboard
+  // when an inline activity goes away.
+  var closeKeyboardEvents = [
+    'appwillclose',
+    'activitywillclose'
+  ];
+  closeKeyboardEvents.forEach(function onEvent(eventType) {
+    window.addEventListener(eventType, function closeKeyboard() {
+      dispatchEvent(new CustomEvent('keyboardhide'));
+      container.classList.add('hide');
+    });
   });
 })();
 

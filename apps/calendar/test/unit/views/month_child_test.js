@@ -1,14 +1,8 @@
 requireCommon('test/synthetic_gestures.js');
-requireApp('calendar/test/unit/helper.js', function() {
-  require('/shared/js/gesture_detector.js');
+require('/shared/js/gesture_detector.js');
+requireLib('timespan.js');
 
-  requireLib('templates/month.js');
-  requireLib('views/month_child.js');
-  requireLib('timespan.js');
-});
-
-
-suite('views/month_child', function() {
+suiteGroup('Views.MonthChild', function() {
   var subject,
       controller,
       busytimes,
@@ -40,8 +34,7 @@ suite('views/month_child', function() {
     testEl = null;
   });
 
-  setup(function(done) {
-    this.timeout(20000);
+  setup(function() {
     testEl = document.createElement('div');
     testEl.id = 'test';
     document.body.appendChild(testEl);
@@ -55,20 +48,6 @@ suite('views/month_child', function() {
       date: month
     });
 
-    app.db.open(function() {
-      done();
-    });
-  });
-
-  teardown(function(done) {
-    testSupport.calendar.clearStore(
-      app.db,
-      done
-    );
-  });
-
-  teardown(function() {
-    app.db.close();
   });
 
   suite('initialization', function() {
@@ -235,7 +214,7 @@ suite('views/month_child', function() {
       var added = [];
       subject._renderBusytime = function(record) {
         added.push(record);
-      }
+      };
 
       var record = Factory('busytime', {
         startDate: createHour(23)
@@ -255,7 +234,7 @@ suite('views/month_child', function() {
       var removed = [];
       subject._removeBusytimes = function(list) {
         removed.push(list);
-      }
+      };
 
       var record = Factory('busytime', {
         startDate: createHour(23)
@@ -346,8 +325,6 @@ suite('views/month_child', function() {
       );
 
     });
-
-    return;
 
     test('trailing before the timespan', function() {
       subject.timespan = new Calendar.Timespan(
@@ -489,24 +466,16 @@ suite('views/month_child', function() {
     var id;
     var list;
 
-    setup(function(done) {
-      var item = Factory('event', {
-        remote: {
-          startDate: createHour(1),
-          endDate: createHour(1)
-        }
-      });
-      app.store('Event').persist(item, done);
-    });
+    setup(function() {
+      controller.cacheBusytime(Factory('busytime', {
+        startDate: createHour(23),
+        endDate: createHour(23)
+      }));
 
-    setup(function(done) {
-      var item = Factory('event', {
-        remote: {
-          startDate: createHour(23),
-          endDate: createHour(23)
-        }
-      });
-      app.store('Event').persist(item, done);
+      controller.cacheBusytime(Factory('busytime', {
+        startDate: createHour(1),
+        endDate: createHour(1)
+      }));
     });
 
     setup(function() {
@@ -745,28 +714,8 @@ suite('views/month_child', function() {
   });
 
   suite('#create', function() {
-    var slice;
-    var calledCachedWith;
-    var calledRenderWith;
-
     setup(function() {
       controller.move(month);
-    });
-
-    setup(function() {
-      calledRenderWith = [];
-      slice = [
-        1, 2, 3
-      ];
-
-      controller.queryCache = function() {
-        calledCachedWith = arguments;
-        return slice;
-      };
-
-      subject._renderBusytime = function(item) {
-        calledRenderWith.push(item);
-      };
     });
 
     test('initial create', function() {
@@ -774,13 +723,6 @@ suite('views/month_child', function() {
           expected = subject._renderMonth();
 
       result = subject.create();
-
-      assert.equal(calledCachedWith[0], subject.timespan);
-      assert.deepEqual(
-        calledRenderWith,
-        [1, 2, 3]
-      );
-
       assert.equal(subject.element, result);
 
       assert.isTrue(
@@ -807,9 +749,44 @@ suite('views/month_child', function() {
       list = subject.element.classList;
     });
 
-    test('#activate', function() {
-      subject.activate();
-      assert.ok(list.contains(subject.ACTIVE));
+    suite('#activate', function() {
+      var slice;
+      var calledCachedWith;
+      var calledRenderWith;
+
+      setup(function() {
+        controller.move(month);
+      });
+
+      setup(function(done) {
+        calledRenderWith = [];
+        slice = [
+          1, 2, 3
+        ];
+
+        controller.queryCache = function() {
+          // wait for _renderBusytime to complete
+          Calendar.nextTick(done);
+          calledCachedWith = arguments;
+          return slice;
+        };
+
+        subject._renderBusytime = function(item) {
+          calledRenderWith.push(item);
+        };
+
+        subject.activate();
+      });
+
+      test('first activation', function() {
+        assert.ok(list.contains(subject.ACTIVE));
+        assert.equal(calledCachedWith[0], subject.timespan);
+        assert.deepEqual(
+          calledRenderWith,
+          [1, 2, 3]
+        );
+      });
+
     });
 
     test('#deactivate', function() {

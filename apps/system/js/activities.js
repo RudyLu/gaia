@@ -9,17 +9,14 @@ var Activities = {
   },
 
   handleEvent: function act_handleEvent(evt) {
-    if (evt.type !== 'mozChromeEvent')
-      return;
-
-    var detail = evt.detail;
-    switch (detail.type) {
-      case 'activity-choice':
-        this.chooseActivity(detail);
-        break;
-
-      case 'activity-done':
-        this.reopenActivityCaller(detail);
+    switch (evt.type) {
+      case 'mozChromeEvent':
+        var detail = evt.detail;
+        switch (detail.type) {
+          case 'activity-choice':
+            this.chooseActivity(detail);
+            break;
+        }
         break;
     }
   },
@@ -35,8 +32,8 @@ var Activities = {
       // event are synchronous make sure to exit the event loop before
       // showing the list.
       setTimeout((function nextTick() {
-        // XXX: l10n issue of activity name
-        ListMenu.request(this._listItems(choices), detail.name,
+        var activityName = navigator.mozL10n.get('activity-' + detail.name);
+        ListMenu.request(this._listItems(choices), activityName,
                          this.choose.bind(this), this.cancel.bind(this));
       }).bind(this));
     }
@@ -51,7 +48,6 @@ var Activities = {
 
     this._sendEvent(returnedChoice);
     delete this._id;
-    this._callerApp = WindowManager.getDisplayedApp();
   },
 
   cancel: function act_cancel(value) {
@@ -65,15 +61,6 @@ var Activities = {
     delete this._id;
   },
 
-  reopenActivityCaller: function reopenActivityCaller(detail) {
-    // Ask Window Manager to bring the caller to foreground.
-    // inline activity frame will be removed by this action.
-
-    // XXX: what if we have multiple web activities in-flight?
-    WindowManager.launch(this._callerApp);
-    delete this._callerApp;
-  },
-
   _sendEvent: function act_sendEvent(value) {
     var event = document.createEvent('CustomEvent');
     event.initCustomEvent('mozContentEvent', true, true, value);
@@ -84,8 +71,9 @@ var Activities = {
     var items = [];
 
     choices.forEach(function(choice, index) {
+      var app = Applications.getByManifestURL(choice.manifest);
       items.push({
-        label: choice.title,
+        label: new ManifestHelper(app.manifest).name,
         icon: choice.icon,
         value: index
       });

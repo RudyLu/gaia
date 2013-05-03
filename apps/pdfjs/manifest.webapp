@@ -24,11 +24,12 @@
         "type": "application/pdf"
       },
       "disposition": "inline",
-      "href": "/content/web/viewer.html"
+      "href": "/content/web/viewer.html",
+      "returnValue": true
     }
   },
   "permissions": {
     "systemXHR":{},
-    "settings":{}
+    "settings":{ "access": "readonly" }
   }
 }

@@ -1,17 +1,16 @@
 requireCommon('test/synthetic_gestures.js');
+require('/shared/js/gesture_detector.js');
+requireLib('timespan.js');
 
-requireApp('calendar/test/unit/helper.js', function() {
-  require('/shared/js/gesture_detector.js');
+/*
+requireLib('utils/ordered_map.js');
+requireLib('templates/month.js');
+requireLib('views/time_parent.js');
+requireLib('views/month_child.js');
+requireLib('views/month.js');
+*/
 
-  requireLib('ordered_map.js');
-  requireLib('timespan.js');
-  requireLib('templates/month.js');
-  requireLib('views/time_parent.js');
-  requireLib('views/month_child.js');
-  requireLib('views/month.js');
-});
-
-suite('views/month', function() {
+suiteGroup('Views.Month', function() {
   var subject,
       app,
       controller,
@@ -79,13 +78,41 @@ suite('views/month', function() {
       );
     });
 
+/*
+// These tests are currently failing and have been temporarily disabled as per
+// Bug 838993. They should be fixed and re-enabled as soon as possible as per
+// Bug 840489.
+    test('dom: dbltap', function() {
+      var calledWith;
+      app.router.show = function(url) {
+        calledWith = url;
+      };
+
+      subject.render();
+
+      // find something with [data-date];
+      var el = subject.element.querySelector(
+        '[data-date]'
+      );
+
+      triggerEvent(el, 'dbltap');
+
+      assert.equal(
+        calledWith,
+        '/day/',
+        'double tapping on date should activate day view'
+      );
+
+    });
+*/
+
     test('controller: monthChange', function() {
       var calledClear = null;
       var calledActivateTime = null;
 
       subject._clearSelectedDay = function() {
         calledClear = true;
-      }
+      };
 
       subject.changeDate = function(month) {
         calledActivateTime = month;
@@ -104,7 +131,7 @@ suite('views/month', function() {
 
       subject._selectDay = function() {
         calledWith = arguments;
-      }
+      };
 
       controller.selectedDay = date;
       assert.deepEqual(calledWith[0], date);

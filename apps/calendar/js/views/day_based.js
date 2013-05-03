@@ -2,7 +2,7 @@ Calendar.ns('Views').DayBased = (function() {
 
   var Calc = Calendar.Calc;
   var hoursOfOccurance = Calendar.Calc.hoursOfOccurance;
-  var OrderedMap = Calendar.OrderedMap;
+  var OrderedMap = Calendar.Utils.OrderedMap;
 
   const MINUTES_IN_HOUR = 60;
 
@@ -108,7 +108,7 @@ Calendar.ns('Views').DayBased = (function() {
      */
     _resetHourCache: function() {
       this._idsToHours = Object.create(null);
-      this.overlaps = new Calendar.Overlap();
+      this.overlaps = new Calendar.Utils.Overlap();
       this.hours = new OrderedMap([], Calc.compareHours);
     },
 
@@ -182,7 +182,7 @@ Calendar.ns('Views').DayBased = (function() {
         // new event
         this._idsToHours[id] = [hour];
 
-        var html = this._renderEvent(record);
+        var html = this._renderEvent(busytime, record);
         var eventArea = hourRecord.element;
         var records = hourRecord.records;
         var idx = records.insertIndexOf(busytime._id);
@@ -293,11 +293,27 @@ Calendar.ns('Views').DayBased = (function() {
         element.style.top = String(offsetPercent) + '%';
       }
 
-      // hour distance
-      var hourDist = (endHour - startHour) * 100;
-      var minDist = ((endMin - startMin) / MINUTES_IN_HOUR) * 100;
+      // Calculate duration in hours, with minutes as decimal part
+      var hoursDuration = (endHour - startHour) +
+                          ((endMin - startMin) / MINUTES_IN_HOUR);
 
-      element.style.height = String(hourDist + minDist) + '%';
+      // If this event is less than a full hour, tweak the classname so that
+      // some alternate styles for a tiny event can apply (eg. hide details)
+      if (hoursDuration < 1) {
+        element.className += ' partial-hour';
+      }
+
+      return this._assignHeight(element, hoursDuration);
+    },
+
+    /**
+     * Assigns an elements height, based on a duration in hours.
+     *
+     * @param {HTMLElement} element target to apply top/height to.
+     * @param {Numeric} duration in hours, minutes as decimal part.
+     */
+    _assignHeight: function(element, hoursDuration) {
+      element.style.height = (hoursDuration * 100) + '%';
     },
 
     /**
@@ -329,7 +345,7 @@ Calendar.ns('Views').DayBased = (function() {
     },
 
     /** must be overriden */
-    _renderEvent: function(event) {},
+    _renderEvent: function(busytime, event) {},
 
     _renderHour: function(hour) {
       return this.template.hour.render({
@@ -500,6 +516,10 @@ Calendar.ns('Views').DayBased = (function() {
       this.date = Calendar.Calc.createDay(date);
       this.timespan = Calendar.Calc.spanOfDay(date);
 
+      if (this.element) {
+        this.element.dataset.date = this.date;
+      }
+
       controller.observeTime(this.timespan, this);
 
       if (clear) {
@@ -524,7 +544,11 @@ Calendar.ns('Views').DayBased = (function() {
 
       if (this.renderAllHours) {
         var hour = 0;
-        this.createHour('allday');
+
+        if (this.outsideAllDay) {
+          this.createHour('allday');
+        }
+
         for (; hour < 24; hour++) {
           this.createHour(hour);
         }

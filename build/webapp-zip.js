@@ -1,27 +1,6 @@
 
 function debug(msg) {
-  if (DEBUG)
-    dump('-*- ' + msg + '\n');
-}
-
-/**
- * Returns an array of nsIFile's for a given directory
- *
- * @param  {nsIFile} dir       directory to read.
- * @param  {boolean} recursive set to true in order to walk recursively.
- *
- * @return {Array}   list of nsIFile's.
- */
-function ls(dir, recursive) {
-  let results = [];
-  let files = dir.directoryEntries;
-  while (files.hasMoreElements()) {
-    let file = files.getNext().QueryInterface(Ci.nsILocalFile);
-    results.push(file);
-    if (recursive && file.isDirectory())
-      results = results.concat(ls(file, true));
-  }
-  return results;
+  //dump('-*- webapps-zip.js ' + msg + '\n');
 }
 
 // Header values usefull for zip xpcom component
@@ -42,6 +21,25 @@ const PR_EXCL = 0x80;
  * @param {nsIFile}      file      file xpcom to add.
  */
 function addToZip(zip, pathInZip, file) {
+    if (file.isHidden())
+	return;
+
+  // Check @2x files
+  if ( HIDPI != '*' && file.path.search('@2x') == -1 ) {
+    var path2x = file.path.split('.')[0]+'@2x.'+file.path.split('.')[1];
+    var file2x = new FileUtils.File(path2x);
+    // @2x one will come later
+    if ( file2x.exists() ) {
+      return;
+    }
+  } else if ( file.path.search('@2x') != -1 ) {
+     var pathInZip = pathInZip.split('@2x')[0]+pathInZip.split('@2x')[1];
+  }
+
+  if (isSubjectToBranding(file.path)) {
+    file.append((OFFICIAL == 1) ? 'official' : 'unofficial');
+  }
+
   if (!file.exists())
     throw new Error('Can\'t add inexistent file to zip : ' + file.path);
 
@@ -54,7 +52,21 @@ function addToZip(zip, pathInZip, file) {
     try {
       debug(' +file to zip ' + pathInZip);
 
-      if (!zip.hasEntry(pathInZip)) {
+      if (/\.html$/.test(file.leafName)) {
+        // this file might have been pre-translated for the default locale
+        let l10nFile = file.parent.clone();
+        l10nFile.append(file.leafName + '.' + GAIA_DEFAULT_LOCALE);
+        if (l10nFile.exists()) {
+          zip.addEntryFile(pathInZip,
+                          Ci.nsIZipWriter.COMPRESSION_DEFAULT,
+                          l10nFile,
+                          false);
+          return;
+        }
+      }
+
+      let re = new RegExp('\\.html\\.' + GAIA_DEFAULT_LOCALE);
+      if (!zip.hasEntry(pathInZip) && !re.test(file.leafName)) {
         zip.addEntryFile(pathInZip,
                         Ci.nsIZipWriter.COMPRESSION_DEFAULT,
                         file,
@@ -67,6 +79,8 @@ function addToZip(zip, pathInZip, file) {
   }
   // Case 2/ Directory
   else if (file.isDirectory()) {
+    debug(' +directory to zip ' + pathInZip);
+
     if (!zip.hasEntry(pathInZip))
       zip.addEntryDirectory(pathInZip, file.lastModifiedTime, false);
 
@@ -80,6 +94,58 @@ function addToZip(zip, pathInZip, file) {
         addToZip(zip, subPath, subFile);
       });
   }
+}
+
+/**
+ * Copy a "Building Block" (i.e. shared style resource)
+ *
+ * @param {nsIZipWriter} zip       zip xpcom instance.
+ * @param {String}       blockName name of the building block to copy.
+ * @param {String}       dirName   name of the shared directory to use.
+ */
+function copyBuildingBlock(zip, blockName, dirName) {
+  let dirPath = '/shared/' + dirName + '/';
+
+  // Compute the nsIFile for this shared style
+  let styleFolder = Gaia.sharedFolder.clone();
+  styleFolder.append(dirName);
+  let cssFile = styleFolder.clone();
+  if (!styleFolder.exists()) {
+    throw new Error('Using inexistent shared style: ' + blockName);
+  }
+
+  cssFile.append(blockName + '.css');
+  addToZip(zip, dirPath + blockName + '.css', cssFile);
+
+  // Copy everything but index.html and any other HTML page into the
+  // style/<block> folder.
+  let subFolder = styleFolder.clone();
+  subFolder.append(blockName);
+  ls(subFolder, true).forEach(function(file) {
+      let relativePath = file.getRelativeDescriptor(styleFolder);
+      // Ignore HTML files at style root folder
+      if (relativePath.match(/^[^\/]+\.html$/))
+        return;
+      // Do not process directory as `addToZip` will add files recursively
+      if (file.isDirectory())
+        return;
+      addToZip(zip, dirPath + relativePath, file);
+    });
+}
+
+function customizeFiles(zip, src, dest) {
+  // Add customize file to the zip
+  let files = ls(getFile(Gaia.distributionDir, src));
+  files.forEach(function(file) {
+    let filename = dest + file.leafName;
+    if (zip.hasEntry(filename)) {
+      zip.removeEntry(filename, false);
+    }
+    zip.addEntryFile(filename,
+                    Ci.nsIZipWriter.COMPRESSION_DEFAULT,
+                    file,
+                    false);
+  });
 }
 
 let webappsTargetDir = Cc['@mozilla.org/file/local;1']
@@ -115,23 +181,41 @@ Gaia.webapps.forEach(function(webapp) {
   debug('# Create zip for: ' + webapp.domain);
   let files = ls(webapp.sourceDirectoryFile);
   files.forEach(function(file) {
+      // Ignore l10n files if they have been inlined
+      if (GAIA_INLINE_LOCALES &&
+          (file.leafName === 'locales' || file.leafName === 'locales.ini'))
+        return;
       // Ignore files from /shared directory (these files were created by
-      // Makefile code)
-      if (file.leafName !== 'shared')
+      // Makefile code). Also ignore files in the /test directory.
+      if (file.leafName !== 'shared' && file.leafName !== 'test')
         addToZip(zip, '/' + file.leafName, file);
     });
 
+  if (webapp.sourceDirectoryName === 'system' && Gaia.distributionDir) {
+    if(getFile(Gaia.distributionDir, 'power').exists()) {
+      customizeFiles(zip, 'power', 'resources/power/');
+    }
+  }
+
+  if (webapp.sourceDirectoryName === 'wallpaper' && Gaia.distributionDir &&
+    getFile(Gaia.distributionDir, 'wallpapers').exists()) {
+    customizeFiles(zip, 'wallpapers', 'resources/320x480/');
+  }
 
   // Put shared files, but copy only files actually used by the webapp.
   // We search for shared file usage by parsing webapp source code.
-  let EXTENSIONS_WHITELIST = ['js', 'htm', 'html', 'css'];
-  let SHARED_USAGE = /shared\/([^\/]+)\/([^''\s]+)("|')/g;
+  let EXTENSIONS_WHITELIST = ['html'];
+  let SHARED_USAGE =
+      /<(?:script|link).+=['"]\.?\.?\/?shared\/([^\/]+)\/([^''\s]+)("|')/g;
 
   let used = {
-    js: [], // List of JS file path to copy
-    locales: [], // List of locale name to copy
-    styles: [] // List of style name to copy
+    js: [],              // List of JS file paths to copy
+    locales: [],         // List of locale names to copy
+    resources: [],       // List of resources to copy
+    styles: [],          // List of stable style names to copy
+    unstable_styles: []  // List of unstable style names to copy
   };
+
   let files = ls(webapp.sourceDirectoryFile, true);
   files.filter(function(file) {
       // Process only files that may require a shared file
@@ -144,7 +228,7 @@ Gaia.webapps.forEach(function(webapp) {
       // Grep files to find shared/* usages
       let content = getFileContent(file);
       while ((matches = SHARED_USAGE.exec(content)) !== null) {
-        let kind = matches[1]; // either `js`, `locales` or `style`
+        let kind = matches[1]; // js | locales | resources | style
         let path = matches[2];
         switch (kind) {
           case 'js':
@@ -152,14 +236,27 @@ Gaia.webapps.forEach(function(webapp) {
               used.js.push(path);
             break;
           case 'locales':
-            let localeName = path.substr(0, path.lastIndexOf('.'));
-            if (used.locales.indexOf(localeName) == -1)
-              used.locales.push(localeName);
+            if (!GAIA_INLINE_LOCALES) {
+              let localeName = path.substr(0, path.lastIndexOf('.'));
+              if (used.locales.indexOf(localeName) == -1) {
+                used.locales.push(localeName);
+              }
+            }
+            break;
+          case 'resources':
+            if (used.resources.indexOf(path) == -1) {
+              used.resources.push(path);
+            }
             break;
           case 'style':
             let styleName = path.substr(0, path.lastIndexOf('.'));
             if (used.styles.indexOf(styleName) == -1)
               used.styles.push(styleName);
+            break;
+          case 'style_unstable':
+            let unstableStyleName = path.substr(0, path.lastIndexOf('.'));
+            if (used.unstable_styles.indexOf(unstableStyleName) == -1)
+              used.unstable_styles.push(unstableStyleName);
             break;
         }
       }
@@ -199,34 +296,54 @@ Gaia.webapps.forEach(function(webapp) {
     addToZip(zip, '/shared/locales/' + name, localeFolder);
   });
 
-  used.styles.forEach(function(name) {
-    // Compute the nsIFile for this shared style
-    let styleFolder = Gaia.sharedFolder.clone();
-    styleFolder.append('style');
-    let cssFile = styleFolder.clone();
-    if (!styleFolder.exists()) {
-      throw new Error('Using inexistent shared style: ' + name + ' from: ' +
-                      webapp.domain);
+  used.resources.forEach(function(path) {
+    // Compute the nsIFile for this shared resource file
+    let file = Gaia.sharedFolder.clone();
+    file.append('resources');
+    path.split('/').forEach(function(segment) {
+      file.append(segment);
+      if (isSubjectToBranding(file.path)) {
+        file.append((OFFICIAL == 1) ? 'official' : 'unofficial');
+      }
+    });
+    if (!file.exists()) {
+      throw new Error('Using inexistent shared resource: ' + path +
+                      ' from: ' + webapp.domain + '\n');
+      return;
     }
 
-    cssFile.append(name + '.css');
-    addToZip(zip, '/shared/style/' + name + '.css', cssFile);
+    // Forces the file to pass as @2x
+    if ( HIDPI != '*' && file.path.search('@2x') == -1 ) {
+      var path2x = file.path.split('.')[0]+'@2x.'+file.path.split('.')[1];
+      var file2x = new FileUtils.File(path2x);
+      // Adds the suffix
+      if ( file2x.exists() ) {
+        var path = path.split('.')[0]+'@2x.'+path.split('.')[1];
+        var file = file2x;
+      }
+    }
+    addToZip(zip, '/shared/resources/' + path, file);
 
-    // Copy everything but index.html and any other html page at style/<block>
-    // folder
-    let subFolder = styleFolder.clone();
-    subFolder.append(name);
-    ls(subFolder, true)
-      .forEach(function(file) {
-        let relativePath = file.getRelativeDescriptor(styleFolder);
-        // Ignore html files at style root folder
-        if (relativePath.match(/^[^\/]+\.html$/))
-          return;
-        // Do not process directory as `addToZip` will add files recursively
-        if (file.isDirectory())
-          return;
-        addToZip(zip, '/shared/style/' + relativePath, file);
-      });
+    if (path === 'media/ringtones/' && Gaia.distributionDir &&
+      getFile(Gaia.distributionDir, 'ringtones').exists()) {
+      customizeFiles(zip, 'ringtones', 'shared/resources/media/ringtones/');
+    }
+  });
+
+  used.styles.forEach(function(name) {
+    try {
+      copyBuildingBlock(zip, name, 'style');
+    } catch (e) {
+      throw new Error(e + ' from: ' + webapp.domain);
+    }
+  });
+
+  used.unstable_styles.forEach(function(name) {
+    try {
+      copyBuildingBlock(zip, name, 'style_unstable');
+    } catch (e) {
+      throw new Error(e + ' from: ' + webapp.domain);
+    }
   });
 
   zip.close();

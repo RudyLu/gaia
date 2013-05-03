@@ -10,52 +10,26 @@
   "permissions": {
     "browser":{},
     "systemXHR":{},
-    "settings":{}
+    "settings":{ "access": "readonly" },
+    "geolocation" : {},
+    "storage": {},
+    "desktop-notification" : {},
+    "device-storage:pictures" : { "access": "readwrite" },
+    "device-storage:videos" : { "access": "readwrite" },
+    "device-storage:music" : { "access": "readwrite" }
   },
   "locales": {
     "ar": {
       "name": "المتصفح",
       "description": "Gaia متصفح الويب"
     },
-    "ca": {
-      "name": "Navegador",
-      "description": "Navegador del Gaia"
-    },
-    "de": {
-      "name": "Browser",
-      "description": "Gaia Webbrowser"
-    },
-    "el": {
-      "name": "Φυλλομετρητής",
-      "description": "Φυλλομετρητής Ιστού Gaia"
-    },
     "en-US": {
       "name": "Browser",
       "description": "Gaia Web Browser"
     },
-    "es": {
-      "name": "Navegador",
-      "description": "Navegador de Gaia"
-    },
     "fr": {
       "name": "Navigateur",
       "description": "Navigateur Web Gaia"
-    },
-    "it": {
-      "name": "Browser",
-      "description": "Browser Web di Gaia"
-    },
-    "pt-BR": {
-      "name": "Navegador",
-      "description": "Navegador da Web do Gaia"
-    },
-    "ru": {
-      "name": "Браузер",
-      "description": "Веб-браузер Gaia"
-    },
-    "tr": {
-      "name": "Tarayıcı",
-      "description": "Gaia Web Tarayıcısı"
     },
     "zh-TW": {
       "name": "網路瀏覽器",
@@ -64,13 +38,14 @@
   },
   "default_locale": "en-US",
   "icons": {
-    "120": "/style/icons/Browser.png",
-    "60": "/style/icons/60/Browser.png"
+    "120": "/shared/resources/branding/Browser.png",
+    "60": "/shared/resources/branding/Browser.png"
   },
   "activities": {
     "view": {
       "filters": {
-        "type": "url"
+        "type": "url",
+        "url": { "required":true, "regexp":"/^https?:.{1,16384}$/" }
       }
     }
   }

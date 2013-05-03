@@ -35,17 +35,24 @@ Calendar.ns('Views').MonthsDay = (function() {
       var self = this;
       this.controller.on('selectedDayChange', this);
       this.delegate(this.events, 'click', '[data-id]', function(e, target) {
-        Calendar.App.router.show('/event/' + target.dataset.id + '/');
+        Calendar.App.router.show('/event/show/' + target.dataset.id + '/');
       });
     },
 
     _updateHeader: function() {
+      var header = this.header;
+      var formatName = 'agenda-date-format';
+      var template = navigator.mozL10n.get(formatName);
+
       // maybe we should localize this output ?
       var format = this.app.dateFormat.localeFormat(
         this.date,
-        '%A %B %Y'
+        template || '%A %e %B %Y'
       );
-      this.header.textContent = format;
+
+      header.textContent = format;
+      header.dataset.date = this.date.toString();
+      header.dataset.l10nDateFormat = formatName;
     },
 
     handleEvent: function(e) {

@@ -5,7 +5,7 @@
 
 /* Fav star in header */
 section[role="region"] > header:first-child sup {
-  background: url(/contacts/style/gphx/bitmap/default/vw-header/icons/fav-star.png) no-repeat center center;
+  background: url(/contacts/style/gphx/bitmap/default/vw-header/icons/fav-star.png) no-repeat center / 1.2rem;
   background-size: 100% auto;
   width: 1.2rem;
   height: 3.2rem;
@@ -15,6 +15,10 @@ section[role="region"] > header:first-child sup {
   position: relative;
   float: left;
   top: 0;
+}
+
+section[role="region"] > header:first-child .icon.icon-edit-contact {
+  background-image: url(images/edit-contact.png);
 }
 
 .contact-header img {
@@ -28,6 +32,10 @@ section[role="region"] > header:first-child sup {
   padding-right: 1rem;
 }
 
+.view-contacts-list .view-body-inner {
+  padding-left: 1.5rem;
+}
+
 #contact-name-title {
   max-width: 22rem;
   float: left;
@@ -35,57 +43,76 @@ section[role="region"] > header:first-child sup {
 
 /* Contact detail main section */
 
-.view-contact-profile article.view-body {
-  overflow: scroll;
+.view-contact-profile .view-body {
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background-color: #f5f5f5;
+}
+
+.view-contact-profile #cover-img {
   position: absolute;
-  min-height: 100%;
-  width: -moz-calc(100% + 1rem);
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent no-repeat;
+  background-size: 100% auto;
+  transform: translateY(-7rem);
+}
+
+.view-contact-profile #cover-img.up {
+  transition: transform 0.25s ease-out;
+}
+
+#contact-detail-inner {
+  padding-bottom: 1rem;
+  padding-top: 1.4rem;
+}
+
+.fb-contact:not(.no-photo):before {
+  content: "";
+  width: 2rem;
+  height: 2rem;
+  position: absolute;
+  top: -3rem;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 .view-contact-profile .view-body-inner {
-  background: transparent no-repeat center -8rem;
-  background-size: 100% auto;
-  padding: 0;
-  background-color: #f5f5f5;
-  overflow: visible;
   position: relative;
-  min-height: calc(100% - 5rem);
+  padding: 0 1.5rem;
+  background: #f5f5f5;
+  overflow: visible;
+  width: 100%;
+  min-height: calc(100% - 8rem);
+  -moz-box-sizing: border-box;
+  transform: translateY(8rem);
 }
 
 .view-contact-profile .view-body-inner.up {
-  background-position: center -8rem;
-  -moz-transition: background-position 0.25s ease-out;
-}
-
-.view-contact-profile .view-body-inner > section {
-  padding: 0 2rem;
-  background: #f5f5f5;
-  min-height: 100%;
-  overflow: hidden;
-  width: 100%;
-  position: absolute;
-  -moz-box-sizing: border-box;
-}
-
-.view-contact-profile .view-body-inner > section #toggle-favorite {
-  padding-bottom: 1rem;
+  transition: transform 0.5s ease-out;
 }
 
 .view-contact-profile .view-body-inner hr {
   margin-top: 0;
 }
 
-.view-contact-profile .view-body-inner > section h1{
-  padding-top: 1.4rem;
+.view-contact-profile .view-body-inner:not(.no-photo):after {
+  background: url(images/shadow_1px.png) repeat-x bottom / auto 0.8rem;
+  content: "";
+  display: block;
+  height: 0.8rem;
+  top: -0.8rem;
+  left: 0;
+  position: absolute;
+  width: 100%;
 }
 
-.view-contact-profile .view-body-inner > section.no-photo {
+.view-contact-profile .view-body-inner.no-photo {
   transform: translateY(0);
-}
-
-.view-contact-profile .view-body-inner > section.up {
-  transform: translateY(8rem);
-  -moz-transition: transform 0.5s ease-out;
+  min-height: 100%;
 }
 
 .view-contact-profile .view-body-inner .comment-notes {
@@ -99,14 +126,27 @@ section[role="region"] > header:first-child sup {
 #contact-detail h1 {
   font: 1.4rem/1.5em MozTT, Sans-serif;
   font-weight: 600;
-  border-bottom: solid 1px #dbd9d9;
+  border-bottom: solid 0.1rem #dbd9d9;
   margin-bottom: 1rem;
+  padding-bottom: 0.55rem;
   word-wrap: break-word;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 #contact-detail li .item-body-exp {
   padding-bottom: 1rem;
 }
+
+#contact-detail li button {
+  margin: 0.1rem 0;
+}
+
+#contact-detail .social-actions button {
+  margin-bottom: 1rem;
+}
+
 
 #contact-detail h2 {
   text-transform: uppercase;
@@ -117,39 +157,96 @@ section[role="region"] > header:first-child sup {
   pointer-events: none;
 }
 
-.view-jumper-inner > li > * {
-  pointer-events: none;
+/* Edit contact section */
+.view-edit-contact .tail-actions {
+  padding-top: 0.7rem;
+  margin: 1rem 0 2rem;
+  border-top: solid 0.1rem #dbdbdb;
 }
 
-/* Edit contact section */
-.view-edit-contact form  > section {
-  margin: 2rem 0 0 0;
+.view-edit-contact form li > section {
   padding: 0;
   border: none;
 }
-.view-edit-contact form  > section.first {
+.view-edit-contact form li > section.first {
   margin: 0;
 }
 
-.view-edit-contact form  > section:not(.first) {
-  position: relative;
+.view-edit-contact form li {
   margin-right: 3rem;
 }
 
-.view-edit-contact form  > section div {
+.view-edit-contact form li > section{
   position: relative;
+}
+
+.view-edit-contact form li > section div {
+  position: relative;
+}
+
+.view-edit-contact fieldset {
+  border-radius: 0.3rem 0.3rem 0 0;
+}
+
+.view-edit-contact form li section + button {
+  margin-top: -0.6rem;
+  border-radius: 0 0 0.4rem 0.4rem;
+}
+
+.view-edit-contact form li section + button:after {
+  display: none;
+}
+
+#contact-detail-inner h1 {
+  padding-left: 0.5rem;
+}
+
+#contact-detail-inner h2 {
+  margin-left: 0.5rem;
 }
 
 .view-edit-contact .fillflow-row-action {
   width: 5rem;
-  height: 5rem;
-  margin: -2.5rem 0 0 0;
+  height: 4.5rem;
+  margin: -2.25rem 0 0 0;
+}
+
+.view-edit-contact .fillflow-row-action:after {
+  display: none;
+}
+
+.view-edit-contact .fillflow-row-action:active {
+  background: none;
+}
+
+.view-edit-contact .setbox-item input {
+  border-radius: 0.3rem 0.3rem 0 0;
+}
+
+/* FB info (non-editable) */
+.view-edit-contact .facebook fieldset {
+  border-color: #255c95;
+  background: #cbd4df;
+  color: #969696;
+}
+
+.view-edit-contact .facebook fieldset legend,
+.view-edit-contact .facebook fieldset input {
+  color: #969696;
+}
+
+.view-edit-contact .facebook fieldset section {
+  border-left-color: #255c95;
+}
+
+.view-edit-contact .facebook fieldset section p {
+  border-bottom-color: #255c95;
 }
 
 hr {
   background-color: #BCBCBC;
   border: 0;
-  height: 1px;
+  height: 0.1rem;
 }
 
 /* Overriding Input areas BB */
@@ -158,14 +255,6 @@ form p textarea + button[type="reset"].hide {
   display: block!important;
   opacity: 0;
   pointer-events: none;
-}
-
-fieldset legend.action {
-  padding-right: 1rem;
-}
-
-fieldset legend.action:after {
-  right: 1rem;
 }
 
 /* Favorites handling */
@@ -206,10 +295,11 @@ fieldset legend.action:after {
   overflow: hidden;
   width: 1.5rem;
   height: 1.5rem;
-  margin-left: 1rem;
+  margin: -0.2rem 1rem 0 0;
 }
 
-.icon-social.icon-fb {
+.icon-social.icon-fb,
+.fb-contact:not(.no-photo):before {
   background-image: url(images/f_logo.png) !important;
 }
 
@@ -225,47 +315,6 @@ fieldset legend.action:after {
   font-size: 1.4rem;
 }
 
-/*
-  Loading screen while loading contacts
-*/
-
-.show-overlay {
-  opacity: 1!important;
-}
-
-#loading-overlay {
-  pointer-events: none;
-  z-index: 200;
-  background: rgba(0,0,0,.8);
-  width: 100%;
-  height: 100%;
-  position: absolute;
-  top: 0;
-  left: 0;
-  padding: 2rem;
-  opacity: 0;
-  -moz-box-sizing: border-box;
-  -moz-transition: opacity 0.3s ease-out;
-}
-
-.loading-container {
-  position: relative;
-  top: 50%;
-  margin-top: -6rem;
-}
-
-.loading-header {
-  text-align: left;
-  padding: 2rem 1rem 4rem 1rem;
-  -moz-box-sizing: border-box;
-  color: white;
-  font-size: -moz-calc(10 * 0.226rem);
-  font-weight: 300;
-  border-top: .1rem solid white;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 /* MARK AS REMOVED */
 
 .removed {
@@ -275,7 +324,7 @@ fieldset legend.action:after {
 
 .removed fieldset, .removed legend, .removed input {
   background-color: transparent;
-  color: #ccc
+  color: #ccc;
   pointer-events: none;
 }
 
@@ -289,7 +338,7 @@ fieldset legend.action:after {
 
 .with-photo {
   padding-right: 5rem;
-  border:1px solid #C8C8C8;
+  border: 0.1rem solid #C8C8C8;
   background: none;
 }
 
@@ -307,60 +356,124 @@ fieldset legend.action:after {
 
 /* Contacts in comms application */
 @media screen and (max-height: 450px) and (min-height: 420px) {
- .view-jumper li {
-  font-size: 1.05rem;
-  line-height: 1.23rem;
+ nav[data-type="scrollbar"] li {
+  font-size: 1rem;
+  line-height: 1.2rem;
  }
 }
 
 /* SETTINGS */
-
-body[role="application"] section[role="region"] > header .icon.icon-settings
+section[role="region"] > header .icon.icon-settings
      { background-image: url(/contacts/style/gphx/bitmap/default/vw-header/icons/settings.png); }
 
-section.view[data-state="active"] {
-  -moz-transition: transform 0.5s ease;
+#view-settings .view-body-inner {
+  padding: 0;
+  background: #e6e7e2;
 }
 
-#view-settings ul li {
-    -moz-box-sizing: border-box;
-    border-bottom: 0.1rem solid #BBBBBB; /*#E6E6E3;*/
-    color: #000000;
-    min-height: 6rem;
-    position: relative;
+/* Order switch */
+#view-settings [data-type="list"] li#settingsOrder aside {
+  pointer-events: none;
 }
 
-#view-settings ul li > label:not([for]) {
-    height: 100%;
-    left: 0;
-    position: absolute;
-    top: 0;
-    width: 100%;
+/* Cutom FB item */
+#view-settings [data-type="list"] .fb-item {
+  height: auto;
+  border-bottom: none;
 }
 
-#view-settings ul li > label + *, ul li > label + * + * {
-    display: block;
-    max-width: calc(100% - 66px);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+#view-settings [data-type="list"] .fb-item p {
+  padding-left: 4.3rem;
 }
 
-#view-settings ul li > a {
-    -moz-box-sizing: border-box;
-    color: #000000;
-    display: block;
-    font-size: 1.8rem;
-    height: 6rem;
-    line-height: 6rem;
-    outline: 0 none;
-    text-decoration: none;
-}
-
-#view-settings ul li > a ~ span {
+#view-settings [data-type="list"] .fb-item p span {
   display: block;
-  text-align: center;
-  line-height: 5rem;
+  padding-bottom: 0.4rem;
+}
+
+#view-settings [data-type="list"] .fb-item p:first-of-type {
+  background: url(/contacts/style/images/f_logo.png) no-repeat 0.5rem calc(50% + 0.5rem) / 3rem;
+}
+
+#view-settings [data-type="list"] .fb-item aside {
+  width: 6.5rem;
+  height: 6rem;
+  pointer-events: none;
+}
+
+#view-settings [data-type="list"] .fb-item aside label {
+  position: absolute;
+  right: 0;
+}
+
+#view-settings [data-type="list"] .fb-item[aria-disabled="true"] {
+  pointer-events: none;
+}
+
+#view-settings [data-type="list"] .fb-item[aria-disabled="true"]:after {
+  display: none;
+}
+
+#view-settings [data-type="list"] .fb-item[aria-disabled="true"] aside {
+  opacity: 0.3;
+}
+
+#fb-update-option {
+  height: auto;
+  margin: 1rem 0;
+}
+
+/* Extending BB lists components*/
+#view-settings [data-type="list"] li aside {
+  pointer-events: auto;
+}
+
+#view-settings [data-type="list"] li aside label {
+  height: 100%;
+  width: 6.5rem;
+}
+
+/* Extending BB buttons Icons at left side*/
+#view-settings [data-type="list"] li button.icon {
+  padding: 0 1rem 0 4rem;
+}
+
+#view-settings [data-type="list"] li button.icon:before {
+  right: auto;
+  left: 0.5rem;
+}
+
+#view-settings [data-type="list"] li button.icon[disabled="disabled"]:before {
+  opacity: 0.2;
+}
+
+/* Extending icon types*/
+#view-settings [data-type="list"] li button.icon:before {
+  background-size: 3rem;
+}
+#view-settings [data-type="list"] li button.icon-sim:before {
+  background-image: url(/contacts/style/images/import_SIM.png);
+}
+#view-settings [data-type="list"] li button.icon-sd:before {
+  background-image: url(/contacts/style/images/import_sd.png);
+}
+
+#view-settings [data-type="list"] li button.icon-gmail:before {
+  background-image: url(/contacts/style/images/gmail_icon.png);
+}
+
+#view-settings [data-type="list"] li button.icon-live:before {
+  background-image: url(/contacts/style/images/outlook_icon.png);
+}
+
+
+/* Error message */
+#view-settings .view-body-inner .fb-error {
+  color: #D1323F;
+  padding: 0;
+  font-size: 1.4rem;
+  line-height: 1.2em;
+  white-space: normal;
 }
 
 .result {
@@ -371,110 +484,10 @@ section.view[data-state="active"] {
   line-height: 5rem;
 }
 
-li [data-l10n-id="importSim"] {
-  background-image: url(/contacts/style/images/import_SIM.png);
-  background-position: 14px center;
-  background-repeat: no-repeat;
-  padding-left: 5.5rem;
-}
-
-li [data-l10n-id="importFb"] {
-  background-image: url(/contacts/style/fb/profile_icon.png);
-  background-position: 0.9rem center; /* icons have different size */
-  background-repeat: no-repeat;
-  padding-left: 5.5rem;
-}
-
-/* ----------------------------------
- * SWITCH
- * ---------------------------------- */
-
-label.switch {
-    display: inline-block;
-    height: 4rem;
-    position: relative;
-    vertical-align: middle;
-    width: 6rem;
-    z-index: 1;
-}
-label:not([for]) {
-    display: inline-block;
-    height: 5rem;
-    position: relative;
-    vertical-align: middle;
-    width: 5rem;
-}
-
-label.switch {
-  display: inline-block;
-  vertical-align: middle;
-  position: relative;
-  z-index: 1;
-  width: 6rem;
-  height: 4rem;
-}
-
-label.switch input {
-  opacity: 0;
-}
-
-label.switch input[type="checkbox"] + span {
-  position: absolute;
-  left: 90%;
-  top: 50%;
-  margin: -1.1rem 0 0 -2.7rem;
-  width: 5.4rem;
-  height: 2.2rem;
-  pointer-events: none;
-  border: solid 1px #c2c2c2;
-  border-radius: 5.4rem;
-  overflow: hidden;
-  background: url(/contacts/style/gphx/bitmap/default/switches/images/switch/handler.png) no-repeat -0.2rem center;
-  background-size: auto calc(100% + 2px);
-  transition: background 0.18s ease;
-}
-
-label.switch span:after,
-label.switch span:before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 5.4rem;
-  z-index: -1;
-  transition: transform 0.2s ease;
-}
-
-label.switch span:before {
-  right: 100%;
-  background: #00c3ea url(/contacts/style/gphx/bitmap/default/switches/images/switch/icon.png) no-repeat 0.5rem center;
-  background-size: auto calc(100% - 2px);
-}
-
-label.switch span:after {
-  left: 100%;
-  background: #e6e6e6;
-  transform: translateX(-5.4rem);
-}
-
-/* state ON */
-label.switch input:checked + span {
-  border-color: #00acce;
-  background-position: 3.2rem center;
-}
-
-label.switch input:checked + span:before {
-  transform: translateX(5.4rem);
-}
-
-label.switch input:checked + span:after {
-  transform: translateX(0);
-}
-
 /* No Contacts */
 
 #no-contacts {
-  background: url(/contacts/style/images/contact_big_icon.png) no-repeat center center #FFFFFF;
+  background: #FFF url(/contacts/style/images/contact_big_icon.png) no-repeat center center / 15.3rem;
   height: 100%;
   position: absolute;
   width: 100%;
@@ -484,7 +497,7 @@ label.switch input:checked + span:after {
 }
 
 #no-contacts .info {
-  border-top: 1px solid rgba(96, 96, 96, 0.5);
+  border-top: 0.1rem solid rgba(96, 96, 96, 0.5);
   color: #606060;
   font-size: 2rem;
   font-weight: lighter;
@@ -506,11 +519,60 @@ label.switch input:checked + span:after {
 }
 
 #no-contacts .small.arrow {
-  background: url("/contacts/style/images/arrow_small.png") no-repeat scroll 93% 0.5rem transparent;
+  background: url("/contacts/style/images/arrow_small.png") no-repeat 93% 0.5rem / 4.5rem;
 }
 
 #no-contacts .big.arrow {
-  background: url("/contacts/style/images/arrow_big.png") no-repeat scroll 93% 0.5rem transparent;
+  background: url("/contacts/style/images/arrow_big.png") no-repeat 93% 0.5rem / 6.5rem;
   height: 5rem;
   padding-top: 3.5rem;
+}
+
+#statusMsg {
+  position: fixed;
+  -moz-transition: -moz-transform .5s ease;
+  -moz-transform: translateY(8rem);
+  pointer-events: none;
+}
+
+#statusMsg.visible {
+  -moz-transform: translateY(0);
+  z-index: 1001;
+}
+
+.remark {
+  color: #d20000;
+}
+
+.valueselector {
+  position: fixed;
+  top: -100%;
+  left: -100%;
+  opacity: 0;
+}
+
+#no-sim {
+  color: #5B5B5B;
+  font-size: 1.5rem;
+  line-height: 2rem;
+  margin: -0.5rem 0 1.5rem 0;
+  padding: 0;
+  white-space: normal;
+}
+
+#settingsSIM {
+  height: auto;
+}
+
+#importSources {
+  margin-top: 1rem;
+}
+
+#importSources > li {
+  border-bottom: none;
+}
+
+
+#importSources > li.importService {
+  height: 5rem;
 }

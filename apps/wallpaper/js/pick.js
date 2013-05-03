@@ -1,48 +1,94 @@
-window.onload = function() {
-  navigator.mozSetMessageHandler('activity', function handler(activityRequest) {
-    var activityName = activityRequest.source.name;
-    if (activityName !== 'pick')
-      return;
-    startPick(activityRequest);
-  });
+var Wallpaper = {
+  wallpapersUrl: '/resources/320x480/list.json',
 
-  var cancelButton = document.getElementById('cancel');
-  var wallpapers = document.getElementById('wallpapers');
-  var pickActivity;
+  init: function wallpaper_init() {
+    var self = this;
+    if (navigator.mozSetMessageHandler) {
+      navigator.mozSetMessageHandler('activity', function handler(request) {
+        var activityName = request.source.name;
+        if (activityName !== 'pick')
+          return;
+        self.startPick(request);
+      });
+    }
 
-  function startPick(request) {
-    pickActivity = request;
-    wallpapers.addEventListener('click', pickWallpaper);
-    cancelButton.addEventListener('click', cancelPick);
-  }
+    this.cancelButton = document.getElementById('cancel');
+    this.wallpapers = document.getElementById('wallpapers');
+    this.generateWallpaperList();
+  },
 
-  function pickWallpaper(e) {
+  generateWallpaperList: function wallpaper_generateWallpaperList(cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', this.wallpapersUrl, true);
+    xhr.responseType = 'json';
+    xhr.send(null);
+
+    var self = this;
+    xhr.onload = function successGenerateWallpaperList() {
+      self.wallpapers.innerHTML = '';
+      xhr.response.forEach(function(wallpaper) {
+        var div = document.createElement('div');
+        div.classList.add('wallpaper');
+        div.style.backgroundImage = 'url(resources/320x480/' + wallpaper + ')';
+        self.wallpapers.appendChild(div);
+      });
+      if (cb) {
+        cb();
+      }
+    };
+  },
+
+  startPick: function wallpaper_startPick(request) {
+    this.pickActivity = request;
+    this.wallpapers.addEventListener('click', this.pickWallpaper.bind(this));
+    this.cancelButton.addEventListener('click', this.cancelPick.bind(this));
+  },
+
+  pickWallpaper: function wallpaper_pickWallpaper(e) {
+    // Identify the wallpaper
+    var backgroundImage = e.target.style.backgroundImage;
+    var src = backgroundImage.match(/url\([\"']?([^\s\"']*)[\"']?\)/)[1];
     // Ignore clicks that are not on one of the images
-    if (!(e.target instanceof HTMLImageElement))
+    if (src == '')
       return;
 
-    var canvas = document.createElement('canvas');
-    var context = canvas.getContext('2d');
-    canvas.width = pickActivity.source.data.width;
-    canvas.height = pickActivity.source.data.height;
-    context.drawImage(e.target, 0, 0);
+    if (!this.pickActivity) { return; }
 
-    pickActivity.postResult({
-      type: pickActivity.source.data.type,
-      url: canvas.toDataURL(pickActivity.source.data.type)
-    });
+    var img = new Image();
+    img.src = src;
+    var self = this;
+    img.onload = function() {
+      var canvas = document.createElement('canvas');
+      var context = canvas.getContext('2d');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      context.drawImage(img, 0, 0);
 
-    endPick();
-  }
+      canvas.toBlob(function(blob) {
+        self.pickActivity.postResult({
+          type: 'image/jpeg',
+          blob: blob,
+          name: src
+        }, 'image/jpeg');
 
-  function cancelPick() {
-    pickActivity.postError('cancelled');
-    endPick();
-  }
+        self.endPick();
+      }, 'image/jpeg');
+    };
+  },
 
-  function endPick() {
-    pickActivity = null;
-    cancelButton.removeEventListener('click', cancelPick);
-    wallpapers.removeEventListener('click', pickWallpaper);
+  cancelPick: function wallpaper_cancelPick() {
+    this.pickActivity.postError('cancelled');
+    this.endPick();
+  },
+
+  endPick: function wallpaper_endPick() {
+    this.pickActivity = null;
+    this.cancelButton.removeEventListener('click', this.cancelPick);
+    this.wallpapers.removeEventListener('click', this.pickWallpaper);
   }
 };
+
+window.addEventListener('load', function pick() {
+  window.removeEventListener('load', pick);
+  Wallpaper.init();
+});

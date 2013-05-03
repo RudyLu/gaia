@@ -3,7 +3,6 @@
 
 'use strict';
 
-var _ = navigator.mozL10n.get;
 
 var PairView = {
   /**
@@ -21,16 +20,12 @@ var PairView = {
   _passkey: '',
 
   pairView: document.getElementById('pair-view'),
-  alertView: document.getElementById('alert-view'),
 
-  title: document.getElementById('pair-title'),
   deviceInfo: document.getElementById('device-info'),
   nameLabel: document.getElementById('label-name'),
-  addressLabel: document.getElementById('label-address'),
   pairDescription: document.getElementById('pair-description'),
   pairButton: document.getElementById('button-pair'),
   closeButton: document.getElementById('button-close'),
-  okButton: document.getElementById('button-ok'),
 
   comfirmationItem: document.getElementById('confirmation-method'),
   pinInputItem: document.getElementById('pin-input-method'),
@@ -40,18 +35,15 @@ var PairView = {
   pinInput: document.getElementById('pin-input'),
   passkeyInput: document.getElementById('passkey-input'),
 
-  init: function pv_init() {
+  show: function pv_show() {
+    var _ = navigator.mozL10n.get;
     this.pairButton.addEventListener('click', this);
     this.closeButton.addEventListener('click', this);
-    this.okButton.addEventListener('click', this);
+    window.addEventListener('resize', this);
 
-    this.title.textContent = _(this._pairMode + '-pair');
     this.nameLabel.textContent = this._device.name;
-    this.addressLabel.textContent = this._device.address;
     this.deviceInfo.className = this._device.icon;
-    //XXX this.iconImage.src = device.icon
     this.pairView.hidden = false;
-    this.alertView.hidden = true;
 
     var stringName = this._pairMode + '-pair-' + this._pairMethod;
     this.pairDescription.textContent =
@@ -81,7 +73,7 @@ var PairView = {
     }
   },
 
-  setUp: function pv_setDeviceInfo(mode, method, device, passkey) {
+  init: function pv_init(mode, method, device, passkey) {
     this._pairMode = mode;
     this._pairMethod = method;
     this._device = device;
@@ -90,47 +82,64 @@ var PairView = {
       var zeros = (len < 6) ? (new Array((6 - len) + 1)).join('0') : '';
       this._passkey = zeros + passkey;
     }
+
+    // show() only until the page is localized.
+    navigator.mozL10n.ready(PairView.show.bind(PairView));
+  },
+
+  close: function() {
+    window.opener.gDeviceList.setConfirmation(this._device.address, false);
+    window.close();
   },
 
   handleEvent: function pv_handleEvent(evt) {
-    if (evt.type !== 'click' || !evt.target)
+    var _ = navigator.mozL10n.get;
+    if (!evt.target)
       return;
 
-    evt.preventDefault();
-    switch (evt.target.id) {
-      case 'button-pair':
-        this.pairDescription.textContent = _('device-status-waiting');
-        this.pairButton.disabled = true;
-        this.closeButton.disabled = true;
-        switch (this._pairMethod) {
-          case 'confirmation':
-            window.opener.gDeviceList.setConfirmation(this._device.address);
+    switch (evt.type) {
+      case 'click':
+        evt.preventDefault();
+        switch (evt.target.id) {
+          case 'button-pair':
+            this.pairDescription.textContent = _('device-status-waiting');
+            this.pairButton.disabled = true;
+            this.closeButton.disabled = true;
+            switch (this._pairMethod) {
+              case 'confirmation':
+                window.opener.gDeviceList.
+                  setConfirmation(this._device.address, true);
+                break;
+              case 'pincode':
+                var value = this.pinInput.value;
+                window.opener.gDeviceList.setPinCode(this._device.address,
+                  value);
+                break;
+              case 'passkey':
+                var value = this.passkeyInput.value;
+                window.opener.gDeviceList.setPasskey(this._device.address,
+                  value);
+                break;
+            }
+            window.close();
             break;
-          case 'pincode':
-            var value = this.pinInput.value;
-            window.opener.gDeviceList.setPinCode(this._device.address, value);
-            break;
-          case 'passkey':
-            var value = this.passkeyInput.value;
-            window.opener.gDeviceList.setPasskey(this._device.address, value);
+          case 'button-close':
+            this.close();
             break;
         }
         break;
+      case 'resize':
+      // XXX: this is hack that we have to close the attention in this case,
+      // while in most other cases, we would just change it into an active
+      // status bar
+        if (window.innerHeight < 200) {
+          this.close();
+        }
+        break;
 
-      case 'button-close':
-      case 'button-ok':
-        window.close();
+      default:
         break;
     }
-  },
-
-  pairFailed: function pv_showFailed() {
-    this.pairView.hidden = true;
-    this.alertView.hidden = false;
   }
 };
-
-window.addEventListener('localized', function bluetoothSettings(evt) {
-  PairView.init();
-});
 

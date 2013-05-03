@@ -1,7 +1,7 @@
 Calendar.ns('Views').DayChild = (function() {
 
   var template = Calendar.Templates.Day;
-  var OrderedMap = Calendar.OrderedMap;
+  var OrderedMap = Calendar.Utils.OrderedMap;
 
   function Day(options) {
     Calendar.Views.DayBased.apply(this, arguments);
@@ -14,21 +14,27 @@ Calendar.ns('Views').DayChild = (function() {
 
     __proto__: Calendar.Views.DayBased.prototype,
 
-    _renderEvent: function(object) {
-      var remote = object.remote;
+    _renderEvent: function(busytime, event) {
+      var remote = event.remote;
       var attendees;
+      var classes;
 
-      if (object.remote.attendees) {
+      if (event.remote.alarms.length) {
+        classes = 'has-alarms';
+      }
+
+      if (event.remote.attendees) {
         attendees = this._renderAttendees(
-          object.remote.attendees
+          event.remote.attendees
         );
       }
 
       return template.event.render({
-        eventId: object._id,
-        calendarId: object.calendarId,
-        title: remote.title,
-        location: remote.location,
+        classes: classes,
+        busytimeId: busytime._id,
+        calendarId: event.calendarId,
+        title: event.remote.title,
+        location: event.remote.location,
         attendees: attendees
       });
     },

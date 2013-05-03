@@ -2,10 +2,15 @@
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 'use strict';
 
+var _ = navigator.mozL10n.get;
+
 var RingView = {
 
   _ringtonePlayer: null,
   _vibrateInterval: null,
+  _screenLock: null,
+  _onFireAlarm: {},
+  _started: false,
 
   get time() {
     delete this.time;
@@ -33,96 +38,188 @@ var RingView = {
   },
 
   init: function rv_init() {
-    this.updateTime();
-    this.setAlarmLabel();
-    this.ring();
-    this.vibrate();
     document.addEventListener('mozvisibilitychange', this);
+    this._onFireAlarm = window.opener.ActiveAlarmController.getOnFireAlarm();
+    if (!document.mozHidden) {
+      this.startAlarmNotification();
+    } else {
+      // The setTimeout() is used to workaround
+      // https://bugzilla.mozilla.org/show_bug.cgi?id=810431
+      // The workaround is used in screen off mode.
+      // mozHidden will be true in init() state.
+      var self = this;
+      window.setTimeout(function rv_checkMozHidden() {
+      // If mozHidden is true in init state,
+      // it means that the incoming call happens before the alarm.
+      // We should just put a "silent" alarm screen
+      // underneath the oncall screen
+        if (!document.mozHidden) {
+          self.startAlarmNotification();
+        }
+        // Our final chance is to rely on visibilitychange event handler.
+      }, 0);
+    }
+
+    this.setAlarmTime();
+    this.setAlarmLabel();
     this.snoozeButton.addEventListener('click', this);
     this.closeButton.addEventListener('click', this);
   },
 
-  updateTime: function rv_updateTime() {
-    var d = new Date();
-    var time = getLocaleTime(d);
+  setWakeLockEnabled: function rv_setWakeLockEnabled(enabled) {
+    // Don't let the phone go to sleep while the alarm goes off.
+    // User must manually close it until 15 minutes.
+    if (!navigator.requestWakeLock) {
+      console.warn('WakeLock API is not available.');
+      return;
+    }
+
+    if (enabled) {
+      this._screenLock = navigator.requestWakeLock('screen');
+    } else if (this._screenLock) {
+      this._screenLock.unlock();
+      this._screenLock = null;
+    }
+  },
+
+  setAlarmTime: function rv_setAlarmTime() {
+    var alarmTime = this.getAlarmTime();
+    var time = getLocaleTime(alarmTime);
     this.time.textContent = time.t;
     this.hourState.textContent = time.p;
-
-    var self = this;
-    this._timeout = window.setTimeout(function cv_clockTimeout() {
-      self.updateTime();
-    }, (59 - d.getSeconds()) * 1000);
   },
 
   setAlarmLabel: function rv_setAlarmLabel() {
-    this.alarmLabel.textContent = window.opener.AlarmManager.getAlarmLabel();
+    var label = this.getAlarmLabel();
+    this.alarmLabel.textContent = (label === '') ? _('alarm') : label;
   },
 
   ring: function rv_ring() {
     this._ringtonePlayer = new Audio();
     var ringtonePlayer = this._ringtonePlayer;
+    ringtonePlayer.addEventListener('mozinterruptbegin', this);
+    ringtonePlayer.mozAudioChannelType = 'alarm';
     ringtonePlayer.loop = true;
-    var selectedAlarmSound = 'style/ringtones/' +
-                             window.opener.AlarmManager.getAlarmSound();
+    var selectedAlarmSound = 'shared/resources/media/alarms/' +
+                             this.getAlarmSound();
     ringtonePlayer.src = selectedAlarmSound;
     ringtonePlayer.play();
     /* If user don't handle the onFire alarm,
-       pause the ringtone after 20 secs */
+       pause the ringtone after 15 minutes */
+    var self = this;
+    var duration = 60000 * 15;
     window.setTimeout(function rv_pauseRingtone() {
-      ringtonePlayer.pause();
-    }, 20000);
+      self.stopAlarmNotification('ring');
+    }, duration);
   },
 
   vibrate: function rv_vibrate() {
     if ('vibrate' in navigator) {
       this._vibrateInterval = window.setInterval(function vibrate() {
-        navigator.vibrate([200]);
-      }, 600);
+        navigator.vibrate([1000]);
+      }, 2000);
       /* If user don't handle the onFire alarm,
-       turn off vibration after 7 secs */
+       turn off vibration after 15 minutes */
       var self = this;
+      var duration = 60000 * 15;
       window.setTimeout(function rv_clearVibration() {
-        window.clearInterval(self._vibrateInterval);
-      }, 7000);
+        self.stopAlarmNotification('vibrate');
+      }, duration);
     }
+  },
+
+  startAlarmNotification: function rv_startAlarmNotification() {
+    // Ensure called only once.
+    if (this._started)
+      return;
+
+    this._started = true;
+    this.setWakeLockEnabled(true);
+    this.ring();
+    this.vibrate();
+  },
+
+  stopAlarmNotification: function rv_stopAlarmNotification(action) {
+    switch (action) {
+    case 'ring':
+      if (this._ringtonePlayer)
+        this._ringtonePlayer.pause();
+
+      break;
+    case 'vibrate':
+      if (this._vibrateInterval)
+        window.clearInterval(this._vibrateInterval);
+
+      break;
+    default:
+      if (this._ringtonePlayer)
+        this._ringtonePlayer.pause();
+
+      if (this._vibrateInterval)
+        window.clearInterval(this._vibrateInterval);
+
+      break;
+    }
+    this.setWakeLockEnabled(false);
+  },
+
+  getAlarmTime: function am_getAlarmTime() {
+    var d = new Date();
+    d.setHours(this._onFireAlarm.hour);
+    d.setMinutes(this._onFireAlarm.minute);
+    return d;
+  },
+
+  getAlarmLabel: function am_getAlarmLabel() {
+    return this._onFireAlarm.label;
+  },
+
+  getAlarmSound: function am_getAlarmSound() {
+    return this._onFireAlarm.sound;
   },
 
   handleEvent: function rv_handleEvent(evt) {
     switch (evt.type) {
-      case 'mozvisibilitychange':
-        if (document.mozHidden) {
-          window.clearTimeout(this._timeout);
-          return;
-        }
-        // Refresh the view when app return to foreground.
-        this.updateTime();
+    case 'mozvisibilitychange':
+      // There's chance to miss the mozHidden state when inited,
+      // before setVisible take effects, there may be a latency.
+      if (!document.mozHidden) {
+        this.startAlarmNotification();
+      }
+      break;
+    case 'mozinterruptbegin':
+      // Only ringer/telephony channel audio could trigger 'mozinterruptbegin'
+      // event on the 'alarm' channel audio element.
+      // If the incoming call happens after the alarm rings,
+      // we need to close ourselves.
+      this.stopAlarmNotification();
+      window.close();
+      break;
+    case 'click':
+      var input = evt.target;
+      if (!input)
+        return;
+
+      switch (input.id) {
+      case 'ring-button-snooze':
+        this.stopAlarmNotification();
+        window.opener.ActiveAlarmController.snoozeHandler();
+        window.close();
         break;
-
-      case 'click':
-        var input = evt.target;
-        if (!input)
-          return;
-
-        switch (input.id) {
-          case 'ring-button-snooze':
-            window.clearInterval(this._vibrateInterval);
-            this._ringtonePlayer.pause();
-            window.opener.AlarmManager.snoozeHandler();
-            window.close();
-            break;
-
-          case 'ring-button-close':
-            window.clearInterval(this._vibrateInterval);
-            this._ringtonePlayer.pause();
-            window.opener.AlarmManager.cancelHandler();
-            window.close();
-            break;
-        }
+      case 'ring-button-close':
+        this.stopAlarmNotification();
+        window.close();
         break;
+      }
+      break;
     }
   }
 
 };
 
-RingView.init();
+window.addEventListener('localized', function showBody() {
+  window.removeEventListener('localized', showBody);
+  RingView.init();
+});
+
 

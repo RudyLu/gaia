@@ -1,6 +1,7 @@
 (function(window) {
   var idb = window.indexedDB;
-  const VERSION = 9;
+  const VERSION = 14;
+  var debug = Calendar.debug('database');
 
   var store = {
     events: 'events',
@@ -8,7 +9,8 @@
     calendars: 'calendars',
     busytimes: 'busytimes',
     settings: 'settings',
-    alarms: 'alarms'
+    alarms: 'alarms',
+    icalComponents: 'icalComponents'
   };
 
   Object.freeze(store);
@@ -18,6 +20,8 @@
     this._stores = Object.create(null);
 
     Calendar.Responder.call(this);
+
+    this._upgradeOperations = [];
   }
 
   Db.prototype = {
@@ -31,105 +35,90 @@
 
     getStore: function(name) {
       if (!(name in this._stores)) {
-        this._stores[name] = new Calendar.Store[name](this);
+        try {
+          this._stores[name] = new Calendar.Store[name](this);
+        } catch (e) {
+          console.log('Failed to load store', name, e.stack);
+        }
       }
 
       return this._stores[name];
     },
 
-    /**
-     * Loads all records in Calendar & Account stores.
-     * Will open database if not already opened.
-     *
-     * @param {Function} callback node style.
-     */
     load: function(callback) {
-      var pending = 3;
+
       var self = this;
-
-      var accountStore = this.getStore('Account');
-      var settingStore = this.getStore('Setting');
-      var calendarStore = this.getStore('Calendar');
-
-      function next() {
-        pending--;
-        if (!pending)
-          complete();
-      }
-
-      function complete() {
-        if (self.hasUpgraded && self.oldVersion < 8) {
+      function setupDefaults() {
+        if (self.oldVersion < 8) {
           self._setupDefaults(callback);
         } else {
-          if (callback) {
-            callback();
-          }
+          Calendar.nextTick(callback);
         }
       }
 
-      // if there is an error case we must
-      // throw an error any error here is completely
-      // fatal.
-      function loadRecords() {
-        accountStore.load(function(err) {
-          if (err) {
-            throw err;
-          }
-          next();
-        });
-
-        settingStore.load(function(err) {
-          if (err) {
-            throw err;
-          }
-          next();
-        });
-
-        calendarStore.load(function(err) {
-          if (err) {
-            throw err;
-          }
-          next();
-        });
+      if (this.isOpen) {
+        return setupDefaults();
       }
 
       if (!this.isOpen) {
-        pending++;
-        this.open(function(err) {
-          if (err) {
-            throw err;
-          }
-          loadRecords();
-          next();
-        });
-      } else {
-        loadRecords();
+        this.open(VERSION, function() {
+          setupDefaults();
+        }.bind(this));
       }
     },
+
 
     /**
      * Opens connection to database.
      *
-     * @param {Function} callback first argument is error, second
+     * @param {Numeric} [version] version of database to open.
+     *                            default to current version.
+     *                            Should _only_ be used in testing.
+     *
+     * @param {Function} [callback] first argument is error, second
      *                            is result of operation or null
      *                            in the error case.
      */
-    open: function(callback) {
-      var req = idb.open(this.name, this.version);
+    open: function(version, callback) {
+      if (typeof(version) === 'function') {
+        callback = version;
+        version = VERSION;
+      }
+
+      var req = idb.open(this.name, version);
+      this.version = version;
+
       var self = this;
 
       req.onsuccess = function(event) {
         self.isOpen = true;
         self.connection = req.result;
 
-        callback(null, self);
-        self.emit('open', self);
+        // if we have pending upgrade operations
+        if (self._upgradeOperations.length) {
+          var pending = self._upgradeOperations.length;
+
+          function next() {
+            if (!(--pending)) {
+              callback(null, self);
+              self.emit('open', self);
+            }
+          }
+
+          var operation;
+          while ((operation = self._upgradeOperations.shift())) {
+            operation.call(self, next);
+          }
+        } else {
+          callback(null, self);
+          self.emit('open', self);
+        }
       };
 
       req.onblocked = function(error) {
         callback(error, null);
         self.emit('error', error);
-      }
+      };
 
       req.onupgradeneeded = function(event) {
         self._handleVersionChange(req.result, event);
@@ -161,13 +150,13 @@
     _handleVersionChange: function(db, event) {
       var newVersion = event.newVersion;
       var curVersion = event.oldVersion;
+      var transaction = event.currentTarget.transaction;
 
       this.hasUpgraded = true;
       this.oldVersion = curVersion;
       this.upgradedVersion = newVersion;
 
-      for (; curVersion <= newVersion; curVersion++) {
-
+      for (; curVersion < newVersion; curVersion++) {
         // if version is < 7 then it was from pre-production
         // db and we can safely discard its information.
         if (curVersion < 6) {
@@ -244,12 +233,23 @@
             'busytimeId',
             { unique: false, multiEntry: false }
           );
+       } else if (curVersion === 12) {
+          var icalComponents = db.createObjectStore(
+            store.icalComponents, { keyPath: 'eventId', autoIncrement: false }
+          );
+
+          icalComponents.createIndex(
+            'lastRecurrenceId',
+            'lastRecurrenceId.utc',
+            { unique: false, multiEntry: false }
+          );
+        } else if (curVersion === 13) {
+          var calendarStore = transaction.objectStore(store.calendars);
+          calendarStore.createIndex(
+            'accountId', 'accountId', { unique: false, multiEntry: false }
+          );
         }
       }
-    },
-
-    get version() {
-      return VERSION;
     },
 
     get store() {
@@ -313,6 +313,7 @@
       account._id = uuid();
 
       var calendar = {
+        _id: Calendar.Provider.Local.calendarId,
         accountId: account._id,
         remote: Calendar.Provider.Local.defaultCalendar()
       };
@@ -327,16 +328,18 @@
       req.onblocked = function(e) {
         // improve interface
         callback(new Error('blocked'));
-      }
+      };
 
       req.onsuccess = function(event) {
         callback(null, event);
-      }
+      };
 
       req.onerror = function(event) {
         callback(event, null);
-      }
+      };
     }
+
+    /** private db upgrade methods **/
 
   };
 

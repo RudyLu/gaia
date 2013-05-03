@@ -1,13 +1,10 @@
-requireApp('calendar/test/unit/helper.js', function() {
-  requireApp('calendar/test/unit/provider/mock_stream.js');
-  requireLib('provider/caldav_pull_events.js');
-  requireLib('provider/abstract.js');
-  requireLib('provider/caldav.js');
-  requireLib('models/account.js');
-  requireLib('models/calendar.js');
-});
+requireLib('ext/ical.js');
+requireApp('calendar/test/unit/service/helper.js');
+requireApp('calendar/test/unit/provider/mock_stream.js');
+requireLib('models/account.js');
+requireLib('models/calendar.js');
 
-suite('provider/caldav', function() {
+suiteGroup('Provider.Caldav', function() {
 
   var subject;
   var app;
@@ -16,6 +13,7 @@ suite('provider/caldav', function() {
 
   var accountStore;
   var calendarStore;
+  var componentStore;
   var eventStore;
 
   var calendar;
@@ -31,23 +29,49 @@ suite('provider/caldav', function() {
       app: app
     });
 
-    calendar = Factory('calendar', { _id: 'one', accountId: 'one' });
+    calendar = Factory('calendar', {
+    });
+
     account = Factory('account', { _id: 'one' });
 
     calendarStore = app.store('Calendar');
     accountStore = app.store('Account');
-
-    accountStore.cached[account._id] = account;
-    calendarStore.cached[calendar._id] = calendar;
+    componentStore = app.store('IcalComponent');
 
     eventStore = app.store('Event');
+
     db.open(done);
+  });
+
+  testSupport.calendar.accountEnvironment(
+    null,
+    {
+      _id: 'one',
+      accountId: 'one',
+      firstEventSyncDate: null,
+      lastEventSyncToken: null
+    }
+  );
+
+  var account;
+  var calendar;
+  setup(function() {
+    account = this.account;
+    calendar = this.calendar;
+  });
+
+  var ical;
+  suiteSetup(function(done) {
+    this.timeout(10000);
+    ical = new ServiceSupport.Fixtures('ical');
+    ical.load('daily_event');
+    ical.load('recurring_event');
+    ical.onready = done;
   });
 
   teardown(function(done) {
     testSupport.calendar.clearStore(
       db,
-      ['accounts', 'calendars', 'events', 'busytimes'],
       done
     );
   });
@@ -73,9 +97,47 @@ suite('provider/caldav', function() {
     assert.isTrue(subject.useCredentials);
   });
 
+  suite('#calendarCapabilities', function() {
+    /**
+     * Creates a test for a privilege set
+     */
+    function testPrivilege(name, privileges, expected) {
+      test(name, function() {
+        var calendar = Factory('calendar', {
+          remote: {
+            privilegeSet: privileges
+          }
+        });
+
+        var result = subject.calendarCapabilities(
+          calendar
+        );
+
+        assert.hasProperties(result, expected);
+      });
+    }
+
+    testPrivilege('missing privilegeSet', null, {
+      canUpdateEvent: true,
+      canDeleteEvent: true,
+      canCreateEvent: true
+    });
+
+    testPrivilege('delete', ['unbind'], {
+      canDeleteEvent: true
+    });
+
+    testPrivilege('create/update', ['write-content'], {
+      canCreateEvent: true,
+      canUpdateEvent: true
+    });
+  });
+
   suite('#eventCapabilities', function() {
-    test('recurring', function() {
+
+    test('recurring', function(done) {
       var event = Factory('event', {
+        calendarId: this.calendar._id,
         remote: {
           isRecurring: true
         }
@@ -87,12 +149,18 @@ suite('provider/caldav', function() {
         canCreate: false
       };
 
-      var actual = subject.eventCapabilities(event);
-      assert.deepEqual(actual, expected);
+      var actual = subject.eventCapabilities(event, function(err, actual) {
+        done(function() {
+          assert.deepEqual(actual, expected);
+        });
+      });
     });
 
-    test('normal', function() {
-      var event = Factory('event');
+    test('without calendar permissions', function(done) {
+      var event = Factory('event', {
+        calendarId: this.calendar._id
+      });
+
       assert.isFalse(event.remote.isRecurring);
 
       var expected = {
@@ -101,8 +169,36 @@ suite('provider/caldav', function() {
         canDelete: true
       };
 
-      var actual = subject.eventCapabilities(event);
-      assert.deepEqual(actual, expected);
+      var actual = subject.eventCapabilities(event, function(err, actual) {
+        done(function() {
+          assert.deepEqual(actual, expected);
+        });
+      });
+    });
+
+    test('with calendar permissions', function(done) {
+      subject.calendarCapabilities = function() {
+        return {
+          canCreateEvent: false,
+          canDeleteEvent: true,
+          canUpdateEvent: true
+        };
+      };
+
+      var event = Factory('event', {
+        calendarId: calendar._id
+      });
+
+      subject.eventCapabilities(event, function(err, caps) {
+        done(function() {
+          assert.deepEqual(caps, {
+            canCreate: false,
+            canUpdate: true,
+            canDelete: true
+          });
+
+        });
+      });
     });
   });
 
@@ -128,11 +224,31 @@ suite('provider/caldav', function() {
 
         subject.getAccount(input, function cb(cbError, cbResult) {
           done(function() {
-            assert.deepEqual(calledWith, [
-              'caldav', 'getAccount', input, cb
-            ]);
             assert.equal(cbResult, result);
             assert.equal(cbError, error);
+          });
+        });
+      });
+
+      test('error handling', function(done) {
+        error = new Error();
+        error.constructorName = 'CaldavHttpError';
+        error.code = 404;
+        var errorMsg = 'no-url';
+        subject.getAccount(input, function cb(cbError, cbResult) {
+          done(function() {
+            assert.equal(cbError, errorMsg);
+          });
+        });
+      });
+
+      test('offline handling', function(done) {
+        var realOffline = app.offline;
+        app.offline = function() { return true };
+        subject.getAccount(input, function cb(cbError, cbResult) {
+          done(function() {
+            app.offline = realOffline;
+            assert.equal(cbError.name, 'offline');
           });
         });
       });
@@ -140,23 +256,54 @@ suite('provider/caldav', function() {
 
     suite('#findCalendars', function() {
       test('success', function(done) {
-        result = [{ id: 'wow' }];
+        result = {
+          one: Factory.build('caldav.calendar'),
+          two: Factory.build('caldav.calendar', { color: null })
+        };
+
+        error = null;
 
         subject.findCalendars(input, function cb(cbError, cbResult) {
           done(function() {
-            assert.deepEqual(calledWith, [
-              'caldav', 'findCalendars', input, cb
-            ]);
-            assert.equal(cbResult, result);
+            assert.equal(
+              cbResult.one,
+              result.one,
+              'does not process events with color'
+            );
+
+            // hack clone
+            var withColor = JSON.parse(JSON.stringify(result.two));
+            withColor.color = subject.defaultColor;
+
+            assert.deepEqual(
+              cbResult.two,
+              withColor,
+              'adds color'
+            );
+
             assert.equal(cbError, error);
+          });
+        });
+      });
+
+      test('offline handling', function(done) {
+        var realOffline = app.offline;
+        app.offline = function() { return true };
+        subject.findCalendars(input, function cb(cbError, cbResult) {
+          done(function() {
+            app.offline = realOffline;
+            assert.equal(cbError.name, 'offline');
           });
         });
       });
     });
 
     suite('#createEvent', function() {
-      test('success', function(done) {
-        var event = Factory('event', {
+      var event;
+      var id;
+
+      setup(function(done) {
+        event = Factory('event', {
           calendarId: calendar._id
         });
 
@@ -165,39 +312,118 @@ suite('provider/caldav', function() {
         result.syncToken = 'hit';
         result.icalComponent = 'xfoo';
 
-        var id = calendar._id + '-foo';
+        id = calendar._id + '-foo';
 
-        subject.createEvent(event, function() {
-          eventStore.get(id, function(err, result) {
-            var remote = result.remote;
-            assert.equal(remote.id, 'foo');
-            assert.equal(remote.syncToken, 'hit');
-            assert.equal(remote.icalComponent, 'xfoo');
-            done();
+        subject.createEvent(event, done);
+      });
+
+      test('icalComponent', function(done) {
+        componentStore.get(id, function(err, result) {
+          done(function() {
+            assert.deepEqual(result, {
+              eventId: id,
+              ical: 'xfoo'
+            });
           });
         });
       });
+
+      test('event', function(done) {
+        eventStore.get(id, function(err, result) {
+          var remote = result.remote;
+          assert.equal(remote.id, 'foo');
+          assert.equal(remote.syncToken, 'hit');
+          assert.ok(!remote.icalComponent, 'does not have icalComponent');
+          done();
+        });
+      });
+
+      test('offline handling', function(done) {
+        var realOffline = app.offline;
+        app.offline = function() { return true };
+        subject.createEvent(event, function cb(cbError, cbResult) {
+          done(function() {
+            app.offline = realOffline;
+            assert.equal(cbError.name, 'offline');
+          });
+        });
+      });
+
     });
 
     suite('#updateEvent', function() {
       var event;
+      var component;
 
       setup(function(done) {
+        var trans = eventStore.db.transaction(
+          ['events', 'icalComponents'],
+          'readwrite'
+        );
+
+        trans.oncomplete = function() {
+          done();
+        };
+
         event = Factory('event', {
           calendarId: calendar._id
         });
+
+        component = Factory('icalComponent', {
+          eventId: event._id,
+          ical: 'original'
+        });
+
         eventStore.persist(event, done);
+        componentStore.persist(component, done);
       });
 
-      test('simple event', function(done) {
+      setup(function(done) {
         result = Factory.create('event').remote;
         result.icalComponent = 'xfooo';
+        result.syncToken = 'changedmefoo';
+        subject.updateEvent(event, done);
+      });
 
-        subject.updateEvent(event, function(err, data) {
-          eventStore.get(event._id, function(err, result) {
-            done(function() {
-              assert.equal(result.remote.icalComponent, 'xfooo');
-            });
+      test('sent data', function() {
+        var details = calledWith[calledWith.length - 2];
+
+        assert.ok(details.event, 'sends event');
+
+        assert.equal(
+          details.icalComponent,
+          'original',
+          'icalComponent'
+        );
+      });
+
+      test('component', function(done) {
+        componentStore.get(event._id, function(err, item) {
+          done(function() {
+            assert.deepEqual(
+              item,
+              { eventId: event._id, ical: 'xfooo' }
+            );
+          });
+        });
+      });
+
+      test('event', function(done) {
+        eventStore.get(event._id, function(err, item) {
+          done(function() {
+            assert.equal(item.remote.syncToken, result.syncToken);
+          });
+        });
+
+      });
+
+      test('offline handling', function(done) {
+        var realOffline = app.offline;
+        app.offline = function() { return true };
+        subject.updateEvent(event, function cb(cbError, cbResult) {
+          done(function() {
+            app.offline = realOffline;
+            assert.equal(cbError.name, 'offline');
           });
         });
       });
@@ -214,17 +440,47 @@ suite('provider/caldav', function() {
           done(function() {
             assert.equal(calledWith[0], 'caldav');
             assert.equal(calledWith[1], 'deleteEvent');
-            assert.deepEqual(
-              calledWith.slice(2, 5),
-              [account, calendar.remote, event.remote]
+
+            var slice = calledWith.slice(2, 5);
+
+            assert.hasProperties(
+              slice[0], account,
+              'sends account'
             );
+
+            assert.hasProperties(
+              slice[1],
+              calendar.remote,
+              'sends calendar'
+            );
+
+            assert.deepEqual(
+              slice[2],
+              event.remote,
+              'sends event'
+            );
+
+          });
+        });
+      });
+
+      test('offline handling', function(done) {
+        var realOffline = app.offline;
+        var event = Factory('event', {
+          calendarId: calendar._id
+        });
+        app.offline = function() { return true };
+        subject.deleteEvent(event, function cb(cbError, cbResult) {
+          done(function() {
+            app.offline = realOffline;
+            assert.equal(cbError.name, 'offline');
           });
         });
       });
     });
   });
 
-  suite('#_buildEventsFor', function() {
+  suite('#_cachedEventsFor', function() {
     var events = [];
     var calendar;
 
@@ -239,7 +495,12 @@ suite('provider/caldav', function() {
     for (; i < 2; i++) {
       setup(function(done) {
         var event = Factory('event', {
-          calendarId: calendar._id
+          calendarId: calendar._id,
+          remote: {
+            id: i,
+            url: 'some_foo_' + i + '.ics',
+            syncToken: i
+          }
         });
 
         events.push(event);
@@ -250,15 +511,127 @@ suite('provider/caldav', function() {
     test('result', function(done) {
       var expected = Object.create(null);
       events.forEach(function(item) {
-        expected[item._id] = item;
+        expected[item.remote.url] = {
+          syncToken: item.remote.syncToken,
+          id: item._id
+        };
       });
 
-      subject._buildEventsFor(calendar, function(err, result) {
+      subject._cachedEventsFor(calendar, function(err, result) {
         done(function() {
           assert.deepEqual(result, expected);
         });
       });
     });
+  });
+
+  suite('#syncEvents', function() {
+    var account;
+    var calendar;
+    var events = [];
+
+    var calledWith;
+
+    function addEvent(cb) {
+      setup(function(done) {
+        var event = cb();
+        events.push(event);
+        eventStore.persist(event, done);
+      });
+    }
+
+    setup(function(done) {
+      calledWith = null;
+      events.length = 0;
+
+      subject._syncEvents = function() {
+        calledWith = arguments;
+        var cb = calledWith[calledWith.length - 1];
+        setTimeout(cb, 0, null);
+      };
+
+      var trans = db.transaction(
+        ['accounts', 'calendars'],
+        'readwrite'
+      );
+
+      account = Factory('account', {
+        providerType: 'Caldav'
+      });
+
+      calendar = Factory('calendar');
+
+      trans.oncomplete = function() {
+        done();
+      };
+
+      accountStore.persist(account, trans);
+      calendarStore.persist(calendar, trans);
+    });
+
+    suite('sync with cached events', function() {
+      addEvent(function() {
+        return Factory('event', {
+          calendarId: calendar._id,
+          remote: {
+            url: 'one.ics',
+            syncToken: 'one'
+          }
+        });
+      });
+
+      test('result', function(done) {
+        subject.syncEvents(account, calendar, function() {
+          done(function() {
+            assert.equal(calledWith[0], account, 'has account');
+            assert.equal(calledWith[1], calendar, 'has calendar');
+
+            // expected cached events (url -> sync token)
+            var sentCache = calledWith[2];
+            assert.ok(sentCache, 'sends cache');
+            assert.ok(sentCache[events[0].remote.url], 'sends url');
+          });
+        });
+      });
+
+      test('offline handling', function(done) {
+        var realOffline = app.offline;
+        app.offline = function() { return true };
+        subject.syncEvents(account, calendar, function cb(cbError, cbResult) {
+          done(function() {
+            app.offline = realOffline;
+            assert.equal(cbError.name, 'offline');
+          });
+        });
+      });
+    });
+
+    suite('sync tokens match', function() {
+      setup(function() {
+        calendar.lastEventSyncToken = 'sync';
+        calendar.remote.syncToken = 'sync';
+      });
+
+      test('result', function(done) {
+        // tokens match should not sync!
+        subject.syncEvents(account, calendar, function() {
+          assert.ok(!calledWith);
+          done();
+        });
+      });
+
+      test('offline handling', function(done) {
+        var realOffline = app.offline;
+        app.offline = function() { return true };
+        subject.syncEvents(account, calendar, function cb(cbError, cbResult) {
+          done(function() {
+            app.offline = realOffline;
+            assert.equal(cbError.name, 'offline');
+          });
+        });
+      });
+    });
+
   });
 
   suite('#_syncEvents', function() {
@@ -280,7 +653,9 @@ suite('provider/caldav', function() {
 
         calledWith = args;
         var stream = new Calendar.Responder();
-        stream.request = function() {};
+        stream.request = function(callback) {
+          setTimeout(callback, 0, null);
+        };
         return stream;
       };
 
@@ -288,79 +663,248 @@ suite('provider/caldav', function() {
       calendar = Factory('calendar');
     });
 
-    test('with first sync date', function() {
-      calendar.firstEventSyncDate = new Date(2012, 0, 1);
-      var expectedDate = new Date(2012, 0, 1 - subject.daysToSyncInPast);
+    suite('with first syncDate', function() {
+      var expectedSyncDate = new Date(2012, 0, 1);
 
-      subject._syncEvents(account, calendar, cached);
-
-      var expected = [
-        account.toJSON(),
-        calendar.remote,
-        { startDate: expectedDate }
-      ];
-
-      assert.deepEqual(
-        calledWith,
-        expected
-      );
-    });
-
-    test('without first sync date', function() {
-      var now = Calendar.Calc.createDay(new Date());
-      now.setDate(now.getDate() - subject.daysToSyncInPast);
-      subject._syncEvents(account, calendar, cached);
-
-      var expected = [
-        account.toJSON(),
-        calendar.remote,
-        { startDate: now }
-      ];
-
-      assert.deepEqual(
-        calledWith,
-        expected
-      );
-    });
-  });
-
-  suite('#_syncEvents - calendar syncToken skip', function() {
-    var account, calendar;
-
-    setup(function() {
-      account = Factory('account', {
-        providerType: 'Caldav'
+      setup(function(done) {
+        calendar.firstEventSyncDate = expectedSyncDate;
+        calendarStore.persist(calendar, done);
       });
 
-      calendar = Factory('calendar', {
-        _id: 1,
-        lastEventSyncToken: 'synced',
-        remote: { syncToken: 'synced' }
+      test('result', function(done) {
+        var expectedDate = new Date(expectedSyncDate.valueOf());
+        expectedDate.setDate(
+          expectedDate.getDate() - subject.daysToSyncInPast
+        );
+
+        var options = {
+          startDate: expectedDate,
+          cached: cached
+        };
+
+        var pull = subject._syncEvents(
+          account,
+          calendar,
+          cached,
+          oncomplete
+        );
+
+        function oncomplete() {
+          var expected = [
+            account.toJSON(),
+            calendar.remote,
+            options
+          ];
+
+          assert.deepEqual(
+            calledWith,
+            expected
+          );
+
+          assert.instanceOf(
+            pull,
+            Calendar.Provider.CaldavPullEvents
+          );
+
+          assert.equal(pull.account, account);
+          assert.equal(pull.calendar, calendar);
+
+          calendarStore.get(calendar._id, function(err, result) {
+            done(function() {
+              assert.equal(
+                result.lastEventSyncToken,
+                result.remote.syncToken,
+                'updates sync token'
+              );
+
+              assert.deepEqual(
+                result.firstEventSyncDate,
+                expectedSyncDate,
+                'first sync date is never modified'
+              );
+            });
+          });
+        }
       });
-
     });
 
-    setup(function(done) {
-      app.store('Account').persist(account, done);
-    });
+    test('without first sync date', function(done) {
+      var syncDate = Calendar.Calc.createDay(new Date());
+      var expectedSyncDate = new Date(syncDate.valueOf());
 
-    setup(function(done) {
-      calendarStore.persist(calendar, done);
-    });
+      syncDate.setDate(syncDate.getDate() - subject.daysToSyncInPast);
+      calendar.firstEventSyncDate = null;
 
-    test('result', function(done) {
-      subject._syncEvents = function() {
-        done(new Error('should not sync!'));
+      var options = {
+        startDate: syncDate,
+        cached: cached
+      };
+
+      subject._syncEvents(account, calendar, cached, oncomplete);
+
+      function oncomplete() {
+        var expected = [
+          account.toJSON(),
+          calendar.remote,
+          options
+        ];
+
+        assert.deepEqual(
+          calledWith,
+          expected
+        );
+
+        calendarStore.get(calendar._id, function(err, record) {
+          done(function() {
+            assert.deepEqual(
+              record.firstEventSyncDate,
+              expectedSyncDate,
+              'updates first sync date'
+            );
+
+            assert.equal(
+              record.lastEventSyncToken,
+              record.remote.syncToken,
+              'updates sync token'
+            );
+          });
+        });
       }
-
-      // tokens match should not sync!
-      subject.syncEvents(account, calendar, function() {
-        done();
-      });
     });
   });
 
+  suite('#ensureRecurrencesExpanded', function() {
+    var maxDate = new Date(2013, 2, 17);
 
+    test('with no icalComponent records', function(done) {
+      subject.ensureRecurrencesExpanded(maxDate, function(err, didExpand) {
+        done(function() {
+          assert.isFalse(didExpand);
+        });
+      });
+    });
 
+    test('with lastRecurrenceId after maxDate', function(done) {
+      var comp = Factory('icalComponent', {
+        ical: '',
+        eventId: 22,
+        lastRecurrenceId: new Date(2013, 2, 18)
+      });
+
+      componentStore.persist(comp, function(err) {
+        if (err)
+          return done(err);
+
+        subject.ensureRecurrencesExpanded(maxDate, function(err, didExpand) {
+          if (err)
+            return done(err);
+
+          done(function() {
+            assert.isFalse(didExpand, 'expanded');
+          });
+        });
+      });
+    });
+
+    suite('with simulated pre-expansion component', function() {
+      // this test still is a little too much for travis
+      // CI... we need to ensure it is more reliable soon.
+      return;
+      var comp;
+      var didExpand;
+      var eventId;
+      var givenLastRecur = new Date(2012, 10, 1);
+
+      setup(function() {
+        var jCal = ICAL.parse(ical.recurringEvent);
+        var vcal = new ICAL.Component(jCal[1]);
+        var vevent = vcal.getFirstSubcomponent('vevent');
+
+        eventId = calendar._id + '-' + vevent.getFirstPropertyValue('uid');
+      });
+
+      setup(function(done) {
+        didExpand = false;
+        comp = Factory('icalComponent', {
+          calendarId: calendar._id,
+          eventId: eventId,
+          ical: ical.recurringEvent,
+          iterator: {},
+          lastRecurrenceId: Calendar.Calc.dateToTransport(
+            givenLastRecur
+          )
+        });
+
+        componentStore.persist(comp, done);
+
+        app.serviceController.start();
+      });
+
+      setup(function(done) {
+        subject.ensureRecurrencesExpanded(maxDate, function(err, result) {
+          didExpand = result;
+          done();
+        });
+      });
+
+      test('after expansion', function(done) {
+        assert.isTrue(didExpand, 'has expanded');
+
+        var stores = ['icalComponents', 'busytimes'];
+        var trans = db.transaction(stores);
+
+        var pending = 0;
+        var results = {};
+
+        function next() {
+          if (!(--pending))
+            done(complete);
+        }
+
+        stores.forEach(function(store) {
+          pending++;
+
+          var obj = trans.objectStore(store);
+          obj.mozGetAll().onsuccess = function(e) {
+            results[store] = e.target.result;
+            next();
+          };
+        });
+
+        function complete() {
+          assert.length(results.icalComponents, 1);
+          assert.ok(results.busytimes.length, 1);
+
+          var comp = results.icalComponents[0];
+          var lastRecur = Calendar.Calc.dateFromTransport(
+            comp.lastRecurrenceId
+          );
+
+          var dates = [];
+
+          results.busytimes.forEach(function(time) {
+            dates.push(time.startDate);
+          });
+
+          dates = dates.sort();
+
+          assert.isTrue(
+            dates[0].valueOf() > givenLastRecur.valueOf(),
+            'first occurrence is after last given'
+          );
+
+          assert.isTrue(
+            dates[dates.length - 1].valueOf() < maxDate.valueOf(),
+            'last occurrence is before max date'
+          );
+
+          assert.isTrue(
+            lastRecur.valueOf() > givenLastRecur.valueOf(),
+            'should expand beyond the given lastRecurId'
+          );
+        }
+      });
+    });
+
+  });
 });
-

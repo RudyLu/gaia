@@ -1,6 +1,6 @@
 #footer {
+  min-height: 7.5rem;
   width: 100%;
-  height: 75px;
   position: fixed;
   bottom: 0;
   z-index: 10000;
@@ -10,11 +10,12 @@
 }
 
 #footer .dockWrapper {
-  width: -moz-calc(7 * 7.3rem);
+  width: 175%;
   height: 100%;
 }
 
 #footer ol {
+  width: 100%;
   height: 100%;
   padding: 0;
   margin: 0;
@@ -25,29 +26,33 @@
 #footer li {
   height: 100%;
   position: relative;
-  width: 7.3rem;
-  display: inline-block;
+  width: calc(100% / 7);
+  float: left;
   text-align: center;
+}
+
+#footer > div.scrollable li {
+	width: 7.2rem;
 }
 
 /* Container -> icon + label */
 #footer li > div {
   width: 100%;
-	margin-top: .25rem;
+  margin-top: .5rem;
   pointer-events: none;
 }
 
 /* Option to delete apps */
 #footer li span.options {
   position: absolute;
-  top: .2rem;
-	left: 0;
-  width: 100%;
+  top: .1rem;
+  left: .5rem;
+  width: calc(100% - .5rem);
   height: 2.6rem;
   z-index: 2;
-  background: url(../resources/images/menu.png) no-repeat center top;
+  background: url(../resources/images/delete.png) no-repeat left top;
 }
 
-#footer li > div > *:not(canvas) {
+#footer li > div > *:not(img) {
   display: none;
 }

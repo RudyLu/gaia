@@ -3,38 +3,95 @@
 
 const Homescreen = (function() {
   var mode = 'normal';
+  var origin = document.location.protocol + '//homescreen.' +
+    document.location.host.replace(/(^[\w\d]+.)?([\w\d]+.[a-z]+)/, '$2');
   var _ = navigator.mozL10n.get;
+  setLocale();
+  navigator.mozL10n.ready(function localize() {
+    setLocale();
+    GridManager.localize();
+  });
 
-  // Initialize the pagination scroller
+  var initialized = false, landingPage;
+
+  // Initialize the various components.
   PaginationBar.init('.paginationScroller');
 
-  function initUI() {
-    setLocale();
-    GridManager.init('.apps', function gm_init() {
-      DockManager.init(document.querySelector('#footer .dockWrapper'));
+  function initialize(lPage) {
+    if (initialized) {
+      return;
+    }
+
+    initialized = true;
+    landingPage = lPage;
+
+    window.addEventListener('hashchange', function() {
+      if (document.location.hash != '#root')
+        return;
+
+      // this happens when the user presses the 'home' button
+      if (Homescreen.isInEditMode()) {
+        exitFromEditMode();
+      } else {
+        GridManager.goToPage(landingPage);
+      }
+      GridManager.ensurePanning();
+    });
+
+    var swipeSection = Configurator.getSection('swipe');
+    var options = {
+      gridSelector: '.apps',
+      dockSelector: '.dockWrapper',
+      tapThreshold: Configurator.getSection('tap_threshold'),
+      // It defines the threshold to consider a gesture like a swipe. Number
+      // in the range 0.0 to 1.0, both included, representing the screen width
+      swipeThreshold: swipeSection.threshold,
+      swipeFriction: swipeSection.friction,
+      swipeTransitionDuration: swipeSection.transition_duration
+    };
+
+    GridManager.init(options, function gm_init() {
       PaginationBar.show();
-      GridManager.goToPage(1);
+      if (document.location.hash === '#root') {
+        // Switch to the first page only if the user has not already
+        // start to pan while home is loading
+        GridManager.goToPage(landingPage);
+      }
       DragDropManager.init();
       Wallpaper.init();
-
-      window.addEventListener('localized', function localize() {
-        setLocale();
-        GridManager.localize();
-        DockManager.localize();
-      });
     });
   }
 
-  function onHomescreenActivity() {
-    if (Homescreen.isInEditMode()) {
-      Homescreen.setMode('normal');
-      GridManager.saveState();
-      DockManager.saveState();
-      Permissions.hide();
-    } else {
-      GridManager.goToPage(1);
-    }
+  function exitFromEditMode() {
+    Homescreen.setMode('normal');
+    ConfirmDialog.hide();
+    GridManager.exitFromEditMode();
   }
+
+  document.addEventListener('mozvisibilitychange', function mozVisChange() {
+    if (document.mozHidden && Homescreen.isInEditMode()) {
+      exitFromEditMode();
+    }
+
+    if (document.mozHidden == false) {
+      setTimeout(function forceRepaint() {
+        var helper = document.getElementById('repaint-helper');
+        helper.classList.toggle('displayed');
+      });
+    }
+  });
+
+  window.addEventListener('message', function hs_onMessage(event) {
+    if (event.origin === origin) {
+      var message = event.data;
+      switch (message.type) {
+        case Message.Type.ADD_BOOKMARK:
+          var app = new Bookmark(message.data);
+          GridManager.install(app);
+          break;
+      }
+    }
+  });
 
   function setLocale() {
     // set the 'lang' and 'dir' attributes to <html> when the page is translated
@@ -42,92 +99,55 @@ const Homescreen = (function() {
     document.documentElement.dir = navigator.mozL10n.language.direction;
   }
 
-  function start() {
-    if (Applications.isReady()) {
-      initUI();
-      return;
-    }
-    Applications.addEventListener('ready', initUI);
-  }
-
-  function loadBookmarks() {
-    HomeState.getBookmarks(function(bookmarks) {
-      bookmarks.forEach(function(bookmark) {
-        Applications.addBookmark(bookmark);
-      });
-      start();
-    }, start);
-  }
-
-  HomeState.init(function success(onUpgradeNeeded) {
-    loadBookmarks();
-  }, start);
-
-  // Listening for installed apps
-  Applications.addEventListener('install', function oninstall(app) {
-    GridManager.install(app, true);
-  });
-
-  // Listening for uninstalled apps
-  Applications.addEventListener('uninstall', function onuninstall(app) {
-    if (DockManager.contains(app)) {
-      DockManager.uninstall(app);
-    } else {
-      GridManager.uninstall(app);
-    }
-  });
-
-  if (window.navigator.mozSetMessageHandler) {
-    window.navigator.mozSetMessageHandler('activity',
-      function handleActivity(activity) {
-        var data = activity.source.data;
-
-        switch (activity.source.name) {
-          case 'save-bookmark':
-            if (data.type === 'url') {
-              BookmarkEditor.init(data);
-            }
-
-            break;
-          case 'view':
-            if (data.type === 'application/x-application-list') {
-              onHomescreenActivity();
-            }
-
-            break;
-        }
-      });
-  }
-
   return {
     /*
-     * Displays the contextual menu given an origin
+     * Displays the contextual menu given an app.
      *
-     * @param {String} the app origin
+     * @param {Application} app
+     *                      The application object.
      */
-    showAppDialog: function h_showAppDialog(origin) {
-      var app = Applications.getByOrigin(origin);
-      var title, body, yesLabel;
+    showAppDialog: function h_showAppDialog(app) {
+      var title, body;
+      var cancel = {
+        title: _('cancel'),
+        callback: ConfirmDialog.hide
+      };
+
+      var confirm = {
+        callback: function onAccept() {
+          ConfirmDialog.hide();
+          if (app.isBookmark) {
+            app.uninstall();
+          } else {
+            navigator.mozApps.mgmt.uninstall(app);
+          }
+        },
+        applyClass: 'danger'
+      };
+
       // Show a different prompt if the user is trying to remove
       // a bookmark shortcut instead of an app.
+      var manifest = app.manifest || app.updateManifest;
       if (app.isBookmark) {
-        title = _('remove-title', { name: app.manifest.name });
-        body = '';
-        yesLabel = _('remove');
+        title = _('remove-title-2', { name: manifest.name });
+        body = _('remove-body', { name: manifest.name });
+        confirm.title = _('remove');
       } else {
-        title = _('delete-title', { name: app.manifest.name });
-        body = _('delete-body', { name: app.manifest.name });
-        yesLabel = _('delete');
+        // Make sure to get the localized name
+        manifest = new ManifestHelper(manifest);
+        title = _('delete-title', { name: manifest.name });
+        body = _('delete-body', { name: manifest.name });
+        confirm.title = _('delete');
       }
 
-      Permissions.show(title, body, yesLabel, _('cancel'),
-                       function onAccept() { app.uninstall() },
-                       function onCancel() {});
+      ConfirmDialog.show(title, body, cancel, confirm);
     },
 
     isInEditMode: function() {
       return mode === 'edit';
     },
+
+    init: initialize,
 
     setMode: function(newMode) {
       mode = document.body.dataset.mode = newMode;

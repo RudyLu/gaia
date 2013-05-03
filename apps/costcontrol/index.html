@@ -1,243 +1,290 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="utf-8">
-  <meta http-equiv="pragma" content="no-cache">
-  <title>Cost Control</title>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="pragma" content="no-cache">
+    <title data-l10n-id="usage">
+      Usage
+    </title>
 
-  <!-- Building blocks Temporal -->
-  <link rel="stylesheet" type="text/css" href="style/bb/buttons/style.css">
-  <link rel="stylesheet" type="text/css" href="style/bb/filters/style.css">
-  <link rel="stylesheet" type="text/css" href="style/bb/input-areas/style.css">
-  <link rel="stylesheet" type="text/css" href="style/bb/menus-dialogues/core.css">
-  <link rel="stylesheet" type="text/css" href="style/bb/menus-dialogues/prompt/style.css">
-  <link rel="stylesheet" type="text/css" href="style/bb/menus-dialogues/valueselector/style.css">
-  <link rel="stylesheet" type="text/css" href="style/bb/menus-dialogues/valueselector/date/style.css">
-  <link rel="stylesheet" type="text/css" href="style/bb/progress-activity/style.css">
+    <!-- Building blocks Temporal -->
+    <link rel="stylesheet" type="text/css" href="style/bb/input-areas/style.css">
 
-  <!-- Building blocks -->
-  <link rel="stylesheet" type="text/css" href="shared/style/headers.css">
-  <link rel="stylesheet" type="text/css" href="shared/style/switches.css">
+    <!-- Building blocks -->
+    <link rel="stylesheet" type="text/css" href="shared/style/headers.css">
+    <link rel="stylesheet" type="text/css" href="shared/style/buttons.css">
+    <link rel="stylesheet" type="text/css" href="shared/style/switches.css">
+    <link rel="stylesheet" type="text/css" href="shared/style_unstable/lists.css">
+    <link rel="stylesheet" type="text/css" href="shared/style_unstable/progress_activity.css">
+    <link rel="stylesheet" type="text/css" href="style/bb/filters/style.css">
 
-  <!-- App and Views -->
-  <link rel="stylesheet" type="text/css" href="style/app.css">
-  <link rel="stylesheet" type="text/css" href="style/views/topup.css">
-  <link rel="stylesheet" type="text/css" href="style/views/datausage.css">
-  <link rel="stylesheet" type="text/css" href="style/views/balance.css">
-  <link rel="stylesheet" type="text/css" href="style/views/telephony.css">
+    <!-- App and Views -->
+    <link rel="stylesheet" type="text/css" href="style/app.css">
+    <link rel="stylesheet" type="text/css" href="style/views/datausage.css">
+    <link rel="stylesheet" type="text/css" href="style/views/topup.css">
+    <link rel="stylesheet" type="text/css" href="style/views/balance.css">
+    <link rel="stylesheet" type="text/css" href="style/views/telephony.css">
 
-  <!-- Localization -->
-  <link rel="resource" type="application/l10n" href="locales/locales.ini">
-  <link rel="resource" type="application/l10n" href="shared/locales/date.ini">
+    <!-- Multiresolution support -->
+    <link rel="stylesheet" type="text/css" href="shared/style/responsive.css">
 
-  <!-- Shared code -->
-  <script type="text/javascript" src="shared/js/l10n.js"></script>
-  <script type="text/javascript" src="shared/js/l10n_date.js"></script>
+    <!-- Localization -->
+    <link rel="resource" type="application/l10n" href="locales/locales.ini">
+    <link rel="resource" type="application/l10n" href="shared/locales/date.ini">
 
-  <!-- Specific code -->
-  <script type="text/javascript" src="js/utils/debug.js"></script>
-  <script type="text/javascript" src="js/utils/formatting.js"></script>
-  <script type="text/javascript" src="js/service/service_utils.js"></script>
+    <script type="text/javascript" defer src="shared/js/l10n.js"></script>
+    <script type="text/javascript" defer src="shared/js/l10n_date.js"></script>
+    <script type="text/javascript" defer src="shared/js/async_storage.js"></script>
+    <script type="text/javascript" defer src="shared/js/settings_listener.js"></script>
 
-  <script type="text/javascript" defer src="js/views/view_manager.js"></script>
-  <script type="text/javascript" defer src="js/views/vmanagers.js"></script>
-  <script type="text/javascript" defer src="js/views/balance.js"></script>
-  <script type="text/javascript" defer src="js/views/telephony.js"></script>
-  <script type="text/javascript" defer src="js/views/data_usage.js"></script>
-  <script type="text/javascript" defer src="js/app.js"></script>
-</head>
+    <script type="text/javascript" defer src="js/utils/debug.js"></script>
+    <script type="text/javascript" defer src="js/utils/toolkit.js"></script>
+    <script type="text/javascript" defer src="js/utils/formatting.js"></script>
 
-<body role="application">
-  <section role="region" class="window skin-organic">
-    <!-- XXX: The order of sections is important (tabs should be place above
-    the overlays) and we should distinguish between TABS and OVERLAY VIEWS -->
+    <script type="text/javascript" defer src="js/config_manager.js"></script>
+    <script type="text/javascript" defer src="js/mindgap.js"></script>
+    <script type="text/javascript" defer src="js/common.js"></script>
+    <script type="text/javascript" defer src="js/costcontrol.js"></script>
+    <script type="text/javascript" defer src="js/view_manager.js"></script>
+    <script type="text/javascript" defer src="js/app.js"></script>
 
-    <!-- BALANCE TAB -->
-    <section role="region" id="balance-tab" class="view" data-viewport="behind">
+    <!-- Include shared resources
+    <link rel="resource" type="image/png" href="shared/resources/branding/splash_screen_generic.png"/>
+    -->
+
+  </head>
+  <body role="application">
+
+    <section id="main" role="region" class="window skin-organic non-ready">
+      <!-- XXX: The order of sections is important (tabs should be place above
+the overlays) and we should distinguish between TABS and OVERLAY VIEWS -->
       <header>
         <menu type="toolbar">
-           <button class="settings-button"><span class="icon config">configuration</span></button>
+          <button class="settings-button"><span class="icon config">Configuration</span></button>
         </menu>
-        <h1 data-l10n-id="balance">Balance</h1>
+        <h1 data-l10n-id="usage">Usage</h1>
       </header>
 
-      <section class="content">
+      <!-- Bottom filters (Telephony / Cost Control and Data Usage) -->
+      <ul id="tabs" role="tablist" class="filter" data-items="2" data-position="bottom">
+        <li id="balance-tab-filter" aria-selected="true">
+          <a role="tab" data-l10n-id="balance" href="#balance-tab">
+            Balance
+          </a>
+        </li>
+        <li id="telephony-tab-filter" aria-hidden="true">
+          <a role="tab" data-l10n-id="phone" href="#telephony-tab">
+            Phone
+          </a>
+        </li>
+        <li id="datausage-tab-filter">
+          <a role="tab" data-l10n-id="internet" href="#datausage-tab">
+            Internet
+          </a>
+        </li>
+      </ul>
 
-        <!-- Top up countdown -->
-        <div id="cost-control-topup-countdown" class="countdown" aria-hidden="true">
-          <p><span id="top-up-countdown">00:00</span> <span data-l10n-id="top-up-in-progress">Top Up in progress</span></p>
-        </div>
+      <!-- BALANCE TAB -->
+      <section role="region" id="balance-tab" class="view" data-viewport="left" hidden>
+        <!--
+        <section class="content">
 
-        <!-- Error messages -->
-        <div id="cost-control-message-area" class="error-messages" aria-hidden="true">
-          <section id="on-roaming-message" aria-hidden="true">
-            <p data-l10n-id="on-roaming-message">Roaming: Automatic balance update OFF. Additional charges may apply for update.</p>
-          </section>
-          <section id="on-topup-not-confirmed" aria-hidden="true">
-            <p data-l10n-id="on-topup-not-confirmed-title">Top up not confirmed.</p>
-            <p data-l10n-id="on-topup-not-confirmed-message">Try updating your balance or retry Top up.</p>
-          </section>
-          <p id="balance-error-message" data-l10n-id="balance-error-message" aria-hidden="true">Balance updating error, try again manually.</p>
-        </div>
+          <div id="cost-control-topup-countdown" class="countdown" aria-hidden="true">
+            <p>
+              <span id="top-up-countdown">
+                00:00
+              </span>
 
-        <!-- Show balance zone -->
-        <div id="cost-control-info-area" class="overview">
-          <div class="buttons-list end">
-            <button id="balance-tab-update-button" data-l10n-id="update-button">
-              <span class="end reload"></span>
-              Update
-            </button>
+              <span data-l10n-id="top-up-in-progress2">
+                Your top-up is being processed.
+              </span>
+            </p>
           </div>
-          <div class="info">
-            <div id="cost-control-icon" class="icons">
-                <span class="warning"></span>
-                <progress></progress>
+
+          <div id="cost-control-message-area" class="error-messages" aria-hidden="true">
+            <p id="error-message-placeholder">
+            </p>
+          </div>
+
+          <div id="cost-control-info-area" class="overview">
+            <ul class="buttons-list end">
+              <li>
+                <button class="icon icon-reload" id="balance-tab-update-button" data-l10n-id="update-button">
+                  Update
+                </button>
+              </li>
+            </ul>
+            <div class="info">
+              <div id="cost-control-icon" class="icons">
+                <span class="warning">
+                </span>
+                <progress>
+                </progress>
+              </div>
+              <p id="balance-tab-credit">
+              </p>
+              <time id="balance-tab-time">
+              </time>
             </div>
-            <p><span id="balance-tab-currency"></span>&nbsp;<span id="balance-tab-credit"></span></p>
-            <time id="balance-tab-time"></time>
           </div>
-        </div>
 
-        <!-- Update and top up buttons -->
-        <div class="buttons-list">
-          <button id="balance-tab-topup-ussd-button" data-l10n-id="topup-ussd-button">
-            <span class="end topup"></span>
-            Top-Up and pay
-          </button>
-          <button id="balance-tab-topup-button" data-l10n-id="topup-button">
-            <span class="end topupcode"></span>
-            Top-Up with code
-          </button>
-        </div>
+          <ul class="buttons-list">
+            <li>
+              <button class="icon icon-topup" id="balance-tab-topup-ussd-button" data-l10n-id="topup-ussd-button2">
+                Open top-up menu
+              </button>
+            </li>
+            <li>
+              <button class="icon icon-topupcode" id="balance-tab-topup-button" data-l10n-id="topup-button2">
+                Use top-up code
+              </button>
+            </li>
+          </ul>
+          <script type="text/javascript" defer src="js/views/balance.js"></script>
+        </section>
+        -->
       </section>
-    </section>
 
     <!-- TELEPHONY TAB -->
-    <section role="region" id="telephony-tab" class="view" data-viewport="behind">
-       <header>
-        <menu type="toolbar">
-           <button class="settings-button"><span class="icon config">configuration</span></button>
-        </menu>
-        <h1 data-l10n-id="phoneactivity">Phone activity</h1>
-      </header>
-      <section class="settings">
+    <section role="region" id="telephony-tab" class="view" data-viewport="left" hidden>
+      <!--
+      <section>
         <ul>
           <li>
-            <p><span id="telephony-from-date"></span> – <span id="telephony-to-date"></span></p>
+            <p id="telephony-time">
+            </p>
             <dl>
-              <dt data-l10n-id="call-made">Call made</dt>
-              <dd><span id="calltime">50</span> <sub>min</sub></dd>
-              <dt data-l10n-id="sms-sent">SMS Sent</dt>
-              <dd><span id="smscount">30</span> <sub>SMS</sub></dd>
+              <dt data-l10n-id="call-made">
+                Call made
+              </dt>
+              <dd>
+                <span id="telephony-calltime">
+                  50
+                </span>
+              </dd>
+              <dt data-l10n-id="sms-sent">
+                SMS Sent
+              </dt>
+              <dd>
+                <span id="telephony-smscount">
+                  30
+                </span>
+              </dd>
             </dl>
           </li>
-          <li>
+          <li id="billing-cycle">
             <time id="reset-date">26 Dec</time>
             <p data-l10n-id="billing-cycle-ends">Billing cycle ends</p>
             <span class="meta" data-l10n-id="tracking-will-reset">Tracking will reset on this date</span>
           </li>
         </ul>
+        <script type="text/javascript" defer src="js/views/telephony.js"></script>
       </section>
+      -->
     </section>
 
     <!-- The top up input -->
-    <section role="region" id="topup-view" class="view" data-viewport="bottom">
+    <section role="region" id="topup-dialog" class="view" data-viewport="bottom" hidden>
+      <!--
       <header>
         <menu type="toolbar">
-           <button id="topup-send-button" data-l10n-id="send">Send</button>
+          <button id="topup-send-button" data-l10n-id="send">
+            Send
+          </button>
         </menu>
-        <a class="close-dialog"><span id="topup-close-button" class="icon icon-close">close</span></a>
-        <h1 data-l10n-id="top-up">Top Up</h1>
+        <a class="close-dialog">
+          <span id="topup-close-button" class="icon icon-close">
+            close
+          </span>
+        </a>
+        <h1 data-l10n-id="top-up">
+          Top Up
+        </h1>
       </header>
       <section class="content">
         <div class="info">
-          <h2 data-l10n-id="enter-top-up-code">Enter the top up code</h2>
-          <p id="topup-code-explanation" data-l10n-id="top-up-code-explanation">Typically found in the scratch card or directly in your receipt</p>
-          <p id="topup-incorrect-code" aria-hidden="true" data-l10n-id="incorrect-code">Last entered code was incorrect. Please, try again.</p>
-          <p id="topup-error" aria-hidden="true" data-l10n-id="topup-error">Sorry, we couldn't top up at this moment.</p>
-          <section class="loading">
-            <progress id="topup-in-progress" aria-hidden="true"></progress>
-            <p id="topup-confirmation-explanation" aria-hidden="true" data-l10n-id="wait-for-confirmation">You'll receive a confirmation message</p>
+          <h2 data-l10n-id="enter-top-up-code">
+            Enter the top up code
+          </h2>
+          <p id="topup-code-explanation" data-l10n-id="top-up-code-explanation2">
+            Find it on the scratch card or directly in your receipt.
+          </p>
+          <p id="topup-incorrect-code" aria-hidden="true" data-l10n-id="incorrect-code2">
+            Make sure the code is correct and try again.
+          </p>
+          <p id="topup-error" aria-hidden="true" data-l10n-id="topup-error2">
+            There was a problem sending the code. Please, try again.
+          </p>
+          <section aria-hidden="true" class="loading" id="topup-in-progress">
+            <progress>
+            </progress>
+            <p data-l10n-id="wait-for-confirmation">
+              You'll receive a confirmation message
+            </p>
           </section>
         </div>
       </section>
       <form>
-        <input id="topup-code-input" type="number" autofocus></input>
+        <input id="topup-code-input" type="number" />
       </form>
-    </section>
-
-    <!-- Dialog for service unavailable -->
-    <section role="dialog" class="view" data-viewport="bottom" id="application-error-info-dialog">
-      <div class="center">
-        <h3 data-l10n-id="application-error-title">Service unavailable</h3>
-        <p data-l10n-id="application-error-message">Contact your company representative.</p>
-      </div>
-      <menu data-items="1">
-        <button data-l10n-id="ok" class="affirmative close-dialog">Ok</button>
-      </menu>
-    </section>
-
-    <!-- Dialog for application error -->
-    <section role="dialog" class="view" data-viewport="bottom" id="service-unavailable-info-dialog">
-      <div class="center">
-        <h3 data-l10n-id="service-unavailable-title">Service unavailable</h3>
-        <p data-l10n-id="service-unavailable-message">Neither update nor top up is possible at the moment. Please try later.</p>
-      </div>
-      <menu data-items="1">
-        <button data-l10n-id="ok" class="affirmative close-dialog">Ok</button>
-      </menu>
+      -->
     </section>
 
     <!-- DATA USAGE TAB -->
-    <section id="datausage-tab" role="region" class="view" data-viewport="behind">
-      <header>
-        <menu type="toolbar">
-           <button class="settings-button"><span class="icon config">configuration</span></button>
-        </menu>
-        <h1 data-l10n-id="data-usage">Data usage</h1>
-      </header>
-
+    <section id="datausage-tab" role="region" class="view" data-viewport="right" hidden>
+      <!--
       <div class="view-scroll">
         <section class="content">
-          <ul class="toggle-data">
-            <li id="toggleMobile">
-              <label for="mobileCheck">
-                <input type="checkbox" checked="checked" id="mobileCheck">
-                <span>3G <em id="mobileOverview">--</em></span>
-              </label>
-            </li>
-            <li id="toggleWifi">
-              <label for="wifiCheck">
-                <input type="checkbox" checked="checked" id="wifiCheck">
-                <span>WIFI <em id="wifiOverview">--</em></span>
-              </label>
-            </li>
-          </ul>
-
           <section id="graphic-area" class="graph">
             <canvas id="background-layer"></canvas>
-            <canvas id="warning-layer"></canvas>
-            <canvas id="wifi-layer"></canvas>
+            <canvas id="wifi-layer" aria-hidden="true"></canvas>
             <canvas id="mobile-layer"></canvas>
             <canvas id="axis-layer"></canvas>
             <canvas id="today-layer"></canvas>
+            <canvas id="warning-layer"></canvas>
             <canvas id="limits-layer"></canvas>
-            <img aria-hidden="true" alt="" src="./style/images/app/ui/datausage/pattern.png" id="graphic-pattern"></img>
+            <img aria-hidden="true" alt="" src="./style/images/app/ui/datausage/pattern.png" id="graphic-pattern" />
           </section>
+
+          <ul class="toggle-data" data-type="list">
+            <li id="mobileItem">
+              <label>
+                <input type="checkbox" checked="checked" id="mobileCheck">
+                <span>
+                </span>
+              </label>
+              <p>
+                <strong class="overview" id="mobileOverview"></strong>
+                <span data-l10n-id="mobile-usage">Mobile usage</span>
+              </p>
+            </li>
+            <li id="wifiItem" aria-disabled="true">
+              <label>
+                <input type="checkbox" id="wifiCheck">
+                <span>
+                </span>
+              </label>
+              <p>
+                <strong class="overview" id="wifiOverview"></strong>
+                <span data-l10n-id="wifi-usage">Wi-Fi</span>
+              </p>
+            </li>
+          </ul>
         </section>
 
       </div>
+      <script type="text/javascript" defer src="js/views/datausage.js"></script>
+      -->
     </section>
 
     <!-- Settings view -->
-    <iframe id="settings-view" src="settings.html" class="view" data-viewport="bottom"></iframe>
+    <section id="settings-view" class="view" data-viewport="bottom">
+      <iframe id="settings-view-placeholder"></iframe>
+    </section>
 
-    <!-- Bottom filters (Telephony / Cost Control and Data Usage) -->
-    <ul id="tabs" role="tablist" class="filter" data-items="2" data-position="bottom">
-      <li id="balance-tab-filter" aria-selected="true"><a role="tab" data-l10n-id="balance" href="#">Balance</a></li>
-      <li id="telephony-tab-filter" aria-hidden="true"><a role="tab" data-l10n-id="telephony" href="#">Telephony</a></li>
-      <li id="datausage-tab-filter"><a role="tab" data-l10n-id="data-usage" href="#">Data usage</a></li>
-    </ul>
   </section>
+  <iframe id="message-handler" src="message_handler.html">
+  </iframe>
 </body>
 </html>
+

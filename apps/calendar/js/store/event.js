@@ -7,7 +7,7 @@
   Events.prototype = {
     __proto__: Calendar.Store.Abstract.prototype,
     _store: 'events',
-    _dependentStores: ['events', 'busytimes', 'alarms'],
+    _dependentStores: ['events', 'busytimes', 'alarms', 'icalComponents'],
 
     /** disable caching */
     _addToCache: function() {},
@@ -36,18 +36,9 @@
 
       var busy = this.db.getStore('Busytime');
       busy.removeEvent(id, trans);
-    },
 
-    /**
-     * Link dependants (busytimes) into the
-     * creation/removal process. This should
-     * keep all deps in sync as such you
-     * should _always_ use the persist/remove methods
-     * and never directly touch the db.
-     */
-    _addDependents: function(obj, trans) {
-      var busy = this.db.getStore('Busytime');
-      busy.addEvent(obj, trans);
+      var component = this.db.getStore('IcalComponent');
+      component.remove(id, trans);
     },
 
     /**
@@ -60,45 +51,28 @@
     },
 
     /**
-     * Shortcut finds the calendar model for given event.
-     *
-     * @param {Object} event full event record from the db.
-     * @return {Calendar.Model.Calendar} related calendar.
-     */
-    calendarFor: function(event) {
-      var calStore = this.db.getStore('Calendar');
-      return calStore.cached[event.calendarId];
-    },
-
-    /**
-     * Shortcut finds the account model for given event.
-     *
-     * @param {Object} event full event record from the db.
-     * @return {Calendar.Model.Account} related account.
-     */
-    accountFor: function(event) {
-      var cal = this.calendarFor(event);
-      return this.db.getStore('Calendar').accountFor(cal);
-    },
-
-    /**
      * Shortcut finds provider for given event.
      *
      * @param {Object} event full event record from db.
      */
-    providerFor: function(event) {
-      // XXX: maybe we need to shortcut this somehow?
-      var accStore = this.db.getStore('Account');
-
-      var cal = this.calendarFor(event);
-      var acc = accStore.cached[cal.accountId];
-
-      return Calendar.App.provider(acc.providerType);
+    providerFor: function(event, callback) {
+      this.ownersOf(event, function(err, owners) {
+        callback(null, Calendar.App.provider(
+          owners.account.providerType
+        ));
+      });
     },
 
-    busytimeIdFor: function(event) {
-      var id = event.remote.start.utc + '-' +
-               event.remote.end.utc + '-' +
+    busytimeIdFor: function(event, start, end) {
+      if (!start)
+        start = event.remote.start;
+
+      if (!end)
+        end = event.remote.end;
+
+
+      var id = start.utc + '-' +
+               end.utc + '-' +
                event._id;
 
       return id;
@@ -152,6 +126,13 @@
     },
 
     /**
+     * Finds calendar/account for a given event.
+     *
+     * @param {Object} event must contain .calendarId.
+     * @param {Function} callback [err, { ... }].
+     */
+    ownersOf: Calendar.Store.Calendar.prototype.ownersOf,
+    /**
      * Loads all events for given calendarId
      * and returns results. Does not cache.
      *
@@ -173,14 +154,6 @@
       req.onerror = function(e) {
         callback(e);
       };
-    },
-
-    /**
-     * Override default parse id which
-     * does a parseInt operation.
-     */
-    _parseId: function(id) {
-      return id;
     }
 
   };

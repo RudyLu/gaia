@@ -1,5 +1,7 @@
 Calendar.ns('Views').TimeParent = (function() {
 
+  var XSWIPE_OFFSET = window.innerWidth / 10;
+
   /**
    * Parent view for busytime-based views
    * (month, week, day) contains basic
@@ -14,17 +16,12 @@ Calendar.ns('Views').TimeParent = (function() {
    */
   function TimeParent() {
     Calendar.View.apply(this, arguments);
-    this.frames = new Calendar.OrderedMap();
+    this.frames = new Calendar.Utils.OrderedMap();
     this._initEvents();
   }
 
   TimeParent.prototype = {
     __proto__: Calendar.View.prototype,
-
-    /**
-     * Threshold between swipes.
-     */
-    swipeThreshold: window.innerWidth / 4,
 
     /**
      * Maximum number of child elements to keep
@@ -45,8 +42,11 @@ Calendar.ns('Views').TimeParent = (function() {
     },
 
     _onswipe: function(data) {
-      if (Math.abs(data.dx) < this.swipeThreshold)
+      if (
+          Math.abs(data.dy) > (Math.abs(data.dx) - XSWIPE_OFFSET)
+      ) {
         return;
+      }
 
       var dir = data.direction;
       var controller = this.app.timeController;
@@ -209,6 +209,11 @@ Calendar.ns('Views').TimeParent = (function() {
       for (; i < len; i++) {
         child = this.frames.items[i - offset][1];
         if (span.contains(child.timespan)) {
+          // Bug 827249 - remove current frame when its purged.
+          if (this.currentFrame === child) {
+            this.currentFrame = null;
+          }
+
           child.destroy();
           this.frames.items.splice(i - offset, 1);
           offset += 1;

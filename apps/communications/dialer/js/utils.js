@@ -1,15 +1,14 @@
 'use strict';
 
-// Based on Resig's pretty date.
-var _ = navigator.mozL10n.get;
-
 var Utils = {
   prettyDate: function ut_prettyDate(time) {
+    var _ = navigator.mozL10n.get;
     var dtf = new navigator.mozL10n.DateTimeFormat();
     return dtf.localeFormat(new Date(time), _('shortTimeFormat'));
   },
 
   headerDate: function ut_headerDate(time) {
+    var _ = navigator.mozL10n.get;
     var dtf = new navigator.mozL10n.DateTimeFormat();
     var today = _('today');
     var yesterday = _('yesterday');
@@ -33,22 +32,37 @@ var Utils = {
     return startDate.getTime();
   },
 
+  getPhoneNumberPrimaryInfo: function ut_getPhoneNumberPrimaryInfo(matchingTel,
+    contact) {
+    if (contact) {
+      if (contact.name && String(contact.name) !== '') {
+        return contact.name;
+      } else if (contact.org && String(contact.org) !== '') {
+        return contact.org;
+      }
+    }
+    if (matchingTel) {
+      return matchingTel.value;
+    }
+    return null;
+  },
+
   // XXX: this is way too complex for the task accomplished
   getPhoneNumberAdditionalInfo: function ut_getPhoneNumberAdditionalInfo(
-    matchingTel, associatedContact) {
+    matchingTel, associatedContact, inputNumber) {
     var additionalInfo, phoneType, phoneCarrier,
         contactPhoneEntry, contactPhoneNumber, contactPhoneType,
         contactPhoneCarrier, multipleNumbersSameCarrier,
         length = associatedContact.tel.length;
 
     // Phone type is a mandatory field.
-    contactPhoneNumber = matchingTel.value;
+    contactPhoneNumber = inputNumber;
     additionalInfo = matchingTel.type;
     phoneType = matchingTel.type;
     if (matchingTel.carrier) {
       phoneCarrier = matchingTel.carrier;
     } else {
-      additionalInfo = additionalInfo + ', ' + matchingTel.value;
+      additionalInfo = additionalInfo + ', ' + contactPhoneNumber;
     }
 
     if (phoneType && phoneCarrier) {
@@ -67,7 +81,7 @@ var Utils = {
       }
 
       if (multipleNumbersSameCarrier) {
-        additionalInfo = additionalInfo + ', ' + phoneNumber;
+        additionalInfo = additionalInfo + ', ' + contactPhoneNumber;
       } else {
         additionalInfo = additionalInfo + ', ' + phoneCarrier;
       }

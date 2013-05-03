@@ -4,7 +4,7 @@ requireApp('communications/dialer/test/unit/mock_keypad.js');
 requireApp('communications/dialer/test/unit/mock_call.js');
 requireApp('communications/dialer/test/unit/mock_contacts.js');
 requireApp('communications/dialer/test/unit/mock_call_screen.js');
-requireApp('communications/dialer/test/unit/mock_recents_db.js');
+requireApp('communications/dialer/test/unit/mock_on_call.js');
 requireApp('communications/dialer/test/unit/mock_utils.js');
 
 // We're going to swap those with mock objects
@@ -12,17 +12,20 @@ requireApp('communications/dialer/test/unit/mock_utils.js');
 if (!this.Contacts) {
   this.Contacts = null;
 }
-if (!this.RecentsDBManager) {
-  this.RecentsDBManager = null;
-}
 if (!this.CallScreen) {
   this.CallScreen = null;
+}
+if (!this.OnCallHandler) {
+  this.OnCallHandler = null;
 }
 if (!this.KeypadManager) {
   this.KeypadManager = null;
 }
 if (!this.Utils) {
   this.Utils = null;
+}
+if (!this.LazyL10n) {
+  this.LazyL10n = null;
 }
 
 suite('dialer/handled_call', function() {
@@ -31,10 +34,10 @@ suite('dialer/handled_call', function() {
   var fakeNode;
 
   var realContacts;
-  var realRecents;
   var realCallScreen;
+  var realCallHandler;
   var realKeypadManager;
-  var realL10n;
+  var realLazyL10n;
   var realUtils;
   var phoneNumber;
 
@@ -42,19 +45,21 @@ suite('dialer/handled_call', function() {
     realContacts = window.Contacts;
     window.Contacts = MockContacts;
 
-    realRecents = window.RecentsDBManager;
-    window.RecentsDBManager = MockRecentsDBManager;
-
     realCallScreen = window.CallScreen;
     window.CallScreen = MockCallScreen;
+
+    realCallHandler = window.OnCallHandler;
+    window.OnCallHandler = MockOnCallHandler;
 
     realKeypadManager = window.KeypadManager;
     window.KeypadManager = MockKeypadManager;
 
-    realL10n = navigator.mozL10n;
-    navigator.mozL10n = {
-      get: function get(key) {
-        return key;
+    realLazyL10n = LazyL10n;
+    window.LazyL10n = {
+      get: function get(cb) {
+        cb(function l10n_get(key) {
+          return key;
+        });
       }
     };
 
@@ -66,10 +71,10 @@ suite('dialer/handled_call', function() {
 
   suiteTeardown(function() {
     window.Contacts = realContacts;
-    window.RecentsDBManager = realRecents;
     window.CallScreen = realCallScreen;
+    window.OnCallHandler = realCallHandler;
     window.KeypadManager = realKeypadManager;
-    navigator.mozL10n = realL10n;
+    window.LazyL10n = realLazyL10n;
     window.Utils = realUtils;
   });
 
@@ -77,7 +82,12 @@ suite('dialer/handled_call', function() {
     fakeNode = document.createElement('section');
     fakeNode.id = 'test';
     fakeNode.innerHTML = [
-      '<div class="number">',
+      '<div class="numberWrapper">',
+        '<div class="number"></div>',
+      '</div>',
+      '<div class="numberWrapper">',
+        '<div class="number">',
+        '</div>',
       '</div>',
       '<div class="fake-number">',
       '</div>',
@@ -102,9 +112,9 @@ suite('dialer/handled_call', function() {
     var el = document.getElementById('test');
     el.parentNode.removeChild(el);
 
-    MockRecentsDBManager.mTearDown();
     MockContacts.mTearDown();
     MockCallScreen.mTearDown();
+    MockOnCallHandler.mTeardown();
     MockKeypadManager.mTearDown();
     MockUtils.mTearDown();
   });
@@ -130,21 +140,17 @@ suite('dialer/handled_call', function() {
       assert.equal(subject.node, fakeNode);
     });
 
-    test('format phone number', function() {
-      assert.isTrue(MockKeypadManager.mFormatPhoneNumberCalled);
-    });
-
     test('duration outgoing', function() {
-      assert.ok(subject.durationNode);
-      assert.equal(subject.durationNode.textContent, 'calling…');
+      assert.ok(subject.durationChildNode);
+      assert.equal(subject.durationChildNode.textContent, 'connecting');
     });
 
     test('duration incoming', function() {
       mockCall = new MockCall('888', 'incoming');
       subject = new HandledCall(mockCall, fakeNode);
 
-      assert.ok(subject.durationNode);
-      assert.equal(subject.durationNode.textContent, 'incoming…');
+      assert.ok(subject.durationChildNode);
+      assert.equal(subject.durationChildNode.textContent, 'incoming');
     });
 
     test('direction', function() {
@@ -169,6 +175,10 @@ suite('dialer/handled_call', function() {
       assert.equal(subject.directionNode.className,
                    'direction outgoing ongoing-out');
     });
+
+    test('occupied', function() {
+      assert.equal(fakeNode.dataset.occupied, 'true');
+    });
   });
 
   suite('on connect', function() {
@@ -178,6 +188,10 @@ suite('dialer/handled_call', function() {
 
     test('show the node', function() {
       assert.isFalse(fakeNode.hidden);
+    });
+
+    test('ensure the callscreen in connected mode', function() {
+      assert.equal(MockCallScreen.mLastRenderMode, 'connected');
     });
 
     test('start the timer', function() {
@@ -194,6 +208,10 @@ suite('dialer/handled_call', function() {
 
     test('photo displaying', function() {
       assert.isTrue(MockCallScreen.mSetCallerContactImageCalled);
+    });
+
+    test('primary contact info', function() {
+      assert.isTrue(MockUtils.mCalledGetPhoneNumberPrimaryInfo);
     });
 
     test('additional contact info', function() {
@@ -218,9 +236,7 @@ suite('dialer/handled_call', function() {
     });
 
     test('save recents entry', function() {
-      assert.isTrue(MockRecentsDBManager.mCalledInit);
-      assert.equal(MockRecentsDBManager.mCalledAdd, subject.recentsEntry);
-      assert.isTrue(MockRecentsDBManager.mCalledClose);
+      assert.equal(subject.recentsEntry, MockOnCallHandler.mLastEntryAdded);
     });
 
     test('mute off after call', function() {
@@ -235,14 +251,25 @@ suite('dialer/handled_call', function() {
       assert.isTrue(mockCall._listenerRemoved);
     });
 
-    test('hide the node', function() {
-      assert.isTrue(fakeNode.hidden);
-    });
-
     test('clear the ticker', function() {
       assert.equal(subject._ticker, null);
     });
+
+    test('occupied', function() {
+      assert.equal(fakeNode.dataset.occupied, 'false');
+    });
   });
+
+  suite('busy', function() {
+    setup(function() {
+      mockCall._busy();
+    });
+
+    test('playing busy tone', function() {
+      assert.isTrue(MockOnCallHandler.mNotifyBusyLineCalled);
+    });
+  });
+
 
   suite('holding', function() {
     setup(function() {
@@ -337,15 +364,30 @@ suite('dialer/handled_call', function() {
       mockCall._disconnect();
       assert.equal(subject.recentsEntry.type, 'incoming-refused');
     });
+
+    test('show should do nothing', function() {
+      subject.show(); // will trigger a js error if failing
+    });
+
+    test('hide should do nothing', function() {
+      subject.hide(); // will trigger a js error if failing
+    });
+  });
+
+  test('should display withheld-number l10n key', function() {
+    mockCall = new MockCall('', 'incoming');
+    subject = new HandledCall(mockCall, fakeNode);
+
+    var numberNode = fakeNode.querySelector('.numberWrapper .number');
+    assert.equal(numberNode.textContent, 'withheld-number');
   });
 
   suite('additional information', function() {
-    test('check additional info present', function() {
+    test('check additional info updated', function() {
       mockCall = new MockCall('888', 'incoming');
       subject = new HandledCall(mockCall, fakeNode);
 
-      var additionalInfoNode = fakeNode.querySelector('.additionalContactInfo');
-      assert.equal('888', additionalInfoNode.textContent);
+      assert.isTrue(MockKeypadManager.mUpdateAdditionalContactInfo);
     });
 
     test('check without additional info', function() {
@@ -354,6 +396,20 @@ suite('dialer/handled_call', function() {
 
       var additionalInfoNode = fakeNode.querySelector('.additionalContactInfo');
       assert.equal('', additionalInfoNode.textContent);
+    });
+  });
+
+  suite('explicit visibility', function() {
+    test('calling show should show the node', function() {
+      subject.node.hidden = true;
+      subject.show();
+      assert.isFalse(subject.node.hidden);
+    });
+
+    test('calling hide should hide the node', function() {
+      subject.node.hidden = false;
+      subject.hide();
+      assert.isTrue(subject.node.hidden);
     });
   });
 });

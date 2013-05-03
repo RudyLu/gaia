@@ -3,15 +3,21 @@
 
 // Return a time string in format Today|Yesterday|<WeekDay>, hh:mm
 // if timestamp is a valid date. If not, it returns Never.
-function formatTime(timestamp) {
-  if (!timestamp)
+function formatTime(timestamp, format) {
+  if (!timestamp) {
     return _('never');
+  }
 
-  var time = timestamp.toLocaleFormat('%H:%M');
-  var date = timestamp.toLocaleFormat('%a');
-  var dateDay = parseInt(timestamp.toLocaleFormat('%u'), 10);
+  var dateFormatter = new navigator.mozL10n.DateTimeFormat();
+  if (format) {
+    return dateFormatter.localeFormat(timestamp, format);
+  }
+
+  var time = dateFormatter.localeFormat(timestamp, _('shortTimeFormat'));
+  var date = dateFormatter.localeFormat(timestamp, '%a');
+  var dateDay = parseInt(dateFormatter.localeFormat(timestamp, '%u'), 10);
   var now = new Date();
-  var nowDateDay = parseInt(now.toLocaleFormat('%u'), 10);
+  var nowDateDay = parseInt(dateFormatter.localeFormat(now, '%u'), 10);
 
   if (nowDateDay === dateDay) {
     date = _('today');
@@ -20,7 +26,11 @@ function formatTime(timestamp) {
     date = _('yesterday');
   }
 
-  return date + ', ' + time;
+  return navigator.mozL10n.get('day-hour-format', {
+    day: date,
+    time: time
+  });
+
 }
 
 // Return a balance string in format DD.XX or -- if balance is null
@@ -35,37 +45,83 @@ function formatBalance(balance) {
   return formattedBalance;
 }
 
-// Return a fixed point data value in MG/GB
-function roundData(value) {
-  if (value < 1000000000)
-    return [(value / 1000000).toFixed(2), 'MB'];
+// Format data using magnitude localization
+// It exepcts a pair with the value and the unit
+function formatData(dataArray) {
+  return _('magnitude', { value: dataArray[0], unit: dataArray[1] });
+}
 
-  return [(value / 1000000000).toFixed(2), 'GB'];
+// Return a fixed point data value in KB/MB/GB
+function roundData(value, positions) {
+  positions = (typeof positions === 'undefined') ? 2 : positions;
+  if (value < 1000) {
+    return [value.toFixed(positions), 'B'];
+  }
+
+  if (value < 1000000) {
+    return [(value / 1000).toFixed(positions), 'KB'];
+  }
+
+  if (value < 1000000000) {
+    return [(value / 1000000).toFixed(positions), 'MB'];
+  }
+
+  return [(value / 1000000000).toFixed(positions), 'GB'];
+}
+
+function getPositions(value) {
+  if (parseInt(value) === value) {
+    return 0;
+  }
+  if (value < 10) {
+    return 2;
+  }
+  if (value < 100) {
+    return 1;
+  }
+  return 0;
+}
+
+function smartRound(value) {
+  var positions;
+  if (value < 1000) {
+    return [value.toFixed(getPositions(value)), 'B'];
+  }
+
+  if (value < 1000000) {
+    var kbytes = value / 1000;
+    return [kbytes.toFixed(getPositions(kbytes)), 'KB'];
+  }
+
+  if (value < 1000000000) {
+    var mbytes = value / 1000000;
+    return [mbytes.toFixed(getPositions(mbytes)), 'MB'];
+  }
+
+  var gbytes = value / 1000000000;
+  return [gbytes.toFixed(getPositions(gbytes)), 'GB'];
 }
 
 // Return a padded data value in MG/GB
-function padData(value) {
-  if (value === 0)
-    return ['0', 'MB'];
-
-  value = value / 1000000;
-
-  var unit = 'GB';
-  if (value < 1000) {
-    var floorValue = value < 10 ? Math.floor(value) :
-                                  Math.floor(10 * value) / 10;
-    unit = 'MB';
-    var str = floorValue.toFixed() + '';
-    switch (str.length + 1 + unit.length) {
-      case 2:
-        return ['00' + str, unit];
-      case 3:
-        return ['0' + str, unit];
-      default:
-        return [str, unit];
-    }
+function padData(v) {
+  var rounded = roundData(v, 0);
+  var value = rounded[0];
+  var len = value.length;
+  switch (len) {
+    case 1:
+      value = '00' + value;
+      break;
+    case 2:
+      value = '0' + value;
+      break;
   }
+  rounded[0] = parseInt(value, 10) ? value : '0';
+  return rounded;
+}
 
-  return [(value / 1000).toFixed(1), unit];
+// Given the API information compute the human friendly minutes
+function computeTelephonyMinutes(activity) {
+  // Right now the activity for telephony is computed in milliseconds
+  return Math.ceil(activity.calltime / 60000);
 }
 

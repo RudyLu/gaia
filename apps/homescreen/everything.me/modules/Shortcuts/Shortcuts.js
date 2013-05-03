@@ -1,124 +1,67 @@
-Evme.Shortcuts = new function() {
-    var _name = "Shortcuts", _this = this, scroll = null, scrollPage = null, itemsDesign = "FROM CONFIG", setDesign = false,
-        $el = null, $list = null, $header = null, $loading = null,
+Evme.Shortcuts = new function Evme_Shortcuts() {
+    var NAME = "Shortcuts", self = this, scroll = null,
+        el = null, elList = null, elLoading = null, loadedResponse = null,
         shortcuts = [], visible = false, isSwiping = false, swiped = false, customizing = false, enabled = true,
-        defaultShortcuts = null, categoryPageData = {};
+        categoryPageData = {};
     
-    var KEY_USER_SHORTCUTS = "userShortcuts";
-    
-    this.init = function(options) {
+    this.init = function init(options) {
         !options && (options = {});
         
-        $el = options.$el;
-        $list = $el.find("#shortcuts-items");
-        $loading = options.$loading;
-        itemsDesign = options.design;
+        el = options.el;
+        elLoading = options.elLoading;
         
-        defaultShortcuts = Evme.Storage.get(KEY_USER_SHORTCUTS) || options.defaultShortcuts;
+        elList = Evme.$("#shortcuts-items", el);
         
-        $header = $("#shortcuts-header");
+        scroll = new Scroll(Evme.$("#shortcuts-list", el));
         
-        $("#header-category .back").bind("touchstart", _this.showCategories);
-        $("#category-page-button").bind("click", clickContinueButton);
-        
-        scroll = new Scroll($el.find("#shortcuts-list")[0], {
-            "hScroll": false,
-            "checkDOMChanges": false,
-            "onBeforeScrollMove": function(e){ swiped = true; },
-            "onBeforeScrollEnd": function(){ swiped = false; }
-        });
-        scrollPage = new Scroll($("#page-category")[0], {
-            "hScroll": false,
-            "checkDOMChanges": false,
-            "onBeforeScrollStart": function() {}
-        });
-        
-        Evme.EventHandler.trigger(_name, "init");
-    };
-    
-    this.loadDefault = function() {
-        _this.load(defaultShortcuts);
-    };
-
-    this.load = function(data, cbLoadSuccess, cbLoadError) {
-        if (!data || !("shortcuts" in data)){
-            cbLoadError && cbLoadError(data);
-        } else {
-            Evme.Storage.set(KEY_USER_SHORTCUTS, data);
-            
-            var shortcuts = data.shortcuts,
-                icons = data.icons;
-                
-            for (var id in icons) {
-                Evme.IconManager.add(id, icons[id], Evme.Utils.getIconsFormat());
-            }
-            
-            for (var i=0; i<shortcuts.length; i++) {
-                var appIds = shortcuts[i].appIds,
-                    apps = [];
-                
-                for (var j=0; j<appIds.length; j++) {
-                    apps.push({
-                        "id": appIds[j],
-                        "icon": icons[appIds[j]]
-                    });
-                }
-                
-                shortcuts[i].appIds = apps;
-            }
-            
-            setShortcutsDesign();
-            
-            _this.clear();
-            _this.draw(shortcuts);
-            cbLoadSuccess && cbLoadSuccess(_this.get());
-            cbLoaded();
-        }
-    };
-    
-    this.add = function(_shortcuts) {
-        if (!(_shortcuts instanceof Array)) {
-            _shortcuts = [_shortcuts];
+        if (navigator.mozSettings) {
+          navigator.mozSettings.addObserver('language.current', onLanguageChange);
         }
         
-        var $last = $list.find(".shortcut.add"),
-            added = [];
+        Evme.EventHandler.trigger(NAME, "init");
+    };
+    
+    this.load = function load(data) {
+        loadedResponse = Evme.Utils.cloneObject(data);
+        
+        var _shortcuts = data.shortcuts.splice(0),
+            icons = data.icons;
             
+        for (var id in icons) {
+            Evme.IconManager.add(id, icons[id], Evme.Utils.ICONS_FORMATS.small);
+        }
+        
         for (var i=0; i<_shortcuts.length; i++) {
-            var shortcut = new Evme.Shortcut();
-            var $el = shortcut.init(_shortcuts[i], i, click);
+            var appIds = _shortcuts[i].appIds,
+                apps = [];
             
-            if ($el) {
-                $el.addClass("remove");
-                added.push(shortcut);
-                shortcuts.push(shortcut);
-                
-                $last.before($el);
-                
-                window.setTimeout(function(){
-                    $el.removeClass("remove");
-                }, 0);
+            for (var j=0; j<appIds.length; j++) {
+                apps.push({
+                    "id": appIds[j],
+                    "icon": icons[appIds[j]]
+                });
             }
+            
+            _shortcuts[i].appIds = apps;
         }
         
-        if (added && added.length > 0) {
-            _this.refreshScroll();
-            window.setTimeout(function(){
-                scroll.scrollToElement(added[added.length-1].getElement()[0]);
-            }, 100);
-        }
-        
-        return added;
+        self.clear();
+        self.draw(_shortcuts);
+        cbLoaded();
     };
     
-    this.scrollToBottom = function(callback) {
-        var max = $list.parent().height(),
-            height = $list.height();
+    this.getLoadedResponse = function getLoadedResponse() {
+        return loadedResponse;
+    };
+    
+    this.scrollToBottom = function scrollToBottom(callback) {
+        var max = elList.parentNode.offsetHeight,
+            height = elList.offsetHeight;
             
         if (height > max) {
-            window.setTimeout(function(){
+            window.setTimeout(function onTimeout(){
                 scroll.scrollTo(0, max - height, 400);
-                window.setTimeout(function(){
+                window.setTimeout(function onTimeout(){
                     callback && callback();
                 }, 300);
             }, 100);
@@ -127,30 +70,31 @@ Evme.Shortcuts = new function() {
         }
     };
     
-    this.isSwiping = function() {
+    this.isSwiping = function _isSwiping() {
         return isSwiping;
     };
 
-    this.draw = function(_shortcuts, icons) {
+    this.draw = function draw(_shortcuts, icons) {
+        var docFrag = Evme.$create('documentFragment');
+        
         for (var i=0; i<_shortcuts.length; i++) {
-            var shortcut = new Evme.Shortcut();
-            var $el = shortcut.init(_shortcuts[i], i, click, dragStart, remove);
+            var shortcut = new Evme.Shortcut(),
+                elShortcut = shortcut.init(_shortcuts[i], i);
             
-            if ($el) {
+            if (elShortcut) {
                 shortcuts.push(shortcut);
-
-                $list.append($el);
+                docFrag.appendChild(elShortcut);
             }
         }
         
-        _this.refreshScroll();
+        elList.appendChild(docFrag);
     };
     
-    this.get = function() {
+    this.get = function get() {
         return shortcuts;
     };
     
-    this.getQueries = function() {
+    this.getQueries = function getQueries() {
         var list = [];
         for (var i=0; i<shortcuts.length; i++) {
             list.push(shortcuts[i].getQuery());
@@ -158,28 +102,27 @@ Evme.Shortcuts = new function() {
         return list;
     };
     
-    this.orderByElements = function() {
-        var _shortcuts = [],
-            $items = $list.children(".shortcut");
-        
-        for (var i=0; i<$items.length; i++) {
-            var query = $items[i].getAttribute("query");
+    this.orderByElements = function orderByElements() {
+        var _shortcuts = [];
+            
+        Evme.$(".shortcut", elList, function itemIteration(elShortcut) {
+            var query = elShortcut.getAttribute("query");
             for (var j=0; j<shortcuts.length; j++) {
                 if (shortcuts[j].getQuery() == query) {
                     _shortcuts.push(shortcuts[j]);
                     break;
                 }
             }
-        }
-        
+        });
+            
         shortcuts = _shortcuts;
     };
     
-    this.remove = function(shortcut) {
+    this.remove = function remove(shortcut) {
         var id = shortcut.getId();
         
         for (var i=0; i<shortcuts.length; i++) {
-            if (shortcuts[i].getId() == id) {
+            if (shortcuts[i].getId() === id) {
                 shortcuts.splice(i, 1);
                 return true;
             }
@@ -188,145 +131,35 @@ Evme.Shortcuts = new function() {
         return false;
     };
     
-    this.showPage = function(data) {
-        categoryPageData = data || {};
-        
-        !categoryPageData.query && (categoryPageData.query = "");
-        !categoryPageData.title && (categoryPageData.title = categoryPageData.query);
-        !categoryPageData.options && (categoryPageData.options = []);
-        
-        $("#category-page-name").html(categoryPageData.title || categoryPageData.query);
-        
-        if (categoryPageData.button) {
-            $("#category-page-button").html(categoryPageData.button).addClass("visible");
-        } else {
-            $("#category-page-button").removeClass("visible")
-        }
-        
-        var html = '';
-        for (var i=0; i<categoryPageData.options.length; i++) {
-            var o = categoryPageData.options[i];
-            
-            html += '<li class="category-item">' +
-                        '<form method="get" action="" data-type="' + o.type + '">' +
-                            '<label>' + (o.title || "") + '</label>' +
-                            '<input type="text" value="" class="textinput" name="search_' + o.type + '" id="search_' + o.type + '" placeholder="' + (o.placeholder || "") + '" />' +
-                            '<em class="arrow-next"></em>' +
-                        '</form>' +
-                    '</li>';
-        }
-        $("#category-options").html(html);
-        
-        $("#category-options input").bind("focus", function(e) {
-            $("#" + Evme.Utils.getID()).addClass("mode-edit");
-        }).bind("blur", function(e) {
-            $("#" + Evme.Utils.getID()).removeClass("mode-edit");
-        });
-        $("#category-options form").bind("submit", function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            categoryQuerySearch($(this));
-        });
-        $("#category-options em").bind("click", function(e) {
-            categoryQuerySearch($(this).parent());
-        });
-        
-        $("#page-categories, #header-categories").removeClass("active");
-        $("#page-category, #header-category").addClass("active");
-        $("#shortcuts").addClass("page-category").removeClass("page-categories");
-        
-        scrollPage.refresh();
-        
-        Evme.EventHandler.trigger("Shortcuts", "categoryPageShow", {
-            "query": categoryPageData.title
-        });
-    };
-    
-    this.showCategories = function(e) {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-        
-        $("#page-category, #header-category").removeClass("active");
-        $("#page-categories, #header-categories").addClass("active");
-        $("#shortcuts").addClass("page-categories").removeClass("page-category");
-    };
-    
-    this.setCustomTitle = function(title) {
-        $("#shortcuts-custom-title").remove();
-        var $elTitle = $('<li id="shortcuts-custom-title">' + title + '</li>');
-        $header.append($elTitle);
-        
-        
-        $header.children().removeClass("active");
-        $elTitle.addClass("active");
-    };
-    
-    this.removeCustomTitle = function() {
-        _this.showCategories();
-        $("#shortcuts-custom-title").removeClass("active");
-    };
-    
-    function categoryQuerySearch($form) {
-        var type = $form.data("type"),
-            $input = $form.find("input"),
-            query = $input.val();
-            
-        $input.blur();
-        
-        if (query) {
-            Evme.EventHandler.trigger(_name, "searchCategoryPage", {
-                "query": query,
-                "type": type
-            });
-        }
-    }
-    
-    function clickContinueButton(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        var query = categoryPageData.query;
-        
-        Evme.EventHandler.trigger(_name, "clickContinue", {
-            "query": query
-        });
-    }
-    
-    this.refreshScroll = function() {
-        scroll && scroll.refresh();
-    };
-    this.enableScroll = function() {
+    this.enableScroll = function enableScroll() {
         scroll && scroll.enable();
     };
-    this.disableScroll = function() {
+    this.disableScroll = function disableScroll() {
         scroll && scroll.disable();
     };
-    this.scrollTo = function(x, y, duration) {
+    this.scrollTo = function scrollTo(x, y, duration) {
         scroll && scroll.scrollTo(x, y, duration);
     };
-    this.scrollY = function() {
+    this.scrollY = function scrollY() {
         return scroll.y;
     };
     
-    this.customizing = function() {
+    this.customizing = function _customizing() {
         return customizing;
     };
-    this.customize = function() {
+    this.customize = function customize() {
         customizing = true;
     };
-    this.doneCustomize = function() {
+    this.doneCustomize = function doneCustomize() {
         customizing = false;
     };
 
-    this.clear = function() {
+    this.clear = function clear() {
         for (var i=0; i<shortcuts.length; i++) {
-            shortcuts[i].remove();
+            shortcuts[i].remove(null, true);
         }
         shortcuts = [];
-        $list.empty();
+        elList.innerHTML = '';
     };
     
     function toggle(e) {
@@ -334,40 +167,45 @@ Evme.Shortcuts = new function() {
         e.stopPropagation();
         
         if (visible) {
-            _this.hide(true);
+            self.hide(true);
         } else {
-            _this.show(true);
+            self.show(true);
         }
     }
 
-    this.show = function(bReport) {
+    this.show = function show(bReport) {
         visible = true;
-        window.setTimeout(_this.refreshScroll, 100);
         cbShow(bReport);
     };
 
-    this.hide = function(bReport) {
+    this.hide = function hide(bReport) {
         visible = false;
         cbHide(bReport);
     };
     
-    this.getElement = function() {
-        return $list;
+    this.getElement = function getElement() {
+        return elList;
     };
     
-    this.swiped = function() {
+    this.swiped = function _swiped() {
         return swiped;
     };
     
-    this.enable = function() {
+    this.enable = function enable() {
         enabled = true;
     };
-    this.disable = function() {
+    this.disable = function disable() {
         enabled = false;
     };
-    this.enabled = function() {
+    this.enabled = function _enabled() {
         return enabled;
     };
+    
+    function onLanguageChange() {
+      for (var i=0, shortcut; shortcut=shortcuts[i++];) {
+        shortcut.refreshImage();
+      }
+    }
     
     function setShortcutsDesign() {
         if (setDesign) return;
@@ -380,171 +218,196 @@ Evme.Shortcuts = new function() {
         setDesign = true;
     }
     
-    function dragStart(data) {
-        Evme.EventHandler.trigger(_name, "dragStart", {
-            "e": data.e,
-            "shortcut": data.shortcut
-        });
-    }
-    
-    function click(data) {
-        if (_this.swiped() || !_this.enabled()) {
-            return false;
-        }
-        
-        Evme.EventHandler.trigger(_name, "click", data);
-    }
-    
-    function remove(data) {
-        if (_this.swiped() || !_this.enabled()) {
-            return false;
-        }
-        
-        Evme.EventHandler.trigger(_name, "remove", data);
-    }
-    
     function cbShow(bReport) {
-        Evme.EventHandler.trigger(_name, "show", {
+        Evme.EventHandler.trigger(NAME, "show", {
             "shortcuts": shortcuts,
             "report": (bReport === true)
         });
     }
     
     function cbHide(bReport) {
-        Evme.EventHandler.trigger(_name, "hide", {
+        Evme.EventHandler.trigger(NAME, "hide", {
             "shortcuts": shortcuts,
             "report": (bReport === true)
         });
     }
     
     function cbLoaded() {
-        Evme.EventHandler.trigger(_name, "load", {
+        Evme.EventHandler.trigger(NAME, "load", {
             "shortcuts": shortcuts
         });
     }
 }
 
-Evme.Shortcut = function() {
-    var _name = "Shortcut", _this = this, cfg = null, id = "id"+Math.round(Math.random()*10000),
-        $el = null, $thumb = null,  index = -1, query = "", image = "", imageLoadingRetry = 0,
-        onClick = null, onDragStart = null, onRemove = null, alreadyRemoved = false, tapIgnored = false,
-        timeoutDrag = null, touchStartPos = null, DISTANCE_TO_IGNORE_AS_MOVE = 5, DRAG_THRESHOLD = 100;
-    
-    this.init = function(_cfg, _index, _onClick, _onDragStart, _onRemove) {
-        cfg = _cfg;
-        index = _index;
-        query = cfg.query;
-        onClick = _onClick;
-        onRemove = _onRemove;
-        onDragStart = _onDragStart;
+Evme.Shortcut = function Evme_Shortcut() {
+    var NAME = "Shortcut", self = this,
+        cfg = null, id = '',
+        el = null, elThumb = null, index = -1, experienceId = '', query = '',
+        timeoutHold = null, removed = false,
+        posStart = [0, 0], timeStart = 0, fingerMoved = true,
         
-        if (!cfg.query) {
+        THRESHOLD = 5,
+        TIME_BEFORE_CONTEXT = 600;
+    
+    this.init = function init(_cfg, _index) {
+        cfg = _cfg;
+        id = 'shrt-' + Evme.Utils.uuid();
+        index = _index;
+        experienceId = cfg.experienceId;
+        query = cfg.query;
+        
+        if (!query && !experienceId) {
             return null;
         }
         
-        $el = $('<li class="shortcut">' + 
-                    '<span class="thumb"></span>' +
-                    '<b>' + cfg.query + '</b>' +
-                    '<span class="remove"></span>' +
-                '</li>');
-        $el.attr("query", query);
-        $thumb = $el.find(".thumb");
-        
-        _this.setImage(cfg.appIds);
-        
-        $el.bind("touchstart", touchstart)
-           .bind("touchmove", touchmove)
-           .bind("click", clicked);
-           
-        //$el.find(".remove").bind("click", removed);
-        
-        return $el;
-    };
-    
-    this.remove = function() {
-        if ($el) {
-            $el.addClass("remove");
-            window.setTimeout(function() {
-                $el.remove();
-                Evme.Shortcuts.refreshScroll();
-            }, 200);
-        }
-    };
-    
-    this.getData = function() { return cfg; };
-    this.getElement = function() { return $el; };
-    this.getThumb = function() { return $thumb; };
-    this.getId = function() { return id; };
-    this.getQuery = function() { return query; };
-    this.isCustom = function() { return cfg.isCustom; };
-    
-    this.setImage = function(shortcutIcons) {
-        if ($thumb && shortcutIcons && shortcutIcons.length > 0) {
-            var $iconGroup = Evme.IconGroup.get(shortcutIcons);
-            $thumb.append($iconGroup);
-        }
-    };
-    
-    function touchstart(e) {
-        if (onDragStart) {
-            timeoutDrag = window.setTimeout(function(){
-                onDragStart && onDragStart({
-                    "e": e,
-                    "shortcut": _this
-                });
-            }, DRAG_THRESHOLD);    
-        }
-        
-        tapIgnored = false;
-        touchStartPos = getEventPoint(e);
-    }
-    
-    function touchmove(e) {
-        if (!touchStartPos) { return; }
-        
-        var point = getEventPoint(e),
-            distanceX = [point[0] - touchStartPos[0]];
+        el = Evme.$create('li', {
+                            'class': 'shortcut',
+                            'data-query': self.getName(),
+                            'data-experienceId': experienceId
+                          },
+                            '<span class="thumb"></span>' +
+                            '<span class="remove"></span>'
+                        );
             
-        if (Math.abs(distanceX[0]) > DISTANCE_TO_IGNORE_AS_MOVE) {
-            tapIgnored = true;
+        elThumb = Evme.$(".thumb", el)[0];
+        
+        self.setImage(cfg.appIds);
+        
+        if ("ontouchstart" in window) {
+            el.addEventListener("touchstart", onTouchStart);
+            el.addEventListener("touchmove", onTouchMove);
+            el.addEventListener("touchend", onTouchEnd);
+        } else {
+            el.addEventListener("click", function onClick(e){
+                fingerMoved = false;
+                onTouchEnd(e);
+            });
         }
-    }
-    
-    function clicked() {
-        if (tapIgnored) { return false; }
-
-        window.clearTimeout(timeoutDrag);
         
-        onClick({
-            "shortcut": _this,
-            "data": cfg,
-            "$el": $el,
-            "index": index
+        Evme.$(".remove", el)[0].addEventListener("touchstart", function onClick(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            self.remove(e, false);
+            onRemove(e);
         });
-    }
-    
-    function removed(e) {
-        e.preventDefault();
-        e.stopPropagation();
         
-        window.clearTimeout(timeoutDrag);
-        if (alreadyRemoved) {
+        return el;
+    };
+    
+    this.setImage = function setImage(shortcutIcons) {
+        if (elThumb && shortcutIcons && shortcutIcons.length > 0) {
+            var elIconGroup = Evme.IconGroup.get(shortcutIcons, self.getName());
+            elThumb.innerHTML = '';
+            elThumb.appendChild(elIconGroup);
+        }
+    };
+    
+    this.refreshImage = function refreshImage() {
+        cfg.appIds && self.setImage(cfg.appIds);
+    };
+    
+    this.remove = function remove(e, isFromOutside) {
+        if (removed) {
             return;
         }
         
-        alreadyRemoved = true;
-        onRemove({
-            "shortcut": _this,
+        removed = true;
+        Evme.$remove(el);
+    };
+    
+    this.getName = function getName() {
+        var name = query;
+        
+        if (experienceId) {
+            var l10nkey = 'id-' + Evme.Utils.shortcutIdToKey(experienceId),
+                translatedExperience = Evme.Utils.l10n(NAME, l10nkey);
+            
+            if (translatedExperience) {
+              name = translatedExperience;
+            }
+        }
+        
+        return name;
+    };
+    
+    this.getData = function getData() { return cfg; };
+    this.getElement = function getElement() { return el; };
+    this.getThumb = function getThumb() { return elThumb; };
+    this.getId = function getId() { return id; };
+    this.getQuery = function getQuery() { return query; };
+    this.getExperience = function getExperience() { return experienceId; };
+    this.isCustom = function isCustom() { return cfg.isCustom; };
+    
+    function onRemove(e) {
+        Evme.EventHandler.trigger(NAME, "remove", {
+            "shortcut": self,
             "data": cfg,
-            "$el": $el,
-            "index": index
+            "index": index,
+            "e": e
         });
     }
     
-    function getEventPoint(e) {
-        var touch = e.touches && e.touches[0] ? e.touches[0] : e,
-            point = touch && [touch.pageX || touch.clientX, touch.pageY || touch.clientY];
+    function onTouchStart(e) {
+        if (removed) {
+            return;
+        }
         
-        return point;
+        e = (e.touches || [e])[0];
+        
+        fingerMoved = false;
+        
+        posStart = [e.pageX, e.pageY];
+        timeStart = Date.now();
+        
+        window.clearTimeout(timeoutHold);
+        timeoutHold = window.setTimeout(fireLongTap, TIME_BEFORE_CONTEXT);
+    }
+    
+    function onTouchMove(e) {
+        if (removed) {
+            return;
+        }
+        
+        e = (e.changedTouches || [e])[0];
+        
+        var p = [e.pageX, e.pageY];
+        if (Math.abs(p[0] - posStart[0]) > THRESHOLD || Math.abs(p[1] - posStart[1]) > THRESHOLD) {
+            fingerMoved = true;
+            window.clearTimeout(timeoutHold);
+        }
+    }
+    
+    function onTouchEnd(e) {
+        if (removed) {
+            return;
+        }
+        
+        window.clearTimeout(timeoutHold);
+        if (fingerMoved) return;
+        fingerMoved = false;
+        
+        Evme.EventHandler.trigger(NAME, "click", {
+            "shortcut": self,
+            "data": cfg,
+            "query": cfg.query,
+            "el": el,
+            "index": index,
+            "e": e
+        });
+    }
+    
+    function fireLongTap(e) {
+        window.clearTimeout(timeoutHold);
+        if (fingerMoved) return;
+        fingerMoved = false;
+        
+        Evme.EventHandler.trigger(NAME, "hold", {
+            "shortcut": self,
+            "data": cfg,
+            "el": el,
+            "index": index,
+            "e": e
+        });
     }
 };

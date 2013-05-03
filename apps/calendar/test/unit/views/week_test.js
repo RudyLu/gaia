@@ -1,20 +1,8 @@
 requireCommon('test/synthetic_gestures.js');
+require('/shared/js/gesture_detector.js');
+requireLib('timespan.js');
 
-requireApp('calendar/test/unit/helper.js', function() {
-  require('/shared/js/gesture_detector.js');
-  requireLib('ordered_map.js');
-  requireLib('timespan.js');
-  requireLib('templates/day.js');
-  requireLib('templates/week.js');
-  requireLib('views/time_parent.js');
-  requireLib('views/day_based.js');
-  requireLib('views/day_child.js');
-  requireLib('views/week_child.js');
-  requireLib('views/day.js');
-  requireLib('views/week.js');
-});
-
-suite('views/day', function() {
+suiteGroup('Views.Week', function() {
   var subject;
   var app;
   var controller;
@@ -35,8 +23,6 @@ suite('views/day', function() {
     testEl.id = 'test';
     testEl.innerHTML = [
       '<div id="week-view">',
-        '<section class="sidebar">a</section>',
-        '<section class="children">a</section>',
       '</div>'
     ].join('');
 
@@ -58,8 +44,11 @@ suite('views/day', function() {
 
     // constructor shortcut
     function child(date) {
+      var el = document.createElement('li');
       return new Calendar.Views.WeekChild({
-        app: app, date: date
+        app: app,
+        date: date,
+        stickyFrame: el
       });
     }
 
@@ -81,12 +70,17 @@ suite('views/day', function() {
       children.push(child(new Date(2012, 0, 2)));
       children.push(child(new Date(2012, 0, 3)));
 
-      subject = new Calendar.Views.Week.Frame(id, children);
+      var list = document.createElement('ul');
+      subject = new Calendar.Views.Week.Frame(
+        id,
+        children,
+        list
+      );
     });
 
     test('initializer', function() {
       assert.ok(subject.element);
-      assert.length(subject.element.children, 3);
+      assert.length(subject.element.children, 2);
     });
 
     test('.id', function() {
@@ -279,10 +273,6 @@ suite('views/day', function() {
     assert.ok(subject.frameContainer);
   });
 
-  test('#sidebar', function() {
-    assert.ok(subject.sidebar);
-  });
-
   test('#onfirstseen', function() {
     assert.equal(subject.onfirstseen, subject.render);
   });
@@ -298,10 +288,8 @@ suite('views/day', function() {
     });
 
     test('#_appendSidebarHours', function() {
-      var html = subject.sidebar.outerHTML;
+      var html = subject.element.querySelector('.sidebar').outerHTML;
       assert.ok(html, 'has contents');
-
-      assert.include(html, Calendar.Calc.ALLDAY);
 
       var i = 0;
       for (; i < 24; i++) {

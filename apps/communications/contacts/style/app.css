@@ -7,17 +7,16 @@
 
 /* Global */
 html, body {
+  width: 100%;
   height: 100%;
-}
-
-html {
+  margin: 0;
+  padding: 0;
   font-size: 62.5%;
+  overflow: hidden;
+  position: relative;
 }
 
 body {
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
   background: #000;
   color: #fff;
   font: 1.6rem/2.2rem MozTT, Sans-serif;
@@ -87,7 +86,7 @@ small {
 a {
   text-decoration: none;
   outline: none;
-  color: #ff4e00;
+  color: #333;
 }
 
 a:hover {
@@ -138,32 +137,6 @@ form {
   margin: 0;
 }
 
-button {
-  height: auto;
-  width: auto;
-  overflow: visible;
-  display: inline-block;
-  vertical-align: middle;
-  background: none;
-  border: none;
-  outline: none;
-  font: 1.1rem/1.3rem MozTT, Sans-serif;
-  color: #666;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-button::-moz-focus-inner {
-  padding: 0;
-  border: none;
-}
-
-input, textarea, select, button {
-  margin: 0;
-  padding: 0;
-  vertical-align: middle;
-}
-
 input:focus, textarea:focus {
   outline: none;
 }
@@ -172,11 +145,6 @@ textarea {
   resize: none;
   overflow: auto;
   height: 4.6rem;
-}
-
-input[type="text"], textarea {
-  font: 1.3rem/4rem MozTT, Sans-serif;
-  font-weight: 600;
 }
 
 input[type="text"]:focus, textarea:focus {
@@ -211,43 +179,29 @@ menu, nav, section, video, audio, canvas, progress, meter, time {
 
 /* APP */
 /* view */
-.view, .cache, .views {
-  position: fixed;
-  left: 0;
+
+.view {
+  position: absolute;
+  overflow: hidden;
   top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
+  transform: translate(0, 0);
+  transition: transform 0.5s ease;
 }
 
-.view[data-state="active"], .cache[data-state="active"] {
-  z-index: 100;
-}
-
-.cache {
-  pointer-events: none;
-}
-
-.cache .view {
-  background-color: transparent;
-  background-repeat: no-repeat;
-  -moz-transition: all 0.5s ease;
-  position: fixed;
+.view:not(.view-noscroll) {
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .view-right {
-  -moz-transform: translateX(100%);
-}
-
-.view-left {
-  -moz-transform: translateX(-100%);
-}
-
-.view-top {
-  -moz-transform: translateY(-100%);
+  transform: translateX(100%);
 }
 
 .view-bottom {
-  -moz-transform: translateY(100%);
+  transform: translateY(100%);
 }
 
 
@@ -257,6 +211,95 @@ menu, nav, section, video, audio, canvas, progress, meter, time {
  */
 section[role="region"] > header:first-child {
   background-color: #cd6623;
+}
+
+/* Rewritting from buttons.css */
+section[role="region"] > header:first-child button,
+section[role="region"] > header:first-child a[role="button"] {
+  white-space: normal;
+}
+
+/* Buttons inside list redefinition */
+li button span,
+li a[role="button"] span {
+  font-size: 0;
+}
+
+/* Extending BB list buttons (Activity ones) */
+li button.activity,
+li a[role="button"].activity {
+  background-color: #fff;
+  padding: 0 1rem 0 0;
+}
+
+li button.activity:active,
+li a[role="button"].activity:active {
+  background-color: #008AAA;
+}
+
+/* Icons at left side */
+li button.activity.icon,
+li a[role="button"].activity.icon {
+  padding-left: 3rem;
+}
+
+li button.activity.icon,
+li a[role="button"].activity.icon {
+  text-indent: 1rem;
+}
+
+li button.activity:before,
+li a[role="button"].activity:before {
+  right: auto;
+  left: 0.5rem;
+}
+
+/* Extending components */
+li button.activity > b em ,
+li a[role="button"].activity > b em{
+  color: #727272;
+  font-style: normal;
+}
+
+/* Long strings (email) */
+li button.activity > b ,
+li a[role="button"].activity > b{
+  font-weight: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;;
+  display: block;
+  position: absolute;
+  left: 3rem;
+  right: 0;
+  top: 0;
+  bottom: 0;
+}
+
+/* JS helper */
+[data-type="list"] li p,
+[data-type="list"] li aside {
+  pointer-events: none;
+}
+
+
+
+/* Selection tag extended from shared/style/buttons.css */
+.view-select-tag .selection-list li button {
+  background-color: #fff;
+}
+
+.view-select-tag .selection-list li button:active {
+  background-color: #008AAA;
+}
+
+.view-select-tag .selection-list li button.icon-selected:before {
+  background: transparent url(gphx/bitmap/default/lists/tick.png) no-repeat center center;
+}
+
+/* Input areas customization*/
+form p + p {
+  margin-top: 0.5rem;
 }
 
 /* Body */
@@ -275,7 +318,7 @@ section[role="region"] > header:first-child {
   z-index: 5;
   width: 100%;
   -moz-box-sizing: border-box;
-  padding: 1.4rem 2rem;
+  padding: 1.4rem 1.5rem;
   background: #f4f4f4;
   color: #333;
   text-align: left;
@@ -286,65 +329,6 @@ section[role="region"] > header:first-child {
   width: -moz-calc(100% + 0.8rem);
 }
 
-/* jumper: Goes directly to some point of a scrollable area */
-.view-jumper {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 1rem;
-  z-index: 10;
-}
-
-.view-jumper:active .view-jumper-inner, .view-jumper.active .view-jumper-inner  {
-  background: #999;
-}
-
-.view-jumper-current {
-  position: absolute;
-  right: 4rem;
-  top: 30%;
-  z-index: 100;
-  width: 10.5rem;
-  height: 10.5rem;
-  background: rgba(0, 0, 0, 0.7);
-  font: 400 6rem/10.5rem MozTT, Sans-serif;
-  color: #fff;
-  text-align: center;
-  -moz-transition: opacity;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.view-jumper-current img{
-  width: 4.6rem;
-  height: 4.6rem;
-  position: absolute;
-  left:50%;
-  top: 50%;
-  margin-left:-2.3rem;
-  margin-top:-2.3rem;
-}
-
-.view-jumper-inner {
-  padding: 0.3rem 0;
-  border-radius: 4rem;
-  opacity: 0.6;
-}
-
-.view-jumper li {
-  font-size: 1.1rem;
-  line-height: 1.25em;
-  text-align: center;
-  text-transform: uppercase;
-  width: 4.5rem;
-}
-
-.view-jumper-inner a, .view-jumper-inner abbr {
-  display: block;
-  color: #333;
-  width: 100%;
-  text-indent: 1.5rem;
-}
 
 /* LAYOUT */
 /* ITEM: The smallest complete structure; */
@@ -370,6 +354,8 @@ section[role="region"] > header:first-child {
 .item-body-exp {
   display: block;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* PULLS: Float an element to the desired position; */
@@ -394,62 +380,16 @@ section[role="region"] > header:first-child {
 }
 
 /* ICONS */
+
 span[role="button"] {
-  display: inline-block;
-  vertical-align: middle;
-  width: 2.8rem;
-  height: 2.8rem;
   font: 0/0 a;
   background: transparent no-repeat center center;
   background-size: 100% auto;
-}
-
-
-/* header */
-span[role="button"].icon-back {
-  background-image: url(/contacts/style/gphx/bitmap/default/vw-header/back.png);
-  width: 1.1rem;
-  height: 2.7rem;
-}
-
-span[role="button"].icon-add {
-  background-image: url(/contacts/style/gphx/bitmap/default/vw-header/add.png);
-  width: 1.6rem;
-  height: 1.6rem;
-}
-
-span[role="button"].icon-edit {
-  background-image: url(/contacts/style/gphx/bitmap/default/vw-header/edit.png);
-  width: 1.9rem;
-  height: 2rem;
+  display: inline-block;
 }
 
 span[role="button"].icon-finish {
   background-color: rgba(0, 0, 0, 0.5);
-}
-
-span[role="button"].icon-fav {
-  background-color: rgba(0, 0, 0, 0.5);
-}
-
-
-/* jumper */
-span[role="button"].icon-fav-dark {
-  background-image: url(/contacts/style/gphx/bitmap/default/vw-jumper/fav.png);
-  width: 1.2rem;
-  height: 1.1rem;
-}
-
-span[role="button"].icon-search {
-  background-image: url(/contacts/style/gphx/bitmap/default/vw-jumper/search.png);
-  width: 1.2rem;
-  height: 1.2rem;
-}
-
-span[role="button"].icon-fav-color {
-  background-image: url(/contacts/style/gphx/bitmap/default/block-list/fav.png);
-  width: 2rem;
-  height: 2rem;
 }
 
 /* selection list */
@@ -488,24 +428,51 @@ span[role="button"].icon-delete {
 
 span[role="button"].icon-addimage {
   background-image: url(/contacts/style/gphx/bitmap/default/forms/add.png);
-  width: 2.8rem;
-  height: 2.8rem;
+  background-size: 3rem;
+  width: 3rem;
+  height: 2.9rem;
 }
 
-span[role="button"].icon-call {
+li button.icon-call:before {
   background-image: url(/contacts/style/gphx/bitmap/default/buttons/call.png);
 }
 
-span[role="button"].icon-message {
+li button.icon-message:before {
   background-image: url(/contacts/style/gphx/bitmap/default/buttons/sms.png);
 }
 
-span[role="button"].icon-email {
+li button.send-sms {
+  width: 0;
+}
+li button.icon-email:before {
   background-image: url(/contacts/style/gphx/bitmap/default/buttons/mail.png);
 }
 
 span[role="button"].icon-address {
   background-image: url(/contacts/style/gphx/bitmap/default/buttons/location.png);
+}
+
+li button.icon-link:before {
+  background-image: url(/contacts/style/gphx/bitmap/default/buttons/link.png);
+}
+
+/* Extending icons */
+li button.icon-fav:before {
+  background-image: url(/contacts/style/images/icon-fav-button-off.png);
+  right: 0.5rem;
+}
+
+li button.icon-fav.on:before {
+  background-image: url(/contacts/style/images/icon-fav-button-on.png);
+}
+
+li button.icon-fb-profile:before {
+  background-image: url(/contacts/style/gphx/bitmap/default/buttons/fb_profile.png);
+}
+
+li button.icon-add:before {
+  background-image: url(/contacts/style/gphx/bitmap/default/buttons/plus_sign.png);
+  background-size: 2.8rem;
 }
 
 
@@ -536,52 +503,6 @@ span[role="button"].icon-arrow.icon-arrow-right {
   border-left-color: #333;
 }
 
-/* BUTTONS */
-
-button.action {
-  position: relative;
-  display: block;
-  width: 100%;
-  height: 4rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  -moz-box-sizing: border-box;
-  font-size: 1.4rem;
-  color: #333;
-  text-align: left;
-  border-radius: 0.4rem;
-  border: solid 1px #c8c8c8;
-  box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.2);
-  background-color: #fff;
-}
-
-button.action:hover {
-  text-decoration: none;
-}
-
-button.action:active {
-  border-color: #7a7a7a;
-}
-
-button.action span[role="button"] {
-  margin-right: 0.5rem;
-  margin-left: 0.5rem;
-}
-
-button.action b, button.action em {
-  vertical-align: middle;
-  margin: 0 0.5rem;
-}
-
-button.action em {
-  color: #727272;
-  font-style: normal;
-}
-
-button.action b + em, button.action span[role="button"] + b {
-  margin-left: 0;
-}
-
 /* Block type (long text) */
 .action-block {
   height: auto;
@@ -603,31 +524,6 @@ button.action b + em, button.action span[role="button"] + b {
   text-overflow: ellipsis;
 }
 
-/* Add style */
-.action-add {
-  background: -moz-linear-gradient(bottom, #ccc, #fafafa);
-  border: solid 1px #bcbcbc;
-  box-shadow: none;
-  color: #333;
-  text-align: left;
-  padding-left: 1rem;
-}
-.action-add span.icon-add[role="button"] {
-  background: url(/contacts/style/gphx/bitmap/default/buttons/plus_sign.png) no-repeat center center;
-}
-
-.action-add:active {
-  background: -moz-linear-gradient(bottom, #fafafa, #ccc);
-}
-
-/* Remove/delete style */
-.action-delete {
-  color: #fff;
-  background: -moz-linear-gradient(bottom, #900010, #c90010);
-  border: none;
-  padding-left: 0.8rem;
-}
-
 /* FILL FLOW: general components for helping in defining basic flows in forms; */
 .fill-flow {
   padding-right: 0;
@@ -635,7 +531,7 @@ button.action b + em, button.action span[role="button"] + b {
 
 /* ROW: horizontal separation for elements; */
 .fillflow-row {
-  margin-bottom: 0.5rem;
+  margin: 0 0 0.5rem;
   position: relative;
 }
 
@@ -644,8 +540,16 @@ button.action b + em, button.action span[role="button"] + b {
 }
 
 .fillflow-twocols {
-  width: 14.1rem;
+  overflow: hidden;
+}
+
+.fillflow-twocols button {
+  width: calc(50% - 0.5rem);
   float: left;
+}
+
+.fillflow-twocols button:last-child {
+  float: right;
 }
 
 /* ROW ACTION */
@@ -654,17 +558,28 @@ button.action b + em, button.action span[role="button"] + b {
   left: 100%;
   top: 50%;
   margin: -1rem 0 0 0.5rem;
+  background: none;
+  border: none;
+  width: auto;
+  height: auto;
+}
+
+.fillflow-row-action span[role="button"] {
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0;
 }
 
 /* MEDIA: specific ratio used in forms; */
 .fillflow-media {
-  border: solid 1px #c8c8c8;
   margin: 0 0.5rem 0.5rem 0;
   width: 8.8rem;
   height: 8.3rem;
   position: relative;
-  background-color: #fff;
   z-index: 0;
+  border: 0.1rem solid rgb(204, 204, 204);
+  border-radius: 0.3rem 0.3rem 0.3rem 0.3rem;
+  background: #fff url("/contacts/style/gphx/bitmap/default/forms/shadow.png") repeat-x;
 }
 .fillflow-media p {
   position: absolute;
@@ -677,207 +592,54 @@ button.action b + em, button.action span[role="button"] + b {
 
 .fillflow-media p em {
   display: block;
-  color: #777;
+  color: #858585;
   font-size: 1.3rem;
-  font-weight: bold;
+  font-weight: normal;
   font-style: normal;
-  margin-top: 1rem;
+  margin-top: 0.5rem;
 }
+
+.fillflow-media .edit-photo {
+  background: rgba(255, 255, 255, 0.4);
+  top: 0;
+  right: 5rem;
+  z-index: 1;
+  margin: 0;
+  display: none;
+  pointer-events: none;
+}
+
+.fillflow-media .edit-photo em {
+  color: #fff;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.9);
+  margin-top: 6rem;
+}
+
+.with-photo .edit-photo {
+  display: block;
+}
+
 
 .fillflow-media img {
   width: 100%;
   height: 100%;
   background: #fff no-repeat center center;
-  background-size: 100% auto;
+  background-size: cover;
 }
 
-/* LISTS */
+/* JUMPER */
 
-/* BLOCK-LIST: vertical elements list */
-.block-list {
-  padding-left: 1rem;
-}
-.block-item {
-  border-bottom: solid 1px #dbdbdb;
-  min-height: 6rem;
-  position: relative;
+nav[data-type="scrollbar"] {
+  z-index: 6;
 }
 
-.block-item:last-child {
-  border-bottom: none;
+nav[data-type="scrollbar"] ol > li > * {
+  pointer-events: none;
 }
 
-.block-item.search:last-child {
-  border-bottom: solid 1px #dbdbdb;
-}
-
-/* Base set-up */
-.block-title {
-  font-size: 1.8rem;
-  color: #ff5f19;
-  border-bottom: solid 1px #ff5f19;
-}
-
-.block-name {
-  font-size: 1.8rem;
-  font-family: MozTT, Sans-serif;
-  color: #333;
-  display: block;
-  margin: 1.5rem 0 0;
-  font-weight: normal;
-}
-
-.block-company {
-  margin: 0px 0px 1.5rem;
-  font-size: 1.1/1.1rem;
-  color: #666;
-}
-
-.block-category {
-  font-size: 1.4rem;
-  line-height: 1em;
-  font-style: normal;
-  color: #666;
-  display: block;
-  margin-bottom: 0.7rem;
-}
-
-.block-list .checkbox {
-  display: none;
-  pointer-events: all;
+nav[data-type="scrollbar"] p img {
   position: absolute;
-  right: 100%;
-  top: 50%;
-  margin: -1.1rem 1.5rem 0 0;
-  width: 2.2rem;
-  height: 2.2rem;
-}
-.block-list .checkbox * {
-  pointer-events: all;
-}
-
-.block-list [type="checkbox"] {
-  opacity: 0;
-  width: 100%;
-  height: 100%;
-  position: relative;
-  z-index: 5;
-}
-
-.block-list .checkbox i {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  z-index: 1;
-  width: 100%;
-  height: 100%;
-  background: url("/contacts/style/gphx/bitmap/default/forms/check-default.png") no-repeat center top;
-  background-size: 100% auto;
-}
-
-.block-list [type="checkbox"]:checked + span[role="button"] {
-  background-position: center bottom;
-}
-
-
-/* Selection state */
-[data-state="selection"] .block-list {
-  padding-left: 1.9rem;
-}
-
-[data-state="selection"] .block-list .checkbox {
-  display: block;
-}
-
-/* Media crop */
-.block-media {
-  width: 6rem;
-  height: 6rem;
-  text-align: right;
-  overflow: hidden;
-}
-
-.block-media img {
-  width: 100%;
-  height: 100%;
-  background: transparent no-repeat center center;
-  background-size: 100% auto;
-}
-
-/* SELECTION-LIST:  Items to be selected and used in another view */
-.selection-list {
-  border-radius: 0.3rem;
-  border: solid 1px #c8c8c8;
-  overflow: hidden;
-}
-
-.selection-list, .selection-list + .textfield {
-  margin-bottom: 1rem;
-}
-
-.selection-list > li {
-  background: #fff;
-  border-bottom: solid 1px #c8c8c8;
-  font: 1.4rem/2.6em MozTT, Sans-serif;
-  font-weight: 600;
-}
-
-.selection-list > li:last-child {
-  border-bottom: none;
-}
-
-.selection-list > li > a {
-  display: block;
-  color: #333;
-  position: relative;
-  padding:  0 0 0 1.8rem;
-  }
-
-/* This elements defines if the item is selected or not */
-.selection-list .slcl-state[role=button] {
-  position: absolute;
-  right: 0.5rem;
-  top: 50%;
-  margin-top: -1.3rem;
-  background: transparent url(gphx/bitmap/default/lists/tick.png) no-repeat center center;
-}
-
-/* ----------------------------------
- * PROGRESS + ACTIVITIES
- * ---------------------------------- */
-
-/* Activity indicator */
- body[role="application"] progress:not([value]) {
-   width: 2.9rem;
-   height: 2.9rem;
-   background: url(images/spinner.png) no-repeat left top;
-   border: none;
-   animation: 1s moveDefault infinite steps(10);
-   display: inline-block;
-   vertical-align: middle;
- }
-
- body[role="application"] progress:not([value])::-moz-progress-bar {
-   background: none;
- }
-
-@keyframes moveDefault {
-  from {
-    background-position: 0 top;
-  }
-
-  to {
-    background-position: -390px top;
-  }
-}
-
-@keyframes moveSpinner {
-  from {
-    background-position: 0 top;
-  }
-
-  to {
-    background-position: -300px top;
-  }
+  top: 25%;
+  left: 25%;
+  width: auto;
 }
