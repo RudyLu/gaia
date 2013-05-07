@@ -425,6 +425,7 @@ bubble above the key when you tap and hold. */
   font-weight: 500;
   font-size: 1.8rem;
   line-height: 5rem;
+  text-transform: none;
 }
 
 #keyboard-accent-char-menu.kbr-menu-lang > .keyboard-key:last-child span {
