@@ -332,6 +332,7 @@ const IMERender = (function() {
     // Place the menu to the left
     if (!left) {
       this.menu.classList.add('kbr-menu-left');
+      altChars = altChars.reverse();
     }
 
     // How wide (in characters) is the key that we're displaying
