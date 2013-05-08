@@ -50,7 +50,7 @@ settings = {
  "keyboard.layouts.zhuyin": False,
  "keyboard.layouts.pinyin": False,
  "keyboard.layouts.greek": False,
- "keyboard.layouts.japanese": False,
+ "keyboard.layouts.japanese": True,
  "keyboard.layouts.polish": False,
  "keyboard.layouts.portuguese": False,
  "keyboard.layouts.spanish": False,
