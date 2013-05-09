@@ -591,6 +591,8 @@ function modifyLayout(keyboardName) {
       alternateLayoutKey = layout['alternateLayoutKey'];
     }
 
+    var alternateLayoutKeyPos = 0;
+    var alternateLayoutKeyRatio = 1;
     // This gives the author the ability to change the basic layout
     // key contents
     var basicLayoutKey = 'ABC';
@@ -599,19 +601,19 @@ function modifyLayout(keyboardName) {
     }
 
     if (!layout['disableAlternateLayout']) {
-      space.ratio -= 2;
+      space.ratio -= alternateLayoutKeyRatio;
       if (layoutPage === LAYOUT_PAGE_DEFAULT) {
-        row.splice(c, 0, {
+        row.splice(alternateLayoutKeyPos, 0, {
           keyCode: ALTERNATE_LAYOUT,
           value: alternateLayoutKey,
-          ratio: 2
+          ratio: alternateLayoutKeyRatio
         });
 
       } else {
-        row.splice(c, 0, {
+        row.splice(alternateLayoutKeyPos, 0, {
           keyCode: BASIC_LAYOUT,
           value: basicLayoutKey,
-          ratio: 2
+          ratio: alternateLayoutKeyRatio
         });
       }
       c += 1;
@@ -645,23 +647,24 @@ function modifyLayout(keyboardName) {
 
         // adds . and , to both sides of the space bar
       case 'text':
+        var startPos = c + 1;
         var overwrites = layout.textLayoutOverwrite || {};
-        var next = c + 1;
+        var nextPos = startPos + 1;
         if (overwrites['.'] !== false) {
           space.ratio -= 1;
-          next = c + 2;
+          nextPos = startPos + 1;
         }
         if (overwrites[','] !== false)
           space.ratio -= 1;
 
         if (overwrites[',']) {
-          row.splice(c, 0, {
+          row.splice(startPos, 0, {
             value: overwrites[','],
             ratio: 1,
             keyCode: overwrites[','].charCodeAt(0)
           });
         } else if (overwrites[','] !== false) {
-          row.splice(c, 0, {
+          row.splice(startPos, 0, {
             value: ',',
             ratio: 1,
             keyCode: 44
@@ -669,13 +672,13 @@ function modifyLayout(keyboardName) {
         }
 
         if (overwrites['.']) {
-          row.splice(next, 0, {
+          row.splice(nextPos, 0, {
             value: overwrites['.'],
             ratio: 1,
             keyCode: overwrites['.'].charCodeAt(0)
           });
         } else if (overwrites['.'] !== false) {
-          row.splice(next, 0, {
+          row.splice(nextPos, 0, {
             value: '.',
             ratio: 1,
             keyCode: 46
