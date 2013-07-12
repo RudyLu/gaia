@@ -289,9 +289,8 @@ var eventHandlers = {
 
 // For "swipe down to hide" feature
 var touchStartCoordinate;
-var keyboardLaunchedBefore = true;
+var toShowKeyboardFTU = false;
 const SWIPE_VELOCICTY_THRESHOLD = 0.4;
-const KEYBOARD_LAUNCHED_KEY = 'keyboard.launched';
 
 // The first thing we do when the keyboard app loads is query all the
 // keyboard-related settings. Only once we have the current settings values
@@ -308,6 +307,7 @@ function getKeyboardSettings() {
     'keyboard.autocorrect': true,
     'keyboard.vibration': false,
     'keyboard.clicksound': false,
+    'keyboard.ftu.enabled': false,
     'audio.volume.notification': 7
   };
 
@@ -326,6 +326,9 @@ function getKeyboardSettings() {
     clickEnabled = values['keyboard.clicksound'];
     isSoundEnabled = !!values['audio.volume.notification'];
 
+    // To see if this is first time the user launches the keyboard
+    toShowKeyboardFTU = values['keyboard.ftu.enabled'];
+
     handleKeyboardSound();
 
     // Copy the keyboard group settings too
@@ -338,11 +341,6 @@ function getKeyboardSettings() {
     // And create an array of all enabled keyboard layouts from the set
     // of enabled groups
     handleNewKeyboards();
-
-    // To see if this is first time the user launches the keyboard
-    asyncStorage.getItem(KEYBOARD_LAUNCHED_KEY, function(launched) {
-      keyboardLaunchedBefore = launched;
-    });
 
     // We've got all the settings, so initialize the rest
     initKeyboard();
@@ -1169,8 +1167,12 @@ function onTouchEnd(evt) {
           vy > SWIPE_VELOCICTY_THRESHOLD) {
 
         // de-activate the highlighted effect
-        if (touchedKeys[touchId])
+        if (touchedKeys[touchId] && touchedKeys[touchId].target)
           IMERender.unHighlightKey(touchedKeys[touchId].target);
+
+        clearTimeout(deleteTimeout);
+        clearInterval(deleteInterval);
+        clearTimeout(menuTimeout);
 
         window.navigator.mozKeyboard.removeFocus();
         return;
@@ -1635,11 +1637,14 @@ function showKeyboard(state) {
     });
   }
 
-  if (!keyboardLaunchedBefore) {
+  if (toShowKeyboardFTU) {
     var dialog = document.getElementById('confirm-dialog');
     dialog.hidden = false;
-    keyboardLaunchedBefore = true;
-    asyncStorage.setItem(KEYBOARD_LAUNCHED_KEY, true);
+    toShowKeyboardFTU = false;
+
+    navigator.mozSettings.createLock().set({
+      'keyboard.ftu.enabled': false
+    });
   }
 
   // render the keyboard after activation, which will determine the state
