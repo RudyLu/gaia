@@ -100,6 +100,10 @@ var KeyboardManager = {
       this.inputFocusChange.bind(this);
   },
 
+  getHeight: function kn_getHeight() {
+    return this.keyboardHeight;
+  },
+
   updateLayouts: function km_updateLayouts(evt) {
     var self = this;
     function resetLayoutList(allLayouts) {
@@ -283,7 +287,7 @@ var KeyboardManager = {
           // to do
           var detail = {
             'detail': {
-              'height': keyboardHeight 
+              'height': keyboardHeight
             }
           };
           window.dispatchEvent(new CustomEvent('keyboardchange', detail));
@@ -327,7 +331,7 @@ var KeyboardManager = {
   },
 
   removeKeyboard: function km_removeKeyboard(origin) {
-    if (!this.runningLayouts.hasOwnProperty(origin)) 
+    if (!this.runningLayouts.hasOwnProperty(origin))
       return;
 
     if (this.showingLayout.frame.dataset.frameOrigin === origin) {
