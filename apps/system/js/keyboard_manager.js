@@ -77,6 +77,7 @@ var KeyboardManager = {
     if (this._onDebug)
       console.log('[Keyboard Manager] ' + msg);
   },
+  keyboardHeight: 0,
 
   init: function km_init() {
     var self = this;

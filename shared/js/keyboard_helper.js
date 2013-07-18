@@ -47,7 +47,7 @@ var KeyboardHelper = {
       var keyboardApps = [];
       apps.forEach(function eachApp(app) {
         // keyboard apps will request keyboard API permission
-        if (!(app.manifest.permissions && 'keyboard' in app.manifest.role))
+        if (!(app.manifest.permissions && 'keyboard' === app.manifest.role))
           return;
         //XXX remove this hard code check if one day system app no longer
         //    use mozKeyboard API
@@ -84,12 +84,12 @@ var KeyboardHelper = {
               keyboardLayouts[type] = [];
 
             keyboardLayouts[type].push({
-              "name": name, 
-              "appName": app.manifest.name,
-              "origin": app.origin, 
-              "path": launchPath,
-              "index": keyboardLayouts[type].length,
-              "enabled": true
+              'name': name,
+              'appName': app.manifest.name,
+              'origin': app.origin,
+              'path': launchPath,
+              'index': keyboardLayouts[type].length,
+              'enabled': true
             });
           });
         }
