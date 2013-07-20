@@ -272,6 +272,8 @@ var suggestionsEnabled;
 var correctionsEnabled;
 var clickEnabled;
 var vibrationEnabled;
+var enabledKeyboardGroups = {};
+var enabledKeyboardNames;
 var isSoundEnabled;
 
 // data URL for keyboard click sound
