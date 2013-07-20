@@ -425,6 +425,7 @@ function initKeyboard() {
     var inputMethodName = window.location.hash.substring(1);
     setKeyboardName(inputMethodName);
     resetKeyboard();
+    renderKeyboard(keyboardName);
   }, false);
 
   // Handle resize events
@@ -644,7 +645,7 @@ function modifyLayout(keyboardName) {
     }
 
     // switch languages button
-    if (enabledKeyboardNames.length > 1 && !layout['hidesSwitchKey']) {
+    if (!layout['hidesSwitchKey']) {
       space.ratio -= 1.5;
       row.splice(c, 0, {
         value: '&#x1f310;',
@@ -794,8 +795,10 @@ function renderKeyboard(keyboardName) {
     var candidatePanel = document.getElementById('keyboard-candidate-panel');
     var candidatePanelHeight = (candidatePanel) ?
                                candidatePanel.scrollHeight : 0;
-    document.location.hash = 'show=' +
-      (IMERender.ime.scrollHeight - candidatePanelHeight);
+
+    var url = document.location.href + '#keyboard-test=' +
+              (IMERender.ime.scrollHeight - candidatePanelHeight);
+    window.open(url);
 
     redrawTimeout = window.setTimeout(drawKeyboard,
                                       CANDIDATE_PANEL_SWITCH_TIMEOUT);
