@@ -241,7 +241,6 @@ const keyboardHashKey = [
   'numberLayout'
 ];
 
-
 // If we get a focuschange event from mozKeyboard for an element with
 // one of these types, we'll just ignore it.
 const ignoredFormElementTypes = {
@@ -401,7 +400,7 @@ function initKeyboard() {
     attributes: true, attributeFilter: ['class', 'style', 'data-hidden']
   });
 
-  window.addEventListener('mozvisibilitychange', function renderKeyboard() {
+  window.addEventListener('mozvisibilitychange', function visibilityHandler() {
     var inputType = window.navigator.mozKeyboard.inputType;
 
     var state = {
@@ -859,7 +858,8 @@ function setLayoutPage(newpage) {
 // Inform about a change in the displayed application via mutation observer
 // http://hacks.mozilla.org/2012/05/dom-mutationobserver-reacting-to-dom-changes-without-killing-browser-performance/
 function updateTargetWindowHeight(hide) {
-  var url = document.location.href + "#keyboard-test=" + IMERender.ime.scrollHeight;
+  var url = document.location.href +
+            '#keyboard-test=' + IMERender.ime.scrollHeight;
   window.open(url);
 }
 
@@ -937,6 +937,12 @@ function showAlternatives(key) {
   if (r < 0 || c < 0 || r === undefined || c === undefined)
     return;
   keyObj = currentLayout.keys[r][c];
+
+  // Handle languages alternatives
+  if (keyObj.keyCode === SWITCH_KEYBOARD) {
+    showIMEList();
+    return;
+  }
 
   // Handle key alternatives
   altMap = currentLayout.alt || {};
@@ -1179,15 +1185,7 @@ function startPress(target, coords, touchId) {
 
     }, REPEAT_TIMEOUT);
   }
-
-  if (keyCode === SWITCH_KEYBOARD) {
-    deleteTimeout = setTimeout(function() {
-      var url = document.location.href + "#keyboard-test=showlayoutlist";
-      window.open(url);
-    }, REPEAT_TIMEOUT);
-  }  
 }
-
 
 function inMenuLockedArea(lockedArea, coords) {
   return (lockedArea &&
@@ -1370,24 +1368,10 @@ function endPress(target, coords, touchId) {
 
     // Switch language (keyboard)
   case SWITCH_KEYBOARD:
-    var url = document.location.href + '#keyboard-test=switchlayout';
-    window.open(url);
-
-    /*
-     * XXX
-     * If we switch to a different keyboard that has a different input
-     * method, we need to call activate() again to set up the state for that
-     * input method. But we can only get the state we need when we get a
-     * focuschange event. This means that keyboard switching only works
-     * when the keyboards have the same input method.
-     * So to switch from a latin to an asian keyboard, you'd have to
-     * lose focus and then refocus the input field.  In practice, I think
-     * that asian keyboards have input methods that handle the latin case
-     * so this probably isn't an issue.
-    if (inputMethod.activate) {
-      inputMethod.activate(userLanguage, suggestionsEnabled, currentInputType);
-    }
-    */
+    // If the user selected a new keyboard layout or quickly tapped the
+    // switch layouts button then switch to a new keyboard layout
+    if (target.dataset.keyboard || !wasShowingKeyboardLayoutMenu)
+      switchToNextIME();
     break;
 
     // Expand / shrink the candidate panel
@@ -1512,6 +1496,22 @@ function switchKeyboard(target) {
   }
 
   renderKeyboard(keyboardName);  // And display it.
+}
+
+function switchToNextIME() {
+  // XXX: this is a hack to inform keyboard manager to switch to next IME
+  // before we got the IME API v2 implemented
+  var url = document.location.href + '#keyboard-test=switchlayout';
+  window.open(url);
+}
+
+
+function showIMEList() {
+  // XXX: this is a hack to inform keyboard manager to show IME list
+  // before we got the IME API v2 implemented
+  var url = document.location.href +
+            '#keyboard-test=showlayoutlist';
+  window.open(url);
 }
 
 // Turn to default values
