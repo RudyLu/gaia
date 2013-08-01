@@ -165,6 +165,10 @@
     inputMode = getInputMode(state.type, state.inputmode);
     inputText = state.value;
     cursor = state.selectionStart;
+
+    dump('kb selection: ' + inputText + '=' + state.selectionStart +
+         ' - ' + state.selectionEnd);
+
     if (state.selectionEnd > state.selectionStart)
       selection = state.selectionEnd;
     else
