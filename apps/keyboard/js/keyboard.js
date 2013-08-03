@@ -125,6 +125,8 @@ const defaultInputMethod = {
   displaysCandidates: function() { return false; }
 };
 
+var inputContext = null;
+
 // The keyboard app can display different layouts for different languages
 // We sometimes refer to these different layouts as "keyboards", so this single
 // keyboard app can display many different keyboards.  The currently displayed
@@ -358,6 +360,8 @@ function getKeyboardSettings() {
 }
 
 function initKeyboard() {
+  console.log('initKeyboard');
+
   // First, register handlers to track settings changes
   navigator.mozSettings.addObserver('keyboard.current', function(e) {
     // Switch to the language associated keyboard
@@ -459,6 +463,7 @@ function initKeyboard() {
   });
 
   window.addEventListener('mozvisibilitychange', function visibilityHandler() {
+    console.log('kb mozvisibilitychange');
     var inputType = window.navigator.mozKeyboard.inputType;
 
     var state = {
@@ -497,6 +502,8 @@ function initKeyboard() {
       selectionStart: 0,
       selectionEnd: 0
     };
+
+    console.log('kb call showKeyboard in init');
     showKeyboard(state);
   }
 }
@@ -1613,7 +1620,7 @@ function switchKeyboard(target) {
       // In practice, just about everything uses the latin input method now
       // so this only occurs when the users switches from Hebrew or Arabic
       // to a latin or cyrillic alphabet. XXX: See Bug 888076
-      navigator.mozKeyboard.removeFocus();
+      navigator.mozInputMethod.mgmt.removeFocus();
     }
   }
 
@@ -1649,11 +1656,15 @@ function sendKey(keyCode) {
   switch (keyCode) {
   case KeyEvent.DOM_VK_BACK_SPACE:
   case KeyEvent.DOM_VK_RETURN:
-    window.navigator.mozKeyboard.sendKey(keyCode, 0);
+    if (inputContext) {
+      inputContext.sendKey(keyCode, 0);
+    }
     break;
 
   default:
-    window.navigator.mozKeyboard.sendKey(0, keyCode);
+    if (inputContext) {
+      inputContext.sendKey(0, keyCode);
+    }
     break;
   }
 }
@@ -1663,21 +1674,33 @@ function sendKey(keyCode) {
 // The state argument is the data passed with that event, and includes
 // the input field type, its inputmode, its content, and the cursor position.
 function showKeyboard(state) {
+  console.log('kb showKeyboard');
   // If no keyboard has been selected yet, choose the first enabled one.
   // This will also set the inputMethod
   if (!keyboardName) {
     setKeyboardName(defaultKeyboardName);
   }
 
+  inputContext = navigator.mozInputMethod.inputcontext;
   IMERender.showIME();
 
-  currentInputMode = state.inputmode;
-  currentInputType = mapInputType(state.type);
+  if (inputContext) {
+    console.log('showKeyboard: inputtype ' + inputContext.inputtype +
+      ' type: ' + inputContext.type +
+      ' inputmode: ' + inputContext.inputmode);
+    console.log('showKeyboard: getText ' + inputContext.getText);
+  } else {
+    console.log('kb: cannot get inputContext');
+  }
+
+  currentInputMode = inputContext.inputmode;
+  currentInputType = mapInputType(inputContext.type);
 
   resetKeyboard();
 
   if (inputMethod.activate) {
-    inputMethod.activate(Keyboards[keyboardName].autoCorrectLanguage, state, {
+    inputMethod.activate(Keyboards[keyboardName].autoCorrectLanguage,
+      inputContext, {
       suggest: suggestionsEnabled,
       correct: correctionsEnabled
     });
@@ -1705,6 +1728,7 @@ function hideKeyboard() {
     inputMethod.deactivate();
 
   isKeyboardRendered = false;
+  inputContext = null;
 }
 
 // Resize event handler
@@ -1773,10 +1797,12 @@ function loadIMEngine(name) {
     resetUpperCase: resetUpperCase
   };
 
-  if (typeof navigator.mozKeyboard.replaceSurroundingText === 'function') {
+  if (inputContext) {
     glue.replaceSurroundingText =
-      navigator.mozKeyboard.replaceSurroundingText.bind(navigator.mozKeyboard);
-  }
+      inputContext.replaceSurroundingText.bind(inputContext);
+    } else {
+      console.log('cannot get inputContext for replaceSurrouding');
+    }
 
   script.addEventListener('load', function IMEngineLoaded() {
     var engine = InputMethods[imEngine];
