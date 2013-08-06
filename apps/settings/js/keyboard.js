@@ -332,9 +332,12 @@ var ListView = function(root, observableArray, templateFunc) {
  */
 var KeyboardContext = (function() {
   var SETTINGS_KEY = 'keyboard.enabled-layouts';
-  var _layoutDict = null; // stores layout indexed by app.origin/layoutName
+  var _curDefaultLayout = null;
+  var _languageLayoutMap = null;
 
+  var _layoutDict = null; // stores layout indexed by app.origin/layoutName
   var _enabledLayoutSetting = null;
+
   var _keyboards = ObservableArray([]);
   var _enabledLayouts = ObservableArray([]);
 
@@ -352,13 +355,14 @@ var KeyboardContext = (function() {
   };
 
   var Layout =
-    function(name, appName, appOrigin, description, types, enabled) {
+    function(name, appName, appOrigin, description, types, enabled, isDefault) {
       var _observable = Observable({
         name: name,
         appName: appName,
         description: description,
         types: types,
-        enabled: enabled
+        enabled: enabled,
+        isDefault: isDefault || false
       });
 
       // Layout enabled changed. write the change to mozSettings.
@@ -391,22 +395,20 @@ var KeyboardContext = (function() {
     }
   };
 
-  var _refreshEnabledLayout = function(enabledLayoutSetting) {
-    _enabledLayoutSetting = enabledLayoutSetting;
+  var _getLanguageLayoutMap = function(callback) {
+    callback = callback || function() {};
 
-    var enabledLayouts = [];
-    _enabledLayoutSetting.forEach(function(rawLayout) {
-      var layout = _layoutDict[rawLayout.appOrigin + '/' +
-       rawLayout.layoutName];
-      if (layout) {
-        if (rawLayout.enabled) {
-          enabledLayouts.push(layout);
+    if (_languageLayoutMap) {
+      callback(_languageLayoutMap);
+    } else {
+      var KEYBOARDS = '/shared/resources/keyboard_layouts.json';
+      loadJSON(KEYBOARDS, function loadKeyboardLayouts(data) {
+        if (data) {
+          _languageLayoutMap = data.layout;
+          callback(_languageLayoutMap);
         }
-        layout.enabled = rawLayout.enabled;
-      }
-    });
-
-    _enabledLayouts.reset(enabledLayouts);
+      });
+    }
   };
 
   var _initInstalledKeyboards = function(callback) {
@@ -443,18 +445,65 @@ var KeyboardContext = (function() {
     });
   };
 
+  var _refreshEnabledLayout = function(enabledLayoutSetting) {
+    _enabledLayoutSetting = enabledLayoutSetting;
+
+    var enabledLayouts = [];
+    _enabledLayoutSetting.forEach(function(rawLayout) {
+      var layout = _layoutDict[rawLayout.appOrigin + '/' +
+       rawLayout.layoutName];
+      if (layout) {
+        if (rawLayout.enabled) {
+          enabledLayouts.push(layout);
+        }
+        layout.enabled = rawLayout.enabled;
+      }
+    });
+
+    _enabledLayouts.reset(enabledLayouts);
+  };
+
+  /*
+   * Refresh the default layout based on _languageLayoutMap. We need to hide the
+   * checkbox of the default layout so that users are not able to uncheck it.
+   */
+  var _refreshDefaultLayout = function() {
+    var newDefaultLayout = _layoutDict['app://keyboard.gaiamobile.org/' +
+      _languageLayoutMap[document.documentElement.lang]] ||
+      _layoutDict['app://keyboard.gaiamobile.org/English'];
+
+    if (newDefaultLayout !== _curDefaultLayout) {
+      if (_curDefaultLayout) {
+        _curDefaultLayout.isDefault = false;
+      }
+
+      _curDefaultLayout = newDefaultLayout;
+      _curDefaultLayout.isDefault = true;
+      _curDefaultLayout.enabled = true;
+    }
+  };
+
+  var _onLocalized = function() {
+    _refreshDefaultLayout();
+  };
+
   var _init = function(callback) {
     Settings.mozSettings.addObserver(SETTINGS_KEY,
       function(event) {
         _refreshEnabledLayout(_JSON2Obj(event.settingValue));
     });
 
+    window.addEventListener('localized', _onLocalized);
+
     Settings.getSettings(function(result) {
       var setting = result[SETTINGS_KEY];
       if (setting) {
         _initInstalledKeyboards(function() {
           _refreshEnabledLayout(_JSON2Obj(setting));
-          callback();
+          _getLanguageLayoutMap(function() {
+            _refreshDefaultLayout();
+            callback();
+          });
         });
       }
     });
@@ -491,6 +540,9 @@ var KeyboardContext = (function() {
   };
 })();
 
+/*
+ * Panel observes hash changes and change the visible property accordingly.
+ */
 var Panel = function(url) {
   var _url = url;
   var _panel = Observable({
@@ -608,6 +660,7 @@ var InstalledLayoutsPanel = (function() {
 
       label.className = 'pack-checkbox';
       checkbox.type = 'checkbox';
+      label.style.visibility = layout.isDefault ? 'hidden' : 'visible';
 
       label.appendChild(checkbox);
       label.appendChild(span);
@@ -618,6 +671,10 @@ var InstalledLayoutsPanel = (function() {
       // event handlers
       checkbox.addEventListener('change', function() {
         layout.enabled = this.checked;
+      });
+
+      layout.observe('isDefault', function(newValue) {
+        label.style.visibility = newValue ? 'hidden' : 'visible';
       });
     }
 
