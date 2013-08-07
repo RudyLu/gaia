@@ -464,7 +464,14 @@ function initKeyboard() {
 
   window.addEventListener('mozvisibilitychange', function visibilityHandler() {
     console.log('kb mozvisibilitychange');
-    var inputType = window.navigator.mozKeyboard.inputType;
+    inputContext = window.navigator.mozInputMethod.inputcontext;
+
+
+    var inputType;
+    if (inputContext)
+      inputType = inputContext.inputType;
+    else
+      inputType = 'text';
 
     var state = {
       type: inputType,
@@ -1689,12 +1696,13 @@ function showKeyboard(state) {
       ' type: ' + inputContext.type +
       ' inputmode: ' + inputContext.inputmode);
     console.log('showKeyboard: getText ' + inputContext.getText);
+    currentInputMode = inputContext.inputMode;
+    currentInputType = mapInputType(inputContext.inputType);
   } else {
     console.log('kb: cannot get inputContext');
+    currentInputMode = '';
+    currentInputType = mapInputType('text');
   }
-
-  currentInputMode = inputContext.inputmode;
-  currentInputType = mapInputType(inputContext.type);
 
   resetKeyboard();
 
