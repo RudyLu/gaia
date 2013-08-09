@@ -309,6 +309,8 @@ const SWIPE_VELOCICTY_THRESHOLD = 0.4;
 window.addEventListener('load', getKeyboardSettings);
 
 function getKeyboardSettings() {
+
+  console.log('keyboard: getKeyboardSettings');
   // Before we can initialize the keyboard we need to know the current
   // value of all keyboard-related settings. These are the settings
   // we want to query, with the default values we'll use if the query fails
@@ -499,20 +501,22 @@ function initKeyboard() {
   // Handle resize events
   window.addEventListener('resize', onResize);
 
-  if (!document.mozHidden) {
-    //XXX: so far we cannot get state from IME WebAPI
-    var state = {
-      type: 'text',
-      choices: null,
-      value: '',
-      inputmode: '',
-      selectionStart: 0,
-      selectionEnd: 0
-    };
+  // Try to get inputContext here
+  inputContext = navigator.mozInputMethod.inputcontext;
+  console.log('inputcontext: first ' + inputContext);
 
-    console.log('kb call showKeyboard in init');
-    showKeyboard(state);
-  }
+  window.navigator.mozInputMethod.oninputcontextchange = function() {
+
+    console.log('inputcontext change in keyboard app');
+
+    //inputContext = navigator.mozInputMethod.inputcontext;
+    //console.log('inputcontext: ' + inputContext);
+
+    if (!document.mozHidden) {
+      console.log('kb call showKeyboard in init');
+      showKeyboard();
+    }
+  };
 }
 
 function handleKeyboardSound() {
