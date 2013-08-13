@@ -466,26 +466,9 @@ function initKeyboard() {
 
   window.addEventListener('mozvisibilitychange', function visibilityHandler() {
     console.log('kb mozvisibilitychange');
-    inputContext = window.navigator.mozInputMethod.inputcontext;
 
-
-    var inputType;
-    if (inputContext)
-      inputType = inputContext.inputType;
-    else
-      inputType = 'text';
-
-    var state = {
-      type: inputType,
-      choices: null,
-      value: '',
-      inputmode: '',
-      selectionStart: 0,
-      selectionEnd: 0
-    };
-
-    if (!document.mozHidden) {
-      showKeyboard(state);
+    if (!document.mozHidden && inputContext) {
+      showKeyboard();
     } else {
       hideKeyboard();
     }
@@ -501,20 +484,18 @@ function initKeyboard() {
   // Handle resize events
   window.addEventListener('resize', onResize);
 
-  // Try to get inputContext here
-  inputContext = navigator.mozInputMethod.inputcontext;
-  console.log('inputcontext: first ' + inputContext);
-
   window.navigator.mozInputMethod.oninputcontextchange = function() {
+    console.log('inputcontext change in keyboard app hidden? ' +
+                document.mozHidden);
 
-    console.log('inputcontext change in keyboard app');
+    inputContext = navigator.mozInputMethod.inputcontext;
+    console.log('inputcontext: ' + inputContext);
 
-    //inputContext = navigator.mozInputMethod.inputcontext;
-    //console.log('inputcontext: ' + inputContext);
-
-    if (!document.mozHidden) {
+    if (!document.mozHidden && inputContext) {
       console.log('kb call showKeyboard in init');
       showKeyboard();
+    } else {
+      hideKeyboard();
     }
   };
 }
@@ -1696,9 +1677,9 @@ function showKeyboard(state) {
   IMERender.showIME();
 
   if (inputContext) {
-    console.log('showKeyboard: inputtype ' + inputContext.inputtype +
+    console.log('showKeyboard: inputtype ' + inputContext.inputType +
       ' type: ' + inputContext.type +
-      ' inputmode: ' + inputContext.inputmode);
+      ' inputmode: ' + inputContext.inputMode);
     console.log('showKeyboard: getText ' + inputContext.getText);
     currentInputMode = inputContext.inputMode;
     currentInputType = mapInputType(inputContext.inputType);
@@ -1710,14 +1691,6 @@ function showKeyboard(state) {
 
   resetKeyboard();
 
-  if (inputMethod.activate) {
-    inputMethod.activate(Keyboards[keyboardName].autoCorrectLanguage,
-      inputContext, {
-      suggest: suggestionsEnabled,
-      correct: correctionsEnabled
-    });
-  }
-
   if (toShowKeyboardFTU) {
     var dialog = document.getElementById('confirm-dialog');
     dialog.hidden = false;
@@ -1728,9 +1701,27 @@ function showKeyboard(state) {
     });
   }
 
-  // render the keyboard after activation, which will determine the state
-  // of uppercase/suggestion, etc.
-  renderKeyboard(keyboardName);
+  inputContext.getText().onsuccess = function gotText() {
+    if (inputMethod.activate) {
+      var state = {
+        type: inputContext.inputType,
+        inputmode: inputContext.inputMode,
+        selectionStart: inputContext.selectionStart,
+        selectionEnd: inputContext.selectionEnd,
+        value: this.result
+      };
+
+      inputMethod.activate(Keyboards[keyboardName].autoCorrectLanguage,
+        state, {
+          suggest: suggestionsEnabled,
+          correct: correctionsEnabled
+        });
+    }
+
+    // render the keyboard after activation, which will determine the state
+    // of uppercase/suggestion, etc.
+    renderKeyboard(keyboardName);
+  };
 }
 
 // Hide keyboard
@@ -1740,7 +1731,6 @@ function hideKeyboard() {
     inputMethod.deactivate();
 
   isKeyboardRendered = false;
-  inputContext = null;
 }
 
 // Resize event handler
