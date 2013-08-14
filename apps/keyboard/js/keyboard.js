@@ -125,6 +125,8 @@ const defaultInputMethod = {
   displaysCandidates: function() { return false; }
 };
 
+var inputContext = null;
+
 // The keyboard app can display different layouts for different languages
 // We sometimes refer to these different layouts as "keyboards", so this single
 // keyboard app can display many different keyboards.  The currently displayed
@@ -458,25 +460,6 @@ function initKeyboard() {
     attributes: true, attributeFilter: ['class', 'style', 'data-hidden']
   });
 
-  window.addEventListener('mozvisibilitychange', function visibilityHandler() {
-    var inputType = window.navigator.mozKeyboard.inputType;
-
-    var state = {
-      type: inputType,
-      choices: null,
-      value: '',
-      inputmode: '',
-      selectionStart: 0,
-      selectionEnd: 0
-    };
-
-    if (!document.mozHidden) {
-      showKeyboard(state);
-    } else {
-      hideKeyboard();
-    }
-  });
-
   window.addEventListener('hashchange', function() {
     var inputMethodName = window.location.hash.substring(1);
     setKeyboardName(inputMethodName);
@@ -487,18 +470,36 @@ function initKeyboard() {
   // Handle resize events
   window.addEventListener('resize', onResize);
 
-  if (!document.mozHidden) {
-    //XXX: so far we cannot get state from IME WebAPI
-    var state = {
-      type: 'text',
-      choices: null,
-      value: '',
-      inputmode: '',
-      selectionStart: 0,
-      selectionEnd: 0
-    };
-    showKeyboard(state);
-  }
+  // Need to listen to both mozvisibilitychange and oninputcontextchange,
+  // because we are not sure which will happen first and we will call
+  // showKeyboard() when mozHidden is false and we got inputContext
+  window.addEventListener('mozvisibilitychange', function visibilityHandler() {
+    console.log('kb mozvisibilitychange');
+
+    var inputMethodName = window.location.hash.substring(1);
+    setKeyboardName(inputMethodName);
+
+    if (!document.mozHidden && inputContext) {
+      showKeyboard();
+    } else {
+      hideKeyboard();
+    }
+  });
+
+  window.navigator.mozInputMethod.oninputcontextchange = function() {
+    console.log('inputcontext change in keyboard app hidden? ' +
+                document.mozHidden);
+
+    inputContext = navigator.mozInputMethod.inputcontext;
+    console.log('inputcontext: ' + inputContext);
+
+    if (!document.mozHidden && inputContext) {
+      console.log('kb call showKeyboard in init');
+      showKeyboard();
+    } else {
+      hideKeyboard();
+    }
+  };
 }
 
 function handleKeyboardSound() {
@@ -1613,7 +1614,7 @@ function switchKeyboard(target) {
       // In practice, just about everything uses the latin input method now
       // so this only occurs when the users switches from Hebrew or Arabic
       // to a latin or cyrillic alphabet. XXX: See Bug 888076
-      navigator.mozKeyboard.removeFocus();
+      navigator.mozInputMethod.mgmt.removeFocus();
     }
   }
 
@@ -1642,19 +1643,31 @@ function resetKeyboard() {
   isUpperCaseLocked = false;
 }
 
-// This is a wrapper around mozKeyboard.sendKey()
+// This is a wrapper around inputContext.sendKey()
 // We use it in the defaultInputMethod and in the interface object
 // we pass to real input methods
 function sendKey(keyCode) {
   switch (keyCode) {
   case KeyEvent.DOM_VK_BACK_SPACE:
   case KeyEvent.DOM_VK_RETURN:
-    window.navigator.mozKeyboard.sendKey(keyCode, 0);
+    if (inputContext) {
+      inputContext.sendKey(keyCode, 0, 0);
+    }
     break;
 
   default:
-    window.navigator.mozKeyboard.sendKey(0, keyCode);
+    if (inputContext) {
+      inputContext.sendKey(0, keyCode, 0);
+    }
     break;
+  }
+}
+
+function replaceSurroundingText(text, offset, length) {
+  if (inputContext) {
+    inputContext.replaceSurroundingText(text, offset, length);
+  } else {
+    console.warn('no inputContext for replaceSurroudingText');
   }
 }
 
@@ -1669,19 +1682,19 @@ function showKeyboard(state) {
     setKeyboardName(defaultKeyboardName);
   }
 
+  inputContext = navigator.mozInputMethod.inputcontext;
   IMERender.showIME();
 
-  currentInputMode = state.inputmode;
-  currentInputType = mapInputType(state.type);
+  if (inputContext) {
+    currentInputMode = inputContext.inputMode;
+    currentInputType = mapInputType(inputContext.inputType);
+  } else {
+    console.error('Cannot get inputContext');
+    currentInputMode = '';
+    currentInputType = mapInputType('text');
+  }
 
   resetKeyboard();
-
-  if (inputMethod.activate) {
-    inputMethod.activate(Keyboards[keyboardName].autoCorrectLanguage, state, {
-      suggest: suggestionsEnabled,
-      correct: correctionsEnabled
-    });
-  }
 
   if (toShowKeyboardFTU) {
     var dialog = document.getElementById('confirm-dialog');
@@ -1693,9 +1706,29 @@ function showKeyboard(state) {
     });
   }
 
-  // render the keyboard after activation, which will determine the state
-  // of uppercase/suggestion, etc.
-  renderKeyboard(keyboardName);
+  inputContext.getText().onsuccess = function gotText() {
+    console.log('gotText: ' + this.result);
+
+    if (inputMethod.activate) {
+      var state = {
+        type: inputContext.inputType,
+        inputmode: inputContext.inputMode,
+        selectionStart: inputContext.selectionStart,
+        selectionEnd: inputContext.selectionEnd,
+        value: this.result
+      };
+
+      inputMethod.activate(Keyboards[keyboardName].autoCorrectLanguage,
+        state, {
+          suggest: suggestionsEnabled,
+          correct: correctionsEnabled
+        });
+    }
+
+    // render the keyboard after activation, which will determine the state
+    // of uppercase/suggestion, etc.
+    renderKeyboard(keyboardName);
+  };
 }
 
 // Hide keyboard
@@ -1770,13 +1803,9 @@ function loadIMEngine(name) {
     },
     setLayoutPage: setLayoutPage,
     setUpperCase: setUpperCase,
-    resetUpperCase: resetUpperCase
+    resetUpperCase: resetUpperCase,
+    replaceSurroundingText: replaceSurroundingText
   };
-
-  if (typeof navigator.mozKeyboard.replaceSurroundingText === 'function') {
-    glue.replaceSurroundingText =
-      navigator.mozKeyboard.replaceSurroundingText.bind(navigator.mozKeyboard);
-  }
 
   script.addEventListener('load', function IMEngineLoaded() {
     var engine = InputMethods[imEngine];
