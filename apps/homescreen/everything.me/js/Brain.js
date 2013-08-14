@@ -1852,8 +1852,6 @@ Evme.Brain = new function Evme_Brain() {
                         "iconsFormat": iconsFormat,
                         "clear": !hasInstalledApps && appsCurrentOffset == 0
                     });
-                    
-                    onComplete(apps);
 
                     if (iconsResponse) {
                         iconsCachedFromLastRequest = iconsResponse.cached;
@@ -1873,6 +1871,8 @@ Evme.Brain = new function Evme_Brain() {
                     } else {
                         Evme.Apps.getElement().classList.remove("has-more");
                     }
+                    
+                    onComplete(apps);
                 }
             }
 
