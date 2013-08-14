@@ -474,8 +474,6 @@ function initKeyboard() {
   // because we are not sure which will happen first and we will call
   // showKeyboard() when mozHidden is false and we got inputContext
   window.addEventListener('mozvisibilitychange', function visibilityHandler() {
-    console.log('kb mozvisibilitychange');
-
     var inputMethodName = window.location.hash.substring(1);
     setKeyboardName(inputMethodName);
 
@@ -487,14 +485,8 @@ function initKeyboard() {
   });
 
   window.navigator.mozInputMethod.oninputcontextchange = function() {
-    console.log('inputcontext change in keyboard app hidden? ' +
-                document.mozHidden);
-
     inputContext = navigator.mozInputMethod.inputcontext;
-    console.log('inputcontext: ' + inputContext);
-
     if (!document.mozHidden && inputContext) {
-      console.log('kb call showKeyboard in init');
       showKeyboard();
     } else {
       hideKeyboard();
@@ -1707,7 +1699,6 @@ function showKeyboard(state) {
   }
 
   inputContext.getText().onsuccess = function gotText() {
-    console.log('gotText: ' + this.result);
 
     if (inputMethod.activate) {
       var state = {

@@ -99,10 +99,8 @@ var KeyboardManager = {
     // To handle keyboard layout switching
     window.addEventListener('mozChromeEvent', function(evt) {
       if (evt.detail.type === 'inputmethod-showall') {
-        console.log('Show keyboard switching UI');
         self.showAll();
       } else if (evt.detail.type === 'inputmethod-next') {
-        console.log('Switch to next input method');
         self.switchToNext();
       } else if (evt.detail.type === 'inputmethod-contextchange') {
         var contextChangeEvent = {
