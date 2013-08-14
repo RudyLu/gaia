@@ -165,6 +165,8 @@
   // may be multiple calls to activate() without calls to deactivate between
   // them.
   function activate(lang, state, options) {
+    console.log('ime activate');
+
     inputMode = getInputMode(state.type, state.inputmode);
     inputText = state.value;
     cursor = state.selectionStart;
@@ -178,6 +180,8 @@
     capitalizing = punctuating = (inputMode === 'latin-prose');
     suggesting = (options.suggest && inputMode !== 'verbatim');
     correcting = (options.correct && inputMode !== 'verbatim');
+
+    console.log('suggesting' + suggesting);
 
     // Reset our state
     lastSpaceTimestamp = 0;

@@ -464,16 +464,6 @@ function initKeyboard() {
     attributes: true, attributeFilter: ['class', 'style', 'data-hidden']
   });
 
-  window.addEventListener('mozvisibilitychange', function visibilityHandler() {
-    console.log('kb mozvisibilitychange');
-
-    if (!document.mozHidden && inputContext) {
-      showKeyboard();
-    } else {
-      hideKeyboard();
-    }
-  });
-
   window.addEventListener('hashchange', function() {
     var inputMethodName = window.location.hash.substring(1);
     setKeyboardName(inputMethodName);
@@ -483,6 +473,22 @@ function initKeyboard() {
 
   // Handle resize events
   window.addEventListener('resize', onResize);
+
+  // Need to listen to both mozvisibilitychange and oninputcontextchange,
+  // because we are not sure which will happen first and we will call
+  // showKeyboard() when mozHidden is false and we got inputContext
+  window.addEventListener('mozvisibilitychange', function visibilityHandler() {
+    console.log('kb mozvisibilitychange');
+
+    var inputMethodName = window.location.hash.substring(1);
+    setKeyboardName(inputMethodName);
+
+    if (!document.mozHidden && inputContext) {
+      showKeyboard();
+    } else {
+      hideKeyboard();
+    }
+  });
 
   window.navigator.mozInputMethod.oninputcontextchange = function() {
     console.log('inputcontext change in keyboard app hidden? ' +
@@ -1641,7 +1647,7 @@ function resetKeyboard() {
   isUpperCaseLocked = false;
 }
 
-// This is a wrapper around mozKeyboard.sendKey()
+// This is a wrapper around inputContext.sendKey()
 // We use it in the defaultInputMethod and in the interface object
 // we pass to real input methods
 function sendKey(keyCode) {
@@ -1658,6 +1664,16 @@ function sendKey(keyCode) {
       inputContext.sendKey(0, keyCode, 0);
     }
     break;
+  }
+}
+
+function replaceSurroundingText(text, offset, length) {
+  console.log('kb: replaceSurrounding');
+  if (inputContext) {
+    console.log('go');
+    inputContext.replaceSurroundingText(text, offset, length);
+  } else {
+    console.warn('no inputContext for replaceSurroudingText');
   }
 }
 
@@ -1680,7 +1696,7 @@ function showKeyboard(state) {
     console.log('showKeyboard: inputtype ' + inputContext.inputType +
       ' type: ' + inputContext.type +
       ' inputmode: ' + inputContext.inputMode);
-    console.log('showKeyboard: getText ' + inputContext.getText);
+
     currentInputMode = inputContext.inputMode;
     currentInputType = mapInputType(inputContext.inputType);
   } else {
@@ -1702,6 +1718,8 @@ function showKeyboard(state) {
   }
 
   inputContext.getText().onsuccess = function gotText() {
+    console.log('gotText: ' + this.result);
+
     if (inputMethod.activate) {
       var state = {
         type: inputContext.inputType,
@@ -1796,15 +1814,9 @@ function loadIMEngine(name) {
     },
     setLayoutPage: setLayoutPage,
     setUpperCase: setUpperCase,
-    resetUpperCase: resetUpperCase
+    resetUpperCase: resetUpperCase,
+    replaceSurroundingText: replaceSurroundingText
   };
-
-  if (inputContext) {
-    glue.replaceSurroundingText =
-      inputContext.replaceSurroundingText.bind(inputContext);
-    } else {
-      console.log('cannot get inputContext for replaceSurrouding');
-    }
 
   script.addEventListener('load', function IMEngineLoaded() {
     var engine = InputMethods[imEngine];
