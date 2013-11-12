@@ -64,8 +64,13 @@ var ContactsTest = {
     this.loadButton.addEventListener('click', this.loadContacts.bind(this));
     this.clearButton.addEventListener('click', this.clearContacts.bind(this));
     this.getButton.addEventListener('click', this.getContacts.bind(this));
-    this.pickActivityButton.addEventListener('click',
-                                            this.pickActivity.bind(this));
+
+    this.pickActivityButton.addEventListener('click', function() {
+      var testInput = document.getElementById('test-input');
+      testInput.focus();
+      this.pickActivity();
+    }.bind(this));
+
     this.newActivityButton.addEventListener('click',
                                             this.newActivity.bind(this));
     this.updateExistingActivityButton.addEventListener('click',
