@@ -1629,15 +1629,11 @@ function sendKey(keyCode) {
   switch (keyCode) {
   case KeyEvent.DOM_VK_BACK_SPACE:
   case KeyEvent.DOM_VK_RETURN:
-    if (inputContext) {
-      inputContext.sendKey(keyCode, 0, 0);
-    }
+    window.navigator.mozKeyboard.sendKey(keyCode, 0);
     break;
 
   default:
-    if (inputContext) {
-      inputContext.sendKey(0, keyCode, 0);
-    }
+    window.navigator.mozKeyboard.sendKey(0, keyCode);
     break;
   }
 }
