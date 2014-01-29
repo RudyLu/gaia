@@ -85,7 +85,7 @@ var KeyboardManager = {
 
   focusChangeTimeout: 0,
   switchChangeTimeout: 0,
-  _onDebug: false,
+  _onDebug: true,
   _debug: function km_debug(msg) {
     if (this._onDebug)
       console.log('[Keyboard Manager] ' + msg);
@@ -329,7 +329,7 @@ var KeyboardManager = {
           layoutFrame = runningKeybaord[name];
           layoutFrame.src = layout.origin + newPath;
           this._debug(name + ' is overwritten: ' + layoutFrame.src);
-          console.log('IMlog KM' + layoutFrame.src);
+          console.log('[Keyboard Manager] launchLayoutFrame' + layoutFrame.src);
           delete runningKeybaord[name];
           break;
         }

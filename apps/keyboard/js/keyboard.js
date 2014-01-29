@@ -401,6 +401,9 @@ function initKeyboard() {
   window.navigator.mozInputMethod.oninputcontextchange = function() {
     inputContext = navigator.mozInputMethod.inputcontext;
     var inputMethodName = window.location.hash.substring(1);
+
+    console.log('IMlog inputcontextchange, hash: ' + inputMethodName);
+
     setKeyboardName(inputMethodName, function() {
       if (!document.mozHidden && inputContext) {
         showKeyboard('IMlog inputcontextchange');
@@ -878,6 +881,8 @@ function setLayoutPage(newpage) {
 function updateTargetWindowHeight(hide) {
   var imeHeight = IMERender.ime.scrollHeight;
   var imeWidth = IMERender.getWidth();
+
+  console.log('resizeTo: ' + imeHeight);
   window.resizeTo(imeWidth, imeHeight);
 }
 
@@ -1644,8 +1649,9 @@ function replaceSurroundingText(text, offset, length) {
 // the input field type, its inputmode, its content, and the cursor position.
 function showKeyboard(msg) {
   if (typeof msg != 'undefined') {
-    console.log(msg);
+    console.log('showKeyboard() invoked' + msg);
   }
+
   clearTimeout(hideKeyboardTimeout);
 
   inputContext = navigator.mozInputMethod.inputcontext;
@@ -1718,6 +1724,8 @@ function showKeyboard(msg) {
 
 // Hide keyboard
 function hideKeyboard() {
+  console.log('hideKeyboard');
+
   if (!isKeyboardRendered)
     return;
 

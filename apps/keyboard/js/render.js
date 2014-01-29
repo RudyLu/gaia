@@ -240,6 +240,7 @@ const IMERender = (function() {
   };
 
   var hideIME = function km_hideIME() {
+    console.log('hideIME');
     ime.dataset.hidden = 'true';
   };
 
