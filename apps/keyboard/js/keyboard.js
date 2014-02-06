@@ -376,28 +376,45 @@ function initKeyboard() {
   window.addEventListener('hashchange', function() {
     var inputMethodName = window.location.hash.substring(1);
     setKeyboardName(inputMethodName, function() {
-      resetKeyboard();
-      showKeyboard('IMlog hashchange');
+      waitForInputContext(function(ic) {
+        inputContext = ic;
+        resetKeyboard();
+        showKeyboard('IMlog hashchange');
+      });
     });
   }, false);
 
   // Handle resize events
   window.addEventListener('resize', onResize);
 
+  function waitForInputContext(callback) {
+    var ic = navigator.mozInputMethod.inputcontext;
+    if (!ic) {
+      window.setTimeout(function() {
+        waitForInputContext(callback);
+      }, 100);
+    } else {
+      callback(ic);
+    }
+  }
   // Need to listen to both mozvisibilitychange and oninputcontextchange,
   // because we are not sure which will happen first and we will call
   // showKeyboard() when mozHidden is false and we got inputContext
   window.addEventListener('mozvisibilitychange', function visibilityHandler() {
     var inputMethodName = window.location.hash.substring(1);
     setKeyboardName(inputMethodName, function() {
-      if (!document.mozHidden && inputContext) {
-        showKeyboard('IMlog mozvisibilitychange');
+      if (!document.mozHidden) {
+        waitForInputContext(function(ic) {
+          inputContext = ic;
+          showKeyboard('IMlog mozvisibilitychange');
+        });
       } else {
         hideKeyboard();
       }
     });
   });
 
+  /*
   window.navigator.mozInputMethod.oninputcontextchange = function() {
     inputContext = navigator.mozInputMethod.inputcontext;
     var inputMethodName = window.location.hash.substring(1);
@@ -412,6 +429,8 @@ function initKeyboard() {
       }
     });
   };
+  */
+
 
   // Initialize the current layout according to
   // the hash this page is loaded with.
