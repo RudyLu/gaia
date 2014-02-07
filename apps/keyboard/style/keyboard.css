@@ -43,6 +43,10 @@ button::-moz-focus-inner {
   visibility: visible;
 }
 
+#keyboard[data-hidden=true] {
+  /*visibility: hidden;*/
+}
+
 /* Row styles */
 .keyboard-row {
   text-align: center;

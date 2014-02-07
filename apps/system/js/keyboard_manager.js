@@ -339,7 +339,7 @@ var KeyboardManager = {
       layoutFrame = this.loadKeyboardLayout(layout);
     // TODO make sure setLayoutFrameActive function is ready
     this.setLayoutFrameActive(layoutFrame, false);
-    layoutFrame.hidden = true;
+    //layoutFrame.hidden = true;
     layoutFrame.dataset.frameName = layout.id;
     layoutFrame.dataset.frameManifestURL = layout.manifestURL;
     layoutFrame.dataset.framePath = layout.path;
@@ -590,10 +590,12 @@ var KeyboardManager = {
   },
 
   resetShowingKeyboard: function km_resetShowingKeyboard() {
+    console.log('resetShowingKeyboard');
+
     if (!this.showingLayout.frame) {
       return;
     }
-    this.showingLayout.frame.hidden = true;
+    //this.showingLayout.frame.hidden = true;
     this.setLayoutFrameActive(this.showingLayout.frame, false);
     this.showingLayout.frame.removeEventListener(
         'mozbrowserresize', this, true);
@@ -742,7 +744,7 @@ var KeyboardManager = {
 
   setLayoutFrameActive: function km_setLayoutFrameActive(frame, active) {
     if (frame.setVisible) {
-      frame.setVisible(active);
+      //frame.setVisible(active);
     }
     if (frame.setInputMethodActive) {
       frame.setInputMethodActive(active);
