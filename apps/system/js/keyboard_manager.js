@@ -85,7 +85,7 @@ var KeyboardManager = {
 
   focusChangeTimeout: 0,
   switchChangeTimeout: 0,
-  _onDebug: false,
+  _onDebug: true,
   _debug: function km_debug(msg) {
     if (this._onDebug)
       console.log('[Keyboard Manager] ' + msg);
@@ -362,6 +362,9 @@ var KeyboardManager = {
 
   loadKeyboardLayout: function km_loadKeyboardLayout(layout) {
     // Generate a <iframe mozbrowser> containing the keyboard.
+    //
+    this.launchTime = Date.now();
+
     var keyboard = document.createElement('iframe');
     keyboard.src = layout.origin + layout.path;
     keyboard.setAttribute('mozapptype', 'inputmethod');
@@ -375,7 +378,14 @@ var KeyboardManager = {
       keyboard.setAttribute('ignoreuserfocus', 'true');
     }
 
+    keyboard.addEventListener('mozbrowserloadend', function() {
+      var loadEndTime = Date.now() - this.launchTime;
+      this._debug('load end time: ' + loadEndTime);
+    }.bind(this));
+
+    this._debug('append keyboard iframe to container: ' + layout.manifestURL);
     this.keyboardFrameContainer.appendChild(keyboard);
+    this._debug('after append keyboard iframe to container: ' + layout.manifestURL);
     return keyboard;
   },
 
@@ -385,7 +395,9 @@ var KeyboardManager = {
       return;
 
     this.keyboardHeight = parseInt(evt.detail.height);
-    this._debug('resizeKeyboard: ' + this.keyboardHeight);
+    var updateHeightTime = Date.now() - this.launchTime;
+    this._debug('resizeKeyboard: ' + this.keyboardHeight + ' time:  ' + updateHeightTime);
+
     if (this.keyboardHeight <= 0)
        return;
     evt.stopPropagation();

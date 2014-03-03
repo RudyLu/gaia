@@ -315,6 +315,8 @@
    * @memberof KeyboardApp.prototype
    */
   KeyboardApp.prototype.resizeWindow = function resizeWindow() {
+
+    console.log('demo keyboard, invoking window.resizeTo');
     window.resizeTo(window.innerWidth, this.container.clientHeight);
 
     // We only resize the currently displayed page view. Other page views
