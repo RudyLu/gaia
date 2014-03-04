@@ -73,7 +73,7 @@
     ], [
       { value: '⇪', ratio: 1.5, keyCode: KeyEvent.DOM_VK_CAPS_LOCK },
       { value: 'ឯ' }, { value: 'ស' }, { value: 'ហ' }, { value: 'ង' },
-[5~      { value: 'គ' }, { value: 'ជ' }, { value: 'យ' },
+      { value: 'គ' }, { value: 'ជ' }, { value: 'យ' },
       { value: '⌫', ratio: 1.5, keyCode: KeyEvent.DOM_VK_BACK_SPACE }
     ], [
       { value: '&nbsp', ratio: 8, keyCode: KeyboardEvent.DOM_VK_SPACE },
