@@ -13,7 +13,7 @@ html {
    * We define the font size so that 1/32nd of the screen width is one rem.
    * We'll change this in landscape mode to be 1/64th of the screen width
    */
-  font-size: 3.125vw;
+  font-size: 10px; /*3.125vw;*/
   pointer-events: none;
 }
 

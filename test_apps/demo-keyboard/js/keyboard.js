@@ -26,6 +26,8 @@
 
     window.addEventListener('resize', this);
     navigator.mozInputMethod.addEventListener('inputcontextchange', this);
+    window.addEventListener('mozvisibilitychange', this);
+
     this.container =
       document.getElementById(this.KEYBOARD_CONTAINER_ID);
     this.container.addEventListener('mousedown', this);
@@ -56,20 +58,16 @@
     // Make it visible
     this.currentPageView.show();
 
-    // The call to resizeWindow triggers the system app to actually display
-    // the frame that holds the keyboard.
-    this.resizeWindow();
-
     // Handle events
     this.touchHandler.setPageView(this.currentPageView);
     this.touchHandler.addEventListener('key', this);
 
     this.inputField.addEventListener('inputfieldchanged', this);
 
+    // The call to resizeWindow triggers the system app to actually display
+    // the frame that holds the keyboard.
     this.inputcontext = navigator.mozInputMethod.inputcontext;
-    if (!document.mozHidden && this.inputcontext) {
-      this.resizeWindow();
-    }
+    this.show();
   };
 
   /**
@@ -136,13 +134,20 @@
         break;
 
       case 'resize':
-        this.resizeWindow();
+        if (this.isShown) {
+
+          console.log('resizeWindow in resize event');
+          this.resizeWindow();
+        }
         break;
 
       case 'inputcontextchange':
         this.inputcontext = navigator.mozInputMethod.inputcontext;
-        this.resizeWindow();
+        this.show();
+        break;
 
+      case 'mozvisibilitychange':
+        this.show();
         break;
     }
   };
@@ -315,13 +320,28 @@
    * @memberof KeyboardApp.prototype
    */
   KeyboardApp.prototype.resizeWindow = function resizeWindow() {
-
     console.log('demo keyboard, invoking window.resizeTo');
     window.resizeTo(window.innerWidth, this.container.clientHeight);
 
     // We only resize the currently displayed page view. Other page views
     // are resized as needed when they're retrieved from the cache.
     this.currentPageView.resize();
+  };
+
+  /**
+   * Show the keyboard only when:
+   *  1. It is visible.
+   *  2. It got a valid input context.
+   * @memberof KeyboardApp.prototype
+   */
+  KeyboardApp.prototype.show = function show() {
+    if (!document.mozHidden && this.inputcontext) {
+      console.log('show keyboard');
+      this.resizeWindow();
+      this.isShown = true;
+    } else {
+      this.isShown = false;
+    }
   };
 
   exports.KeyboardApp = KeyboardApp;

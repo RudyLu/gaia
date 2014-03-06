@@ -1735,8 +1735,12 @@ function hideKeyboard() {
 
 // Resize event handler
 function onResize() {
-  if (IMERender.ime.dataset.hidden)
+  console.log('onResize');
+
+  if (IMERender.ime.dataset.hidden) {
+    console.log('onResize early return');
     return;
+  }
 
   IMERender.resizeUI(currentLayout);
   updateTargetWindowHeight(); // this case is not captured by the mutation
