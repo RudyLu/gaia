@@ -32,7 +32,8 @@
         {"layoutId": "en", "appManifestURL": "app://keyboard.gaiamobile.org/manifest.webapp"}
     ],
     "en-US": [
-        {"layoutId": "en", "appManifestURL": "app://keyboard.gaiamobile.org/manifest.webapp"}
+        {"layoutId": "en", "appManifestURL": "app://keyboard.gaiamobile.org/manifest.webapp"},
+        {"layoutId": "english", "appManifestURL": "app://demo-keyboard.gaiamobile.org/manifest.webapp"}
     ],
     "eo": [
         {"layoutId": "en", "appManifestURL": "app://keyboard.gaiamobile.org/manifest.webapp"}

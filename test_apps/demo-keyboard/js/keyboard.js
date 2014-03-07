@@ -24,9 +24,8 @@
     }
     this._started = true;
 
-    window.addEventListener('resize', this);
     navigator.mozInputMethod.addEventListener('inputcontextchange', this);
-    window.addEventListener('mozvisibilitychange', this);
+    //window.addEventListener('mozvisibilitychange', this);
 
     this.container =
       document.getElementById(this.KEYBOARD_CONTAINER_ID);
@@ -68,6 +67,8 @@
     // the frame that holds the keyboard.
     this.inputcontext = navigator.mozInputMethod.inputcontext;
     this.show();
+
+    window.addEventListener('resize', this);
   };
 
   /**
