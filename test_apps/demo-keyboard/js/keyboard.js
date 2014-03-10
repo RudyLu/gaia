@@ -24,8 +24,9 @@
     }
     this._started = true;
 
+    window.addEventListener('resize', this);
     navigator.mozInputMethod.addEventListener('inputcontextchange', this);
-    //window.addEventListener('mozvisibilitychange', this);
+    window.addEventListener('mozvisibilitychange', this);
 
     this.container =
       document.getElementById(this.KEYBOARD_CONTAINER_ID);
@@ -47,6 +48,7 @@
 
     this.settings = new Settings(this.DEFAULT_SETTINGS);
     this.settings.addEventListener('settingschanged', this);
+    this.isShown = false;
 
     // Start off with the main page
     this.variant = this.getVariant();
@@ -66,9 +68,10 @@
     // The call to resizeWindow triggers the system app to actually display
     // the frame that holds the keyboard.
     this.inputcontext = navigator.mozInputMethod.inputcontext;
-    this.show();
 
-    window.addEventListener('resize', this);
+    // Wait till next tick to show keyboard or we will get multiple resize events,
+    // triggered by calling window.resizeTo().
+    window.requestAnimationFrame(this.show.bind(this));
   };
 
   /**
@@ -106,6 +109,7 @@
     this.shiftKey = null;
     this.autoCorrect = null;
     this.settings = null;
+    this.isShown = false;
   };
 
   /**
@@ -135,9 +139,10 @@
         break;
 
       case 'resize':
-        if (this.isShown) {
+        //console.log('got resize event');
 
-          console.log('resizeWindow in resize event');
+        if (this.isShown) {
+          //console.log('resizeWindow in resize event');
           this.resizeWindow();
         }
         break;
@@ -321,7 +326,7 @@
    * @memberof KeyboardApp.prototype
    */
   KeyboardApp.prototype.resizeWindow = function resizeWindow() {
-    console.log('demo keyboard, invoking window.resizeTo');
+    //console.log('demo keyboard, invoking window.resizeTo');
     window.resizeTo(window.innerWidth, this.container.clientHeight);
 
     // We only resize the currently displayed page view. Other page views
