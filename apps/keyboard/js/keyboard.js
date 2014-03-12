@@ -1610,6 +1610,8 @@ function resetKeyboard() {
 // We use it in the defaultInputMethod and in the interface object
 // we pass to real input methods
 function sendKey(keyCode) {
+  dump(+new Date() + ' dispatch sendKey ' + keyCode + '\n');
+
   switch (keyCode) {
   case KeyEvent.DOM_VK_BACK_SPACE:
   case KeyEvent.DOM_VK_RETURN:
