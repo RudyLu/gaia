@@ -405,6 +405,8 @@ function initKeyboard() {
 
   window.navigator.mozInputMethod.oninputcontextchange = function() {
     inputContext = navigator.mozInputMethod.inputcontext;
+    console.log('[keyboard] inputcontextchange: ' + inputContext);
+
     if (!document.mozHidden && inputContext) {
       showKeyboard();
     } else {
@@ -424,6 +426,9 @@ function initKeyboard() {
   // Finally, if we are only loaded by keyboard manager when the user
   // have already focused, the keyboard should show right away.
   inputContext = navigator.mozInputMethod.inputcontext;
+
+  console.log('[keyboard] init: ' + inputContext +
+              ' - document.mozHidden: ' + document.mozHidden);
   if (!document.mozHidden && inputContext) {
     // show Keyboard after the input method has been initialized
     setKeyboardName(inputMethodName, showKeyboard);
