@@ -237,6 +237,15 @@ const specialCodes = [
   KeyEvent.DOM_VK_SPACE
 ];
 
+const IGNORED_INPUT_TYPES = [
+  'select-one',
+  'select-multiple',
+  'date',
+  'time',
+  'datetime',
+  'datetime-local'
+];
+
 // These values are initialized with user settings
 var suggestionsEnabled;
 var correctionsEnabled;
@@ -1663,7 +1672,12 @@ function showKeyboard() {
     });
   }
 
+
   if (inputContext) {
+    if (IGNORED_INPUT_TYPES.indexOf(inputContext.inputType) != -1) {
+      return;
+    }
+
     currentInputMode = inputContext.inputMode;
     currentInputType = mapInputType(inputContext.inputType);
   } else {
