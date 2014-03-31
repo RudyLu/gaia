@@ -1108,3 +1108,7 @@ docs: $(NPM_INSTALLED_PROGRAMS)
 .PHONY: watch
 watch: $(NPM_INSTALLED_PROGRAMS)
 	node build/watcher.js
+
+gen-new-layouts:
+	make -C apps/keyboard gen-new-layouts
+

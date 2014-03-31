@@ -7,5 +7,9 @@ all: clean
 	@echo Building keyboard app to build_stage...
 	@mkdir -p $(BUILD_DIR)
 	@$(call run-app-js-command, build)
+
+gen-new-layouts:
+	@echo Generate layout files in new format
+	@$(call run-app-js-command, gen-new-layouts)
 clean:
 	@rm -rf $(BUILD_DIR)
