@@ -283,6 +283,8 @@ var settingsQuery = {
 
 // Now query the settings
 getSettings(settingsQuery, function gotSettings(values) {
+  console.log('getSettings()');
+
   // Copy settings values to the corresponding global variables.
   suggestionsEnabled = values['keyboard.wordsuggestion'];
   correctionsEnabled = values['keyboard.autocorrect'];
@@ -300,6 +302,8 @@ getSettings(settingsQuery, function gotSettings(values) {
 });
 
 function initKeyboard() {
+  console.log('initKeyboard()');
+
   navigator.mozSettings.addObserver('keyboard.wordsuggestion', function(e) {
     // The keyboard won't be displayed when this setting changes, so we
     // don't need to tell the keyboard about the new value right away.
@@ -393,9 +397,11 @@ function initKeyboard() {
   // because we are not sure which will happen first and we will call
   // showKeyboard() when mozHidden is false and we got inputContext
   window.addEventListener('mozvisibilitychange', function visibilityHandler() {
+    console.log('visibilitychange');
     var inputMethodName = window.location.hash.substring(1);
     setKeyboardName(inputMethodName, function() {
       if (!document.mozHidden && inputContext) {
+        console.log('showKeyboard from vischange');
         showKeyboard();
       } else {
         hideKeyboard();
@@ -404,8 +410,12 @@ function initKeyboard() {
   });
 
   window.navigator.mozInputMethod.oninputcontextchange = function() {
+
+    console.log('inputcontextchange');
+
     inputContext = navigator.mozInputMethod.inputcontext;
     if (!document.mozHidden && inputContext) {
+      console.log('showKeyboard from inputcontextchange');
       showKeyboard();
     } else {
       hideKeyboard();
@@ -424,8 +434,10 @@ function initKeyboard() {
   // Finally, if we are only loaded by keyboard manager when the user
   // have already focused, the keyboard should show right away.
   inputContext = navigator.mozInputMethod.inputcontext;
+  console.log('onload - showKeyboard: ' + inputContext);
   if (!document.mozHidden && inputContext) {
     // show Keyboard after the input method has been initialized
+    console.log('onload - showKeyboard');
     setKeyboardName(inputMethodName, showKeyboard);
   } else {
     setKeyboardName(inputMethodName);
@@ -742,10 +754,11 @@ function modifyLayout(keyboardName) {
 
 var _t = {};
 function startTime(key) {
-  // _t[key] = +new Date;
+   console.log('start' + key + ' ' + (+new Date) + '\n');
+   _t[key] = +new Date;
 }
 function endTime(key) {
-  // dump('~' + key + ' ' + (+new Date - _t[key]) + '\n');
+   console.log('~' + key + ' ' + (+new Date - _t[key]) + '\n');
 }
 
 //
@@ -880,6 +893,8 @@ function setLayoutPage(newpage) {
 function updateTargetWindowHeight(hide) {
   // height of the current active IME + 1px for the borderTop
   var imeHeight = cachedIMEDimensions.height = IMERender.getHeight() + 1;
+  console.log('updateTargetWindowHeight(), ' + imeHeight);
+
   var imeWidth = cachedIMEDimensions.width = IMERender.getWidth();
   window.resizeTo(imeWidth, imeHeight);
 }
@@ -1651,6 +1666,8 @@ function replaceSurroundingText(text, offset, length) {
 // The state argument is the data passed with that event, and includes
 // the input field type, its inputmode, its content, and the cursor position.
 function showKeyboard() {
+  console.log('showKeyboard()');
+
   clearTimeout(hideKeyboardTimeout);
 
   inputContext = navigator.mozInputMethod.inputcontext;
@@ -1692,6 +1709,7 @@ function showKeyboard() {
   });
 
   function doShowKeyboard() {
+    console.log('doShowKeyboard()');
     // Force to disable the auto correction for Greek SMS layout.
     // This is because the suggestion result is still unicode and
     // we would not convert the suggestion result to GSM 7-bit.
@@ -1713,6 +1731,8 @@ function showKeyboard() {
   var promise = inputContext.getText();
 
   promise.then(function gotText(value) {
+    console.log('gotText');
+
     state.value = value;
     doShowKeyboard();
   }, function failedToGetText(ex) {

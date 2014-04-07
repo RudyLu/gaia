@@ -85,7 +85,7 @@ var KeyboardManager = {
 
   focusChangeTimeout: 0,
   switchChangeTimeout: 0,
-  _onDebug: false,
+  _onDebug: true,
   _debug: function km_debug(msg) {
     if (this._onDebug)
       console.log('[Keyboard Manager] ' + msg);
@@ -137,7 +137,7 @@ var KeyboardManager = {
     window.addEventListener('attentionscreenshow', this);
     window.addEventListener('mozbrowsererror', this);
     window.addEventListener('applicationsetupdialogshow', this);
-    window.addEventListener('mozmemorypressure', this);
+    //window.addEventListener('mozmemorypressure', this);
 
     // To handle keyboard layout switching
     window.addEventListener('mozChromeEvent', function(evt) {
