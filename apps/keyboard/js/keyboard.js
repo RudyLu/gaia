@@ -1702,11 +1702,15 @@ function showKeyboard() {
         });
     }
 
+    IMERender.showIME();
+    isKeyboardRendered = true;
+    /*
     // render the keyboard after activation, which will determine the state
     // of uppercase/suggestion, etc.
     renderKeyboard(keyboardName, function() {
       IMERender.showIME();
     });
+    */
   }
 
   var promise = inputContext.getText();
