@@ -128,23 +128,118 @@ function getLayouts(appDir, layoutNames) {
       file: layoutFile,
       types: win.Keyboards[layoutName].types,
       dictFile: dictFile,
-      imEngineDir: imEngineDir
+      imEngineDir: imEngineDir,
+      keys: win.Keyboards[layoutName].keys
     };
   }
 }
 
+function getPages(layout) {
+  var needsEmail = false;
+  var needsURL = false;
+
+  var pages = {
+    main: {
+      layout: []
+    }
+  };
+
+  KeyMap = {
+    '⇪': 'SHIFT',
+    '⌫': 'BACKSPACE',
+    '&nbsp': 'SPACE',
+    '↵': 'RETURN'
+  };
+
+  function getKeyValue(key, variantType) {
+    if (key.visible && key.visible.indexOf('email') != -1) {
+      needsEmail = true;
+    }
+
+    if (key.visible && key.visible.indexOf('url') != -1) {
+      needsURL = true;
+    }
+
+    if (!variantType && key.visible) { // main layout
+      return null;
+    }
+
+    if (variantType && key.visible && key.visible.indexOf(variantType) == -1) {   // email or url variant
+      return null;
+    }
+
+    if (key.value in KeyMap) {
+      return KeyMap[key.value];
+    }
+
+    return key.value;
+
+  }
+
+  function getPage(keys, variantType) {
+    var page = [];
+    var rowNumber = 0;
+
+    keys.forEach(function (keyRow) {
+      var newRow = keyRow.reduce(function(prev, curr, index, array) {
+        utils.log('prev: '  + prev);
+        utils.log('curr value: ' + curr.value);
+        var keyValue = getKeyValue(curr, variantType);
+
+        if (!keyValue) {
+          return prev;
+        }
+
+        return prev ? (prev + ' ' + keyValue) : keyValue;
+      }, '');
+      page.push(newRow);
+      rowNumber++;
+    });
+
+    //modifyLastRow(page, variantType);
+    if (!variantType) {  // main layout
+      page[rowNumber - 1] = page[rowNumber - 1].replace('SPACE', 'SPACE .');
+      page[rowNumber - 1] = '?123 SWITCH ' + page[rowNumber - 1];
+    } else if (variantType === 'email') {
+      page[rowNumber - 1] = page[rowNumber - 1].replace('SPACE', '@ SPACE .');
+      page[rowNumber - 1] = '?123 SWITCH ' + page[rowNumber - 1];
+    } else if (variantType === 'url') {
+      page[rowNumber - 1] = page[rowNumber - 1].replace('SPACE', 'SPACE .');
+      page[rowNumber - 1] = '?123 SWITCH ' + page[rowNumber - 1];
+    }
+
+    return page;
+  }
+
+  var keys = layout.keys;
+  pages.main.layout = getPage(keys);
+
+  if (needsEmail || needsURL) {
+    pages.main.variants = {};
+  }
+
+  if(needsEmail) {
+    pages.main.variants['email'] = getPage(keys, 'email');
+  }
+
+  if (needsURL) {
+    pages.main.variants['url'] = getPage(keys, 'url');
+  }
+
+  return pages;
+}
+
 function genLayoutsWithNewFormat(appDir, distDir, layoutNames) {
-  utils.log('hi I\'m here');
+  utils.log('gen Layouts with new format');
   let layouts = getLayouts(appDir, layoutNames);
 
   layouts.forEach(function(layout) {
     var newLayoutFormat = {};
 
     newLayoutFormat = {
-      launch_path: '/index.html#' + layout.name,
       name: layout.label,
-      description: layout.label,
-      types: layout.types
+      label: layout.menuLabel,
+      pages: getPages(layout)
     };
 
     utils.mkdirs(utils.joinPath(distDir.path, 'newLayouts'));
@@ -155,5 +250,4 @@ function genLayoutsWithNewFormat(appDir, distDir, layoutNames) {
         distDir.path);
     utils.writeContent(resultFile, JSON.stringify(newLayoutFormat, null, 2));
   });
-
 }
