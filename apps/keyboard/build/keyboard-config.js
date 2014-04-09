@@ -4,6 +4,7 @@ Cu.import('resource://gre/modules/Services.jsm');
 
 exports.copyLayoutsAndResources = copyLayoutsAndResources;
 exports.addEntryPointsToManifest = addEntryPointsToManifest;
+exports.genLayoutsWithNewFormat= genLayoutsWithNewFormat;
 
 function copyLayoutsAndResources(appDir, distDir, layoutNames) {
   // Here is where the layouts and dictionaries get copied to
@@ -130,4 +131,29 @@ function getLayouts(appDir, layoutNames) {
       imEngineDir: imEngineDir
     };
   }
+}
+
+function genLayoutsWithNewFormat(appDir, distDir, layoutNames) {
+  utils.log('hi I\'m here');
+  let layouts = getLayouts(appDir, layoutNames);
+
+  layouts.forEach(function(layout) {
+    var newLayoutFormat = {};
+
+    newLayoutFormat = {
+      launch_path: '/index.html#' + layout.name,
+      name: layout.label,
+      description: layout.label,
+      types: layout.types
+    };
+
+    utils.mkdirs(utils.joinPath(distDir.path, 'newLayouts'));
+
+    // Write the result to file
+    let resultFile = utils.resolve(
+        utils.joinPath('newLayouts', layout.name + '.json'),
+        distDir.path);
+    utils.writeContent(resultFile, JSON.stringify(newLayoutFormat, null, 2));
+  });
+
 }

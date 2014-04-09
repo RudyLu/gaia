@@ -129,13 +129,21 @@ KeyboardAppBuilder.prototype.generateManifest = function() {
                      JSON.stringify(manifest));
 };
 
+KeyboardAppBuilder.prototype.generateNewLayouts = function() {
+  // For v1 keyboard
+  keyboardConfig.genLayoutsWithNewFormat(
+    this.appDir, this.distDir, this.versionOneLayouts);
+};
+
 KeyboardAppBuilder.prototype.execute = function(options) {
   this.setOptions(options);
 
   // Check against allLayouts. Most of the code should be gone with v1 keyboard.
   this.versionOneLayouts = this.getLayoutsForVersion('one');
   this.versionTwoLayouts = this.getLayoutsForVersion('two');
+
   this.throwForNoneExistLayouts();
+  this.generateNewLayouts();
 
   this.copyStaticFiles();
   this.copyLayouts();
