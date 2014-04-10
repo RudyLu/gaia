@@ -67,7 +67,7 @@ Keyboards.es = {
         { value: '@', hidden: ['email'] }, { value: '%' },
         { value: '_', visible: ['email']}
       ], [
-        { value: '#+=', ratio: 1.5, keyCode: KeyEvent.DOM_VK_ALT },
+        { value: 'ALT', ratio: 1.5, keyCode: KeyEvent.DOM_VK_ALT },
         { value: '¿' }, { value: '?' }, { value: '¡' }, { value: '!' },
         { value: '\"' }, { value: '\'' }, { value: '*' },
         { value: '⌫', ratio: 1.5, keyCode: KeyEvent.DOM_VK_BACK_SPACE }
@@ -88,7 +88,7 @@ Keyboards.es = {
         { value: '<' }, { value: '>' }, { value: '$' }, { value: '£' },
         { value: '¥' }, { value: '•' }
       ], [
-        { value: '123', ratio: 1.5, keyCode: KeyEvent.DOM_VK_ALT },
+        { value: 'ALT', ratio: 1.5, keyCode: KeyEvent.DOM_VK_ALT },
         { value: '¿' }, { value: '?' }, { value: '¡' }, { value: '!' },
         { value: '\"' }, { value: '\'' }, {value: '*' },
         { value: '⌫', ratio: 1.5, keyCode: KeyEvent.DOM_VK_BACK_SPACE }

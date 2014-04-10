@@ -126,7 +126,7 @@ KeyboardAppBuilder.prototype.generateManifest = function() {
 
   // Write content to build_stage
   utils.writeContent(utils.getFile(this.distDir.path, 'manifest.webapp'),
-                     JSON.stringify(manifest));
+                     JSON.stringify(manifest, null, 2));
 };
 
 KeyboardAppBuilder.prototype.generateNewLayouts = function() {

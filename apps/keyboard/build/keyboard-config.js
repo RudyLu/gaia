@@ -122,15 +122,19 @@ function getLayouts(appDir, layoutNames) {
       ? utils.getFile(imeSrc.path, imEngineName)
       : null;
 
-    return {
+    var layoutDetail = {
       name: layoutName,
       label: win.Keyboards[layoutName].menuLabel,
       file: layoutFile,
-      types: win.Keyboards[layoutName].types,
       dictFile: dictFile,
-      imEngineDir: imEngineDir,
-      keys: win.Keyboards[layoutName].keys
+      imEngineDir: imEngineDir
     };
+
+    for (var i in win.Keyboards[layoutName]) {
+      layoutDetail[i] = win.Keyboards[layoutName][i];
+    }
+
+    return layoutDetail;
   }
 }
 
@@ -164,7 +168,11 @@ function getPages(layout) {
       return null;
     }
 
-    if (variantType && key.visible && key.visible.indexOf(variantType) == -1) {   // email or url variant
+    if (variantType && key.visible && key.visible.indexOf(variantType) == -1) {   // not visible in email or url variant
+      return null;
+    }
+
+    if (variantType && key.hidden && key.hidden.indexOf(variantType) != -1) {   // hidden in email or url variant
       return null;
     }
 
@@ -176,7 +184,7 @@ function getPages(layout) {
 
   }
 
-  function getPage(keys, variantType) {
+  function getPage(keys, variantType, pageType) {
     var page = [];
     var rowNumber = 0;
 
@@ -197,15 +205,22 @@ function getPages(layout) {
     });
 
     //modifyLastRow(page, variantType);
-    if (!variantType) {  // main layout
+    //
+    //
+    if (!pageType) {  // default page, i.e. main
+      if (!variantType) {  // main layout
+        page[rowNumber - 1] = page[rowNumber - 1].replace('SPACE', 'SPACE .');
+        page[rowNumber - 1] = '?123 SWITCH ' + page[rowNumber - 1];
+      } else if (variantType === 'email') {
+        page[rowNumber - 1] = page[rowNumber - 1].replace('SPACE', '@ SPACE .');
+        page[rowNumber - 1] = '?123 SWITCH ' + page[rowNumber - 1];
+      } else if (variantType === 'url') {
+        page[rowNumber - 1] = page[rowNumber - 1].replace('SPACE', 'SPACE .');
+        page[rowNumber - 1] = '?123 SWITCH ' + page[rowNumber - 1];
+      }
+    } else if (pageType == 'NUMBERS' || pageType == 'SYMBOLS') {
       page[rowNumber - 1] = page[rowNumber - 1].replace('SPACE', 'SPACE .');
-      page[rowNumber - 1] = '?123 SWITCH ' + page[rowNumber - 1];
-    } else if (variantType === 'email') {
-      page[rowNumber - 1] = page[rowNumber - 1].replace('SPACE', '@ SPACE .');
-      page[rowNumber - 1] = '?123 SWITCH ' + page[rowNumber - 1];
-    } else if (variantType === 'url') {
-      page[rowNumber - 1] = page[rowNumber - 1].replace('SPACE', 'SPACE .');
-      page[rowNumber - 1] = '?123 SWITCH ' + page[rowNumber - 1];
+      page[rowNumber - 1] = 'ABC SWITCH ' + page[rowNumber - 1];
     }
 
     return page;
@@ -226,7 +241,57 @@ function getPages(layout) {
     pages.main.variants['url'] = getPage(keys, 'url');
   }
 
+  // Handle number and symbol page
+  //
+  if (layout.alternateLayout) {   // number page
+    pages["NUMBERS"] = {};
+    pages["NUMBERS"].layout = getPage(layout.alternateLayout.keys, '', 'NUMBERS');
+  } else {
+    pages["NUMBERS"] = "inherit";
+  }
+
+  if (layout.symbolLayout) {   // symbol page
+    pages["SYMBOLS"] = {};
+    pages["SYMBOLS"].layout = getPage(layout.symbolLayout.keys, '', 'SYMBOLS');
+  } else {
+    pages["SYMBOLS"] = "inherit";
+  }
+
+
+
   return pages;
+}
+
+function getAlternativeKeys(layout) {
+  // handle alternative keys
+  var newKeys = {};
+
+  var listToScan = [layout.alt];
+  if (layout.alternateLayout && layout.alternateLayout.alt) {
+    listToScan.push(layout.alternateLayout.alt);
+  }
+  if (layout.symbolLayout && layout.symbolLayout.alt) {
+    listToScan.push(layout.symbolLayout.alt);
+  }
+
+  listToScan.forEach(function(alt) {
+    if (!alt) {
+      return;
+    }
+
+    if (newKeys[i]) {
+      // make a warning here that we have dupe alternative list for the same key
+      utils.log('##### Warning ##### we already have alternative keys for ' + i + 'in ' + layout.name);
+    }
+
+    for (var i in alt) {
+      // no space case
+      var sep = (alt[i].indexOf(' ') == -1) ? '' : ' ';
+      newKeys[i] = {alternatives: alt[i].split(sep).join(' ')};
+    }
+  });
+
+  return newKeys;
 }
 
 function genLayoutsWithNewFormat(appDir, distDir, layoutNames) {
@@ -239,7 +304,8 @@ function genLayoutsWithNewFormat(appDir, distDir, layoutNames) {
     newLayoutFormat = {
       name: layout.label,
       label: layout.menuLabel,
-      pages: getPages(layout)
+      pages: getPages(layout),
+      keys: getAlternativeKeys(layout)
     };
 
     utils.mkdirs(utils.joinPath(distDir.path, 'newLayouts'));
