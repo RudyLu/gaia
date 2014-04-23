@@ -965,6 +965,13 @@ function showAlternatives(key) {
     return;
   }
 
+  // Hide the keyboard
+  if (keyObj.keyCode === KeyEvent.DOM_VK_SPACE) {
+    console.log('[keyboard] going to hide the keyboard');
+    navigator.mozInputMethod.mgmt.hide();
+    return;
+  }
+
   // Handle key alternatives
   altMap = currentLayout.alt || {};
   value = keyObj.value;
