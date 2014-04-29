@@ -11,13 +11,18 @@
    * @param {Array} listItems An array of objects to display.
    * @param {String} title The content of the header.
    * @param {Function} successCb Called when the user selects an option.
-   * @param {Function} cancelCb Called when the menu is cancelled.
+   * @param {Array} buttonArray when the menu is cancelled.
    * @param {Boolean} preventFocusChange Set to true to prevent focus changing.
    */
-  function ActionMenu(listItems, title, successCb, cancelCb,
+  function ActionMenu(listItems, title, successCb, buttonArray,
   preventFocusChange) {
     this.onselected = successCb || function() {};
-    this.oncancel = cancelCb || function() {};
+    //this.oncancel = cancelCb || function() {};
+    this.buttonArray = buttonArray ||
+                       { label: 'Cancel',
+                         callback: function() {}
+                       };
+
     this.listItems = listItems;
     this.title = title;
   }
@@ -53,9 +58,9 @@
       this.container.appendChild(this.header);
 
       // Following our paradigm we need a cancel
-      this.cancel = document.createElement('button');
-      this.cancel.dataset.action = 'cancel';
-      this.cancel.dataset.l10nId = 'cancel';
+      //this.cancel = document.createElement('button');
+      //this.cancel.dataset.action = 'cancel';
+      //this.cancel.dataset.l10nId = 'cancel';
 
       // We have a menu with all the options
       this.menu = document.createElement('menu');
@@ -67,6 +72,7 @@
       document.getElementById('screen').appendChild(this.container);
 
       this.buildMenu(this.listItems);
+      this.buildButtonMenu();
 
       this.container.addEventListener('submit', this);
       this.menu.addEventListener('click', this);
@@ -118,6 +124,22 @@
       var _ = navigator.mozL10n.get;
       this.cancel.textContent = _('cancel');
       this.menu.appendChild(this.cancel);
+    },
+
+    //  Have another menu for the cancel button
+    buildButtonMenu: function() {
+      // We have a menu with all the options
+      var buttonMenu = document.createElement('menu');
+
+      this.buttonArray.forEach(function traveseButtons(button) {
+        var buttonElement = document.createElement('button');
+        //buttonElement.dataset.value = button.value;
+        buttonElement.textContent = button.label;
+
+        buttonMenu.appendChild(buttonElement);
+      });
+
+      this.container.appendChild(buttonMenu);
     },
 
     /**

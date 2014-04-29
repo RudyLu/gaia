@@ -740,6 +740,21 @@ var KeyboardManager = {
       });
       self.hideKeyboard();
 
+      var cancelCallback = function() {
+        var showed = self.showingLayout;
+        if (!self.keyboardLayouts[showed.type]) 
+          showed.type = 'text';
+
+        // Mimic the success callback to show the current keyboard
+        // when user canceled it.
+        self.setKeyboardToShow(showed.type);
+        self.showKeyboard();
+
+        // Hide the tray to show the app directly after
+        // user canceled.
+        window.dispatchEvent(new CustomEvent('keyboardchangecanceled'));
+      };
+
       var menu = new ActionMenu(items, actionMenuTitle,
         function(selectedIndex) {
         if (!self.keyboardLayouts[showed.type])
@@ -754,20 +769,11 @@ var KeyboardManager = {
 
         // Refresh the switcher, or the labled type and layout name
         // won't change.
-      }, function() {
-        var showed = self.showingLayout;
-        if (!self.keyboardLayouts[showed.type])
-          showed.type = 'text';
-
-        // Mimic the success callback to show the current keyboard
-        // when user canceled it.
-        self.setKeyboardToShow(showed.type);
-        self.showKeyboard();
-
-        // Hide the tray to show the app directly after
-        // user canceled.
-        window.dispatchEvent(new CustomEvent('keyboardchangecanceled'));
-      }, true /* preventFocusChange */);
+      },
+      [{label: 'Cancel', callback: cancelCallback},
+       {label: 'Settings', callback: cancelCallback}
+      ]
+      , true /* preventFocusChange */);
       menu.start();
     }, SWITCH_CHANGE_DELAY);
   },
