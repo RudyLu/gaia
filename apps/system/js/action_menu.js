@@ -121,13 +121,14 @@
         }
         this.menu.appendChild(action);
       }, this);
-      var _ = navigator.mozL10n.get;
-      this.cancel.textContent = _('cancel');
-      this.menu.appendChild(this.cancel);
+      //var _ = navigator.mozL10n.get;
+      //this.cancel.textContent = _('cancel');
+      //this.menu.appendChild(this.cancel);
     },
 
     //  Have another menu for the cancel button
     buildButtonMenu: function() {
+      console.log('buildButtonMenu');
       // We have a menu with all the options
       var buttonMenu = document.createElement('menu');
 
@@ -135,6 +136,8 @@
         var buttonElement = document.createElement('button');
         //buttonElement.dataset.value = button.value;
         buttonElement.textContent = button.label;
+
+	console.log('button label:' + button.label);
 
         buttonMenu.appendChild(buttonElement);
       });
