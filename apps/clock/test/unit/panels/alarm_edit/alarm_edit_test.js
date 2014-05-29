@@ -31,6 +31,13 @@ suite('AlarmEditView', function() {
       alarmListPanel = new AlarmListPanel(document.createElement('div'));
       AlarmManager = _AlarmManager;
       mozL10n = l10n;
+      mozL10n.setResources('en-US', {
+        'weekStartsOnMonday': '0',
+      });
+      mozL10n.setResources('fr', {
+        'weekStartsOnMonday': '1',
+      });
+
       done();
     });
   });
@@ -59,7 +66,6 @@ suite('AlarmEditView', function() {
 
       this.sinon.stub(alarmEdit, 'getTimeSelect');
       this.sinon.stub(alarmEdit, 'getSoundSelect');
-      this.sinon.stub(alarmEdit, 'getVibrateSelect');
       this.sinon.stub(alarmEdit, 'getSnoozeSelect');
       this.sinon.stub(alarmEdit, 'getRepeatSelect');
 
@@ -73,7 +79,7 @@ suite('AlarmEditView', function() {
         minute: alarm.minute
       });
       alarmEdit.getSoundSelect.returns(alarmEdit.alarm.sound);
-      alarmEdit.getVibrateSelect.returns(alarmEdit.alarm.vibrate);
+      alarmEdit.checkboxes.vibrate.checked = alarmEdit.alarm.vibrate;
       alarmEdit.getSnoozeSelect.returns(alarmEdit.alarm.snooze);
       alarmEdit.getRepeatSelect.returns(alarmEdit.alarm.repeat);
 
@@ -150,8 +156,7 @@ suite('AlarmEditView', function() {
     test('should add an alarm with sound, no vibrate', function(done) {
       this.sinon.stub(alarmListPanel, 'addOrUpdateAlarm');
 
-      // mock the view to turn off vibrate
-      alarmEdit.getVibrateSelect.returns('0');
+      alarmEdit.checkboxes.vibrate.checked = false;
 
       alarmEdit.alarm = new Alarm({
         hour: 5,
@@ -172,7 +177,7 @@ suite('AlarmEditView', function() {
     test('should update existing alarm with no sound, vibrate', function(done) {
       this.sinon.stub(alarmListPanel, 'addOrUpdateAlarm');
       // mock the view to turn sound on and vibrate off
-      alarmEdit.getVibrateSelect.returns('1');
+      alarmEdit.checkboxes.vibrate.checked = true;
       alarmEdit.getSoundSelect.returns('0');
       alarmEdit.save(function(err, alarm) {
         assert.ok(alarm.id);
@@ -192,8 +197,7 @@ suite('AlarmEditView', function() {
       // Sunday gets moved to the end.
       parent.appendChild(sunday);
 
-      mozL10n.setForTest('weekStartsOnMonday', '0');
-      window.dispatchEvent(new Event('localized'));
+      mozL10n.language.code = 'en-US';
 
       assert.ok(!sunday.previousSibling, 'Sunday should be first (prev)');
       assert.ok(sunday.nextSibling, 'Sunday should be first (next)');
@@ -205,8 +209,7 @@ suite('AlarmEditView', function() {
       // Sunday goes first.
       parent.insertBefore(sunday, parent.firstChild);
 
-      mozL10n.setForTest('weekStartsOnMonday', '1');
-      window.dispatchEvent(new Event('localized'));
+      mozL10n.language.code = 'fr';
 
       assert.ok(sunday.previousSibling, 'Sunday should be last (prev)');
       assert.ok(!sunday.nextSibling, 'Sunday should be last (next)');
@@ -230,7 +233,7 @@ suite('AlarmEditView', function() {
       alarmEdit.alarm.hour = '0';
       alarmEdit.alarm.minute = '0';
       alarmEdit.initTimeSelect();
-      assert.equal(alarmEdit.timeSelect.value, '00:00');
+      assert.equal(alarmEdit.selects.time.value, '00:00');
     });
 
     test('3:5, should init time select with format of system time picker',
@@ -238,7 +241,7 @@ suite('AlarmEditView', function() {
       alarmEdit.alarm.hour = '3';
       alarmEdit.alarm.minute = '5';
       alarmEdit.initTimeSelect();
-      assert.equal(alarmEdit.timeSelect.value, '03:05');
+      assert.equal(alarmEdit.selects.time.value, '03:05');
     });
 
     test('9:25, should init time select with format of system time picker',
@@ -246,7 +249,7 @@ suite('AlarmEditView', function() {
       alarmEdit.alarm.hour = '9';
       alarmEdit.alarm.minute = '25';
       alarmEdit.initTimeSelect();
-      assert.equal(alarmEdit.timeSelect.value, '09:25');
+      assert.equal(alarmEdit.selects.time.value, '09:25');
     });
 
     test('12:55, should init time select with format of system time picker',
@@ -254,7 +257,7 @@ suite('AlarmEditView', function() {
       alarmEdit.alarm.hour = '12';
       alarmEdit.alarm.minute = '55';
       alarmEdit.initTimeSelect();
-      assert.equal(alarmEdit.timeSelect.value, '12:55');
+      assert.equal(alarmEdit.selects.time.value, '12:55');
     });
 
     test('15:5, should init time select with format of system time picker',
@@ -262,7 +265,7 @@ suite('AlarmEditView', function() {
       alarmEdit.alarm.hour = '15';
       alarmEdit.alarm.minute = '5';
       alarmEdit.initTimeSelect();
-      assert.equal(alarmEdit.timeSelect.value, '15:05');
+      assert.equal(alarmEdit.selects.time.value, '15:05');
     });
 
     test('23:0, should init time select with format of system time picker',
@@ -270,7 +273,7 @@ suite('AlarmEditView', function() {
       alarmEdit.alarm.hour = '23';
       alarmEdit.alarm.minute = '0';
       alarmEdit.initTimeSelect();
-      assert.equal(alarmEdit.timeSelect.value, '23:00');
+      assert.equal(alarmEdit.selects.time.value, '23:00');
     });
   });
 

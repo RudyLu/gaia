@@ -32,7 +32,7 @@ class TestFtu(GaiaTestCase):
         psk = self.testvars['wifi'].get('psk')
         keymanagement = self.testvars['wifi'].get('keyManagement')
 
-        self.assertGreater(self.ftu.languages_list, 0, "No languages listed on screen")
+        self.wait_for_condition(lambda m: self.ftu.languages_list > 0, message="No languages listed on screen")
 
         # select en-US due to the condition of this test is only for en-US
         self.ftu.tap_language("en-US")
@@ -83,6 +83,7 @@ class TestFtu(GaiaTestCase):
 
         # all_contacts switches to top frame; Marionette needs to be switched back to ftu
         self.apps.switch_to_displayed_app()
+        self.ftu.tap_next_to_firefox_accounts_section()
         self.ftu.tap_next_to_welcome_browser_section()
 
         # Tap the statistics box and check that it sets a setting

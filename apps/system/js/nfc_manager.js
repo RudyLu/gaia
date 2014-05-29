@@ -16,7 +16,8 @@
  * limitations under the License.
  */
 
-/* globals dump, MozNDEFRecord, NDEF, NfcUtils */
+/* globals dump, CustomEvent, MozActivity, MozNDEFRecord,
+   NfcHandoverManager, NfcUtils, NDEF, ScreenManager */
 'use strict';
 
 var NfcManager = {
@@ -28,6 +29,16 @@ var NfcManager = {
   NFC_HW_STATE_DISABLE_DISCOVERY: 3,
 
   hwState: 0,
+
+  // Assign priority of tech handling. Smaller number means higher priority.
+  // This list will expand with supported technologies.
+  TechPriority: {
+    'P2P': 1,
+    'NDEF': 2,
+    'NDEF_WRITEABLE': 3,
+    'NDEF_FORMATABLE': 4,
+    'Unsupported': 20
+  },
 
   _debug: function nm_debug(msg, optObject) {
     if (this.DEBUG) {
@@ -41,8 +52,6 @@ var NfcManager = {
 
   init: function nm_init() {
     this._debug('Initializing NFC Message');
-    // Initialize nfc-dom so that it is ready to receive H/W state changes
-    var nfcdom = window.navigator.mozNfc;
 
     window.navigator.mozSetMessageHandler(
       'nfc-manager-tech-discovered',
@@ -54,36 +63,62 @@ var NfcManager = {
     window.addEventListener('lock', this);
     window.addEventListener('unlock', this);
     var self = this;
-    SettingsListener.observe('nfc.enabled', false, function(enabled) {
+    window.SettingsListener.observe('nfc.enabled', false, function(enabled) {
       var state = enabled ?
-                    (LockScreen.locked ?
+                    (window.System.locked ?
                        self.NFC_HW_STATE_DISABLE_DISCOVERY :
                        self.NFC_HW_STATE_ON) :
                     self.NFC_HW_STATE_OFF;
-      self.dispatchHardwareChangeEvt(state);
+      self.changeHardwareState(state);
     });
   },
 
   isScreenUnlockAndEnabled: function nm_isScreenUnlockAndEnabled() {
     // Policy:
-    if (ScreenManager.screenEnabled && lockScreen && !lockScreen.locked) {
+    if (ScreenManager.screenEnabled && !window.System.locked) {
       return true;
     } else {
       return false;
     }
   },
 
-  dispatchHardwareChangeEvt: function nm_dispatchHardwareChangeEvt(state) {
-    this._debug('dispatchHardwareChangeEvt - state : ' + state);
+  changeHardwareState: function nm_changeHardwareState(state) {
+    this._debug('changeHardwareState - state : ' + state);
     this.hwState = state;
-    var detail = {
-      type: 'nfc-hardware-state-change',
-      nfcHardwareState: state
-    };
-    // Create the state-change event and dispatch
-    var event = document.createEvent('customEvent');
-    event.initCustomEvent('mozContentEvent', true, true, detail);
+    var nfcdom = window.navigator.mozNfc;
+    if (!nfcdom) {
+      return;
+    }
+
+    var req;
+    switch (state) {
+      case this.NFC_HW_STATE_OFF:
+        req = nfcdom.powerOff();
+        break;
+      case this.NFC_HW_STATE_DISABLE_DISCOVERY:
+        req = nfcdom.stopPoll();
+        break;
+      case this.NFC_HW_STATE_ON:
+      case this.NFC_HW_STATE_ENABLE_DISCOVERY:
+        req = nfcdom.startPoll();
+        break;
+    }
+
+    // update statusbar status via custom event
+    var event = new CustomEvent('nfc-state-changed', {
+      detail: {
+        active: (state > 0) ? true : false
+      }
+    });
     window.dispatchEvent(event);
+
+    var self = this;
+    req.onsuccess = function() {
+      self._debug('changeHardwareState ' + state + ' success');
+    };
+    req.onerror = function() {
+      self._debug('changeHardwareState ' + state + ' error ' + req.error.name);
+    };
   },
 
   handleEvent: function nm_handleEvent(evt) {
@@ -101,7 +136,7 @@ var NfcManager = {
         if (state == this.hwState) {
           return;
         }
-        this.dispatchHardwareChangeEvt(state);
+        this.changeHardwareState(state);
         break;
       case 'shrinking-sent':
         window.removeEventListener('shrinking-sent', this);
@@ -116,41 +151,47 @@ var NfcManager = {
 
   // An NDEF Message is an array of one or more NDEF records.
   handleNdefMessage: function nm_handleNdefMessage(ndefmessage) {
-    var action = null;
+    var options = null;
 
     var record = ndefmessage[0];
     this._debug('RECORD: ' + JSON.stringify(record));
 
     switch (+record.tnf) {
       case NDEF.TNF_EMPTY:
-        action = this.formatEmpty(record);
+        options = this.createActivityOptionsWithType('empty');
         break;
       case NDEF.TNF_WELL_KNOWN:
-        action = this.formatWellKnownRecord(record);
-        break;
-      case NDEF.TNF_ABSOLUTE_URI:
-        action = this.formatURIRecord(record);
+        options = this.formatWellKnownRecord(record);
         break;
       case NDEF.TNF_MIME_MEDIA:
-        action = this.formatMimeMedia(record);
+        options = this.formatMimeMedia(record);
         break;
+      case NDEF.TNF_ABSOLUTE_URI:
       case NDEF.TNF_EXTERNAL_TYPE:
-        action = this.formatExternalType(record);
+        // Absolute URI and External payload handling is application specific,
+        // in terms of creating activity they should be handled alike
+        var type = NfcUtils.toUTF8(record.type);
+        options = this.createActivityOptionsWithType(type);
         break;
       case NDEF.TNF_UNKNOWN:
-      case NDEF.TNF_UNCHANGED:
       case NDEF.TNF_RESERVED:
-      default:
-        this._debug('Unknown or unimplemented tnf or rtd subtype.');
+        options = this.createDefaultActivityOptions();
+        break;
+      case NDEF.TNF_UNCHANGED:
         break;
     }
-    if (action == null) {
+
+    if (options === null) {
       this._debug('XX Found no ndefmessage actions. XX');
-      action = this.formatNDEFUnknown(ndefmessage);
+      // we're handling here also tnf unchanged, not adding record payload
+      // as ndef record is malformed/unxpected, this is a workaround
+      // until Bug 1007724 will land 
+      options = this.createDefaultActivityOptions();
     } else {
-      action.data.records = ndefmessage;
+      options.data.records = ndefmessage;
     }
-    return action;
+
+    return options;
   },
 
   doClose: function nm_doClose(nfctag) {
@@ -168,8 +209,10 @@ var NfcManager = {
     function nm_handleNdefDiscoveredUseConnect(tech, session) {
       var self = this;
 
-      var connected = false;
       var nfcdom = window.navigator.mozNfc;
+      if (!nfcdom) {
+        return;
+      }
 
       var token = session;
       var nfctag = nfcdom.getNFCTag(token);
@@ -192,15 +235,19 @@ var NfcManager = {
   handleNdefDiscovered:
     function nm_handleNdefDiscovered(tech, session, records) {
 
+      var self = this;
       this._debug('handleNdefDiscovered: ' + JSON.stringify(records));
-      var action = this.handleNdefMessage(records);
-      if (action == null) {
+      var options = this.handleNdefMessage(records);
+      if (options === null) {
         this._debug('Unimplemented. Handle Unknown type.');
       } else {
-        this._debug('Action: ' + JSON.stringify(action));
-        action.data.tech = tech;
-        action.data.sessionToken = session;
-        var a = new MozActivity(action);
+        this._debug('options: ' + JSON.stringify(options));
+        options.data.tech = tech;
+        options.data.sessionToken = session;
+        var a = new MozActivity(options);
+        a.onerror = function() {
+          self._debug('Firing nfc-ndef-discovered failed');
+        };
       }
   },
 
@@ -232,23 +279,38 @@ var NfcManager = {
 
   checkP2PRegistration:
     function nm_checkP2PRegistration(manifestURL) {
-      var status = window.navigator.mozNfc.checkP2PRegistration(manifestURL);
+      var nfcdom = window.navigator.mozNfc;
+      if (!nfcdom) {
+        return;
+      }
+
+      var status = nfcdom.checkP2PRegistration(manifestURL);
       var self = this;
       status.onsuccess = function() {
-        // Top visible application's manifest Url is registered;
-        // Start Shrink / P2P UI and wait for user to accept P2P event
-        window.dispatchEvent(new CustomEvent('shrinking-start'));
+        if (status.result) {
+          // Top visible application's manifest Url is registered;
+          // Start Shrink / P2P UI and wait for user to accept P2P event
+          window.dispatchEvent(new CustomEvent('shrinking-start'));
 
-        // Setup listener for user response on P2P UI now
-        window.addEventListener('shrinking-sent', self);
-      };
-      status.onerror = function() {
-        // Do nothing!
+          // Setup listener for user response on P2P UI now
+          window.addEventListener('shrinking-sent', self);
+        } else {
+          // Clean up P2P UI events
+          self._debug('Error checking P2P Registration: ' +
+                      JSON.stringify(status.result));
+          window.removeEventListener('shrinking-sent', self);
+          window.dispatchEvent(new CustomEvent('shrinking-stop'));
+        }
       };
   },
 
   dispatchP2PUserResponse: function nm_dispatchP2PUserResponse(manifestURL) {
-    window.navigator.mozNfc.notifyUserAcceptedP2P(manifestURL);
+    var nfcdom = window.navigator.mozNfc;
+    if (!nfcdom) {
+      return;
+    }
+
+    nfcdom.notifyUserAcceptedP2P(manifestURL);
   },
 
   fireTagDiscovered: function nm_fireTagDiscovered(command) {
@@ -269,15 +331,23 @@ var NfcManager = {
     };
   },
 
+  getPrioritizedTech: function nm_getPrioritizedTech(techList) {
+    var self = this;
+    techList.sort(function sorter(techA, techB) {
+      var priorityA = self.TechPriority[techA] || self.TechPriority.Unsupported;
+      var priorityB = self.TechPriority[techB] || self.TechPriority.Unsupported;
+      return priorityA - priorityB;
+    });
+
+    return techList[0];
+  },
+
   handleTechnologyDiscovered: function nm_handleTechnologyDiscovered(command) {
     this._debug('Technology Discovered: ' + JSON.stringify(command));
 
     window.dispatchEvent(new CustomEvent('nfc-tech-discovered'));
     window.navigator.vibrate([25, 50, 125]);
 
-    // Check for tech types:
-    this._debug('command.techList: ' + command.techList);
-    var techList = command.techList;
     var records = null;
     if (command.records && (command.records.length > 0)) {
       records = command.records;
@@ -290,6 +360,13 @@ var NfcManager = {
        * are handled by the handover manager.
        */
       var firstRecord = records[0];
+      if ((firstRecord.tnf == NDEF.TNF_MIME_MEDIA) &&
+            NfcUtils.equalArrays(firstRecord.type,
+            NfcUtils.fromUTF8('application/vnd.bluetooth.ep.oob'))) {
+        this._debug('Handle simplified pairing record');
+        NfcHandoverManager.handleSimplifiedPairingRecord(records);
+        return;
+      }
       if ((firstRecord.tnf == NDEF.TNF_WELL_KNOWN) &&
           NfcUtils.equalArrays(firstRecord.type, NDEF.RTD_HANDOVER_SELECT)) {
         this._debug('Handle Handover Select');
@@ -304,47 +381,31 @@ var NfcManager = {
       }
     }
 
-    // Assign priority of tech handling. This list will expand with supported
-    // Technologies.
-    var priority = {
-      'P2P': 0,
-      'NDEF': 1,
-      'NDEF_WRITEABLE': 2,
-      'NDEF_FORMATTABLE': 3,
-      'NFC_A': 4,
-      'MIFARE_ULTRALIGHT': 5
-    };
-    techList.sort(function sorter(techA, techB) {
-      return priority[techA] - priority[techB];
-    });
-
+    this._debug('command.techList: ' + command.techList);
+    var tech = this.getPrioritizedTech(command.techList);
     // One shot try. Fallback directly to tag.
-    switch (techList[0]) {
+    switch (tech) {
       case 'P2P':
-        this.handleP2P(techList[0], command.sessionToken, records);
+        this.handleP2P(tech, command.sessionToken, records);
         break;
       case 'NDEF':
         if (records) {
-          this.handleNdefDiscovered(techList[0], command.sessionToken, records);
+          this.handleNdefDiscovered(tech, command.sessionToken, records);
         } else {
-          this.handleNdefDiscoveredEmpty(techList[0], command.sessionToken);
+          this.handleNdefDiscoveredEmpty(tech, command.sessionToken);
         }
         break;
       case 'NDEF_WRITEABLE':
-        this.handleNdefDiscoveredEmpty(techList[0], command.sessionToken);
+        this.handleNdefDiscoveredEmpty(tech, command.sessionToken);
         break;
-      case 'NDEF_FORMATTABLE':
-        this.handleNdefDiscoveredUseConnect(techList[0], command.sessionToken);
-        break;
-      case 'NFC_A':
-        this._debug('NFCA unsupported: ' + command);
-        break;
-      case 'MIFARE_ULTRALIGHT':
-        this._debug('MiFare unsupported: ' + command);
+      case 'NDEF_FORMATABLE':
+        this.handleNdefDiscoveredUseConnect(tech, command.sessionToken);
         break;
       default:
-        this._debug('Unknown or unsupported tag type. Fire Tag-Discovered.');
+        this._debug('Unknown or unsupported tag type.' + tech +
+                    'Fire Tag-Discovered.');
         this.fireTagDiscovered(command);
+        break;
     }
   },
 
@@ -356,7 +417,7 @@ var NfcManager = {
 
     // Clean up P2P UI events
     window.removeEventListener('shrinking-sent', this);
-    window.dispatchEvent(new CustomEvent('shrinking-stop'));
+    window.dispatchEvent(new CustomEvent('shrinking-rejected'));
   },
 
   // Miscellaneous utility functions to handle formating the JSON for activities
@@ -375,25 +436,6 @@ var NfcManager = {
     return false;
   },
 
-  formatEmpty: function nm_formatEmpty(record) {
-    this._debug('Activity for empty tag.');
-    return {
-      name: 'nfc-ndef-discovered',
-      data: {
-        type: 'empty'
-      }
-    };
-  },
-
-  formatNDEFUnknown: function nm_formatUnknown(record) {
-    return {
-      name: 'nfc-ndef-discovered',
-      data: {
-        type: NfcUtils.toUTF8(record.type)
-      }
-    };
-  },
-
   formatWellKnownRecord: function nm_formatWellKnownRecord(record) {
     this._debug('HandleWellKnowRecord');
     if (NfcUtils.equalArrays(record.type, NDEF.RTD_TEXT)) {
@@ -401,11 +443,11 @@ var NfcManager = {
     } else if (NfcUtils.equalArrays(record.type, NDEF.RTD_URI)) {
       return this.formatURIRecord(record);
     } else if (NfcUtils.equalArrays(record.type, NDEF.RTD_SMART_POSTER)) {
-      return this.formatSmartPosterRecord(record);
-    } else if (NfcUtils.equalArrays(record.type, NDEF.SMARTPOSTER_ACTION)) {
-      return this.formatSmartPosterAction(record);
+      // Smartposters can be multipart NDEF messages.
+      // The meaning and actions are application dependent.
+      return this.createActivityOptionsWithType('smartposter');
     } else {
-      console.log('Unknown record type: ' + JSON.stringify(record));
+      this._debug('Unknown record type: ' + JSON.stringify(record));
     }
     return null;
   },
@@ -425,22 +467,18 @@ var NfcManager = {
       text = NfcUtils.toUTF16(record.payload.subarray(languageLength + 2));
       encodingString = 'UTF-16';
     }
-    var activityText = {
-      name: 'nfc-ndef-discovered',
-      data: {
-        type: 'text',
-        rtd: record.type,
-        text: text,
-        language: language,
-        encoding: encodingString
-      }
-    };
-    return activityText;
+
+    var options = this.createActivityOptionsWithType('text');
+    options.data.rtd = record.type;
+    options.data.text = text;
+    options.data.language = language;
+    options.data.encoding = encodingString;
+    return options;
   },
 
   formatURIRecord: function nm_formatURIRecord(record) {
     this._debug('XXXX Handle Ndef URI type');
-    var activityText = null;
+    var options = null;
     var prefix = NDEF.URIS[record.payload[0]];
     if (!prefix) {
       return null;
@@ -450,7 +488,7 @@ var NfcManager = {
       case 'tel:':
         var number = NfcUtils.toUTF8(record.payload.subarray(1));
         this._debug('Handle Ndef URI type, TEL');
-        activityText = {
+        options = {
           name: 'dial',
           data: {
             type: 'webtelephony/number',
@@ -464,96 +502,47 @@ var NfcManager = {
       case 'http://':
       case 'https://':
         this._debug('Handle Ndef URI type, Http(s)');
-        activityText = {
-          name: 'nfc-ndef-discovered',
-          data: {
-            type: 'url',
-            rtd: record.type,
-            url: prefix + NfcUtils.toUTF8(record.payload.subarray(1))
-          }
-        };
+        options = this.createActivityOptionsWithType('url');
+        options.data.rtd = record.type;
+        options.data.url = prefix +
+                           NfcUtils.toUTF8(record.payload.subarray(1));
         break;
       default:
-        activityText = {
-          name: 'nfc-ndef-discovered',
-          data: {
-            type: 'uri',
-            rtd: record.type,
-            uri: prefix + NfcUtils.toUTF8(record.payload.subarray(1))
-          }
-        };
+        options = this.createActivityOptionsWithType('uri');
+        options.data.rtd = record.type;
+        options.data.uri = prefix +
+                           NfcUtils.toUTF8(record.payload.subarray(1));
         break;
     }
 
-    return activityText;
+    return options;
   },
 
   formatMimeMedia: function nm_formatMimeMedia(record) {
-    var type = 'mime-media';
-    var activityText = null;
-
     this._debug('HandleMimeMedia');
     if (this.isTypeMatch(record.type,
                          ['text/vcard', 'text/x-vCard', 'text/x-vcard'])) {
-      activityText = this.formatVCardRecord(record);
+      return this.formatVCardRecord(record);
     } else {
-      activityText = {
-        name: 'nfc-ndef-discovered',
-        data: {
-          type: NfcUtils.toUTF8(record.type)
-        }
-      };
+      return this.createActivityOptionsWithType(NfcUtils.toUTF8(record.type));
     }
-    return activityText;
   },
 
   formatVCardRecord: function nm_formatVCardRecord(record) {
     var vcardBlob = new Blob([NfcUtils.toUTF8(record.payload)],
                              {'type': 'text/vcard'});
-    var activityText = {
-      name: 'import',
-      data: {
-        type: 'text/vcard',
-        blob: vcardBlob
-      }
-    };
-    return activityText;
+    return { name: 'import', data: { type: 'text/vcard', blob: vcardBlob }};
   },
 
-  formatExternalType: function nm_formatExternalType(record) {
-    var activityText = {
-      name: 'nfc-ndef-discovered',
-      data: {
-        type: 'external-type',
-        rtd: record.type
-      }
-    };
-    return activityText;
+  createActivityOptionsWithType:
+  function nm_createActivityOptionsWithType(type) {
+    var options = this.createDefaultActivityOptions();
+    options.data.type = type;
+    return options;
   },
 
-  // Smartposters can be multipart NDEF messages.
-  // The meaning and actions are application dependent.
-  formatSmartPosterRecord: function nm_formatSmartPosterRecord(record) {
-    var activityText = {
-      name: 'nfc-ndef-discovered',
-      data: {
-        type: 'smartposter'
-      }
-    };
-    return activityText;
-  },
-
-  formatSmartPosterAction: function nm_formatSmartPosterAction(record) {
-    // The recommended action has an application specific meaning:
-    var smartaction = record.payload[0];
-    var activityText = {
-      name: 'nfc-ndef-discovered',
-      data: {
-        type: 'smartposter-action',
-        action: smartaction
-      }
-    };
-    return activityText;
+  createDefaultActivityOptions: function nm_createDefaultActivityOptions() {
+    return { name: 'nfc-ndef-discovered', data: {}};
   }
 };
 NfcManager.init();

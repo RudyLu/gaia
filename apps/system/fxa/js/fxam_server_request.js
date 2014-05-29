@@ -21,7 +21,7 @@
   });
 
   function _setAccountDetails(response) {
-    if (response && response.user.accountId) {
+    if(response && response.user && response.user.email) {
       FxaModuleManager.setParam('done', true);
       FxaModuleManager.setParam('verified', response.user.verified);
     }

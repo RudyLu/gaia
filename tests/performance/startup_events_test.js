@@ -8,8 +8,10 @@ var MarionetteHelper = requireGaia('/tests/js-marionette/helper.js');
 
 var whitelistedApps = [
   'communications/contacts',
+  'camera',
   'clock',
   'fm',
+  'settings',
   'sms'
 ];
 
@@ -30,6 +32,9 @@ marionette('startup event test > ' + mozTestInfo.appPath + ' >', function() {
       'ftu.manifestURL': null
     }
   });
+  // Do nothing on script timeout. Bug 987383
+  client.onScriptTimeout = null;
+
   var lastEvent = 'startup-path-done';
 
   var app = new App(client, mozTestInfo.appPath);
@@ -47,6 +52,9 @@ marionette('startup event test > ' + mozTestInfo.appPath + ' >', function() {
     this.timeout(500000);
     client.setScriptTimeout(50000);
 
+    // inject perf event listener
+    PerformanceHelper.injectHelperAtom(client);
+
     MarionetteHelper.unlockScreen(client);
   });
 
@@ -56,8 +64,6 @@ marionette('startup event test > ' + mozTestInfo.appPath + ' >', function() {
 
       var waitForBody = false;
       app.launch(waitForBody);
-
-      performanceHelper.observe();
 
       performanceHelper.waitForPerfEvent(function(runResults, error) {
         if (error) {

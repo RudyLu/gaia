@@ -4,6 +4,7 @@
 'use strict';
 
 var icc_worker = {
+  idleTextNotifications: {},
   // STK Applications menu list. On bootup this object is empty,
   // will be filled by 0x25 (STK_CMD_SET_UP_MENU) command.
   iccApplicationsMenu: {},
@@ -17,9 +18,13 @@ var icc_worker = {
 
   // STK_CMD_REFRESH
   '0x1': function STK_CMD_REFRESH(message) {
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=800271#c10
     DUMP('STK_CMD_REFRESH', message.command.options);
-    icc_worker.dummy(message);
+    if (this.idleTextNotifications[message.iccId]) {
+      this.idleTextNotifications[message.iccId].close();
+    }
+    icc.responseSTKCommand(message, {
+      resultCode: icc._iccManager.STK_RESULT_OK
+    });
   },
 
   // STK_CMD_POLL_INTERVAL
@@ -143,25 +148,25 @@ var icc_worker = {
       toneCode =
         typeof(toneCode) == 'string' ? toneCode.charCodeAt(0) : toneCode;
       switch (toneCode) {
-        case iccManager._iccManager.STK_TONE_TYPE_DIAL_TONE:
+        case icc._iccManager.STK_TONE_TYPE_DIAL_TONE:
           return 'resources/dtmf_tones/350Hz+440Hz_200ms.ogg';
-        case iccManager._iccManager.STK_TONE_TYPE_CALLED_SUBSCRIBER_BUSY:
+        case icc._iccManager.STK_TONE_TYPE_CALLED_SUBSCRIBER_BUSY:
           return 'resources/dtmf_tones/480Hz+620Hz_200ms.ogg';
-        case iccManager._iccManager.STK_TONE_TYPE_CONGESTION:
+        case icc._iccManager.STK_TONE_TYPE_CONGESTION:
           return 'resources/dtmf_tones/425Hz_200ms.ogg';
-        case iccManager._iccManager.STK_TONE_TYPE_RADIO_PATH_ACK:
-        case iccManager._iccManager.STK_TONE_TYPE_RADIO_PATH_NOT_AVAILABLE:
+        case icc._iccManager.STK_TONE_TYPE_RADIO_PATH_ACK:
+        case icc._iccManager.STK_TONE_TYPE_RADIO_PATH_NOT_AVAILABLE:
           return 'resources/dtmf_tones/425Hz_200ms.ogg';
-        case iccManager._iccManager.STK_TONE_TYPE_ERROR:
+        case icc._iccManager.STK_TONE_TYPE_ERROR:
           return 'resources/dtmf_tones/950Hz+1400Hz+1800Hz_200ms.ogg';
-        case iccManager._iccManager.STK_TONE_TYPE_CALL_WAITING_TONE:
-        case iccManager._iccManager.STK_TONE_TYPE_RINGING_TONE:
+        case icc._iccManager.STK_TONE_TYPE_CALL_WAITING_TONE:
+        case icc._iccManager.STK_TONE_TYPE_RINGING_TONE:
           return 'resources/dtmf_tones/425Hz_200ms.ogg';
-        case iccManager._iccManager.STK_TONE_TYPE_GENERAL_BEEP:
+        case icc._iccManager.STK_TONE_TYPE_GENERAL_BEEP:
           return 'resources/dtmf_tones/400Hz_200ms.ogg';
-        case iccManager._iccManager.STK_TONE_TYPE_POSITIVE_ACK_TONE:
+        case icc._iccManager.STK_TONE_TYPE_POSITIVE_ACK_TONE:
           return 'resources/dtmf_tones/425Hz_200ms.ogg';
-        case iccManager._iccManager.STK_TONE_TYPE_NEGATIVE_ACK_TONE:
+        case icc._iccManager.STK_TONE_TYPE_NEGATIVE_ACK_TONE:
           return 'resources/dtmf_tones/300Hz+400Hz+500Hz_400ms.ogg';
         default:
           return 'resources/dtmf_tones/350Hz+440Hz_200ms.ogg';
@@ -483,13 +488,22 @@ var icc_worker = {
   '0x28': function STK_CMD_SET_UP_IDLE_MODE_TEXT(message) {
     DUMP('STK_CMD_SET_UP_IDLE_MODE_TEXT:', message.command.options);
     var options = message.command.options;
-    NotificationHelper.send('SIM ' + icc.getSIMNumber(message.iccId) + ' STK',
-      options.text, '', function() {
-        icc.alert(message, options.text);
+    this.idleTextNotifications[message.iccId] = new Notification(
+      'SIM ' + icc.getSIMNumber(message.iccId) + ' STK', {
+        body: options.text,
+        icon: 'style/icons/System.png',
+        tag: 'stkNotification_' + message.iccId
       });
-    icc.responseSTKCommand(message, {
-      resultCode: icc._iccManager.STK_RESULT_OK
-    });
+    this.idleTextNotifications[message.iccId].onclick =
+      function onClickSTKNotification() {
+        icc.alert(message, options.text);
+      };
+    this.idleTextNotifications[message.iccId].onshow =
+      function onShowSTKNotification() {
+        icc.responseSTKCommand(message, {
+          resultCode: icc._iccManager.STK_RESULT_OK
+        });
+      };
   }
 
 };

@@ -6,7 +6,8 @@ var MockSettings = {
     mmsServiceId: 'ril.mms.defaultServiceId',
     smsServiceId: 'ril.sms.defaultServiceId'
   },
-  mmsSizeLimitation: 300 * 1024,
+  mmsSizeLimitation: 295 * 1024,
+  maxConcatenatedMessages: 10,
   mmsServiceId: null,
   smsServiceId: null,
   switchMmsSimHandler: function() {},
@@ -17,7 +18,8 @@ var MockSettings = {
   getOperatorByIccId: function(id) { return 'sim-operator-' + id; },
 
   mSetup: function() {
-    MockSettings.mmsSizeLimitation = 300 * 1024;
+    MockSettings.mmsSizeLimitation = 295 * 1024;
+    MockSettings.maxConcatenatedMessages = 10;
     MockSettings.mmsServiceId = null;
     MockSettings.smsServiceId = null;
   }

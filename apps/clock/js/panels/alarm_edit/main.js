@@ -24,7 +24,7 @@ var AlarmEdit = function() {
 
   this.selects = {};
   [
-    'time', 'repeat', 'sound', 'vibrate', 'snooze'
+    'time', 'repeat', 'sound', 'snooze'
   ].forEach(function(id) {
     this.selects[id] = this.element.querySelector('#' + id + '-select');
   }, this);
@@ -41,10 +41,18 @@ var AlarmEdit = function() {
     this.buttons[id] = this.element.querySelector('#alarm-' + id);
   }, this);
 
+  this.checkboxes = {
+    vibrate: this.element.querySelector('#vibrate-checkbox')
+  };
+
   this.buttons.time = new FormButton(this.selects.time, {
     formatLabel: function(value) {
-      var time = Utils.parseTime(value);
-      return Utils.format.time(time.hour, time.minute);
+      var date = new Date();
+      // This split(':') is locale-independent per HTML5 <input type=time>
+      var splitValue = value.split(':');
+      date.setHours(splitValue[0]);
+      date.setMinutes(splitValue[1]);
+      return Utils.getLocalizedTimeText(date);
     }.bind(this)
   });
   this.buttons.repeat = new FormButton(this.selects.repeat, {
@@ -58,19 +66,15 @@ var AlarmEdit = function() {
     id: 'sound-menu',
     formatLabel: Sounds.formatLabel
   });
-  this.buttons.vibrate = new FormButton(this.selects.vibrate, {
-    formatLabel: function(vibrate) {
-      return (vibrate === null || vibrate === '0') ?
-        _('vibrateOff') :
-        _('vibrateOn');
-    }
-  });
   this.buttons.snooze = new FormButton(this.selects.snooze, {
     id: 'snooze-menu',
     formatLabel: function(snooze) {
       return _('nMinutes', {n: snooze});
     }
   });
+
+  this.scrollList = this.element.querySelector('#edit-alarm');
+  this.sundayListItem = this.element.querySelector('#repeat-select-sunday');
 
   // When the system pops up the ValueSelector, it inadvertently
   // messes with the scrollTop of the current panel. This is a
@@ -84,8 +88,7 @@ var AlarmEdit = function() {
   // When the language changes, the value of 'weekStartsOnMonday'
   // might change. Since that's more than a simple text string, we
   // can't just use mozL10n.translate().
-  window.addEventListener('localized', this.updateL10n.bind(this));
-  this.updateL10n();
+  mozL10n.ready(this.updateL10n.bind(this));
 
   this.buttons.close.addEventListener('click', handleDomEvent);
   this.buttons.done.addEventListener('click', handleDomEvent);
@@ -94,7 +97,7 @@ var AlarmEdit = function() {
   this.selects.repeat.addEventListener('change', handleDomEvent);
   this.buttons.delete.addEventListener('click', handleDomEvent);
   this.inputs.name.addEventListener('keypress', this.handleNameInput);
-  this.inputs.volume.addEventListener('change', this);
+  this.inputs.volume.addEventListener('change', handleDomEvent);
 
   // If the phone locks during preview, pause the sound.
   // TODO: When this is no longer a singleton, unbind the listener.
@@ -107,49 +110,9 @@ var AlarmEdit = function() {
 
 AlarmEdit.prototype = Object.create(Panel.prototype);
 
-var selectors = {
-  scrollList: '#edit-alarm',
-  labelInput: 'input[name="alarm.label"]',
-  timeSelect: '#time-select',
-  timeMenu: '#time-menu',
-  alarmTitle: '#alarm-title',
-  repeatMenu: '#repeat-menu',
-  repeatSelect: '#repeat-select',
-  sundayListItem: '#repeat-select-sunday',
-  soundMenu: '#sound-menu',
-  soundSelect: '#sound-select',
-  vibrateMenu: '#vibrate-menu',
-  vibrateSelect: '#vibrate-select',
-  snoozeMenu: '#snooze-menu',
-  snoozeSelect: '#snooze-select',
-  deleteButton: '#alarm-delete',
-  backButton: '#alarm-close',
-  doneButton: '#alarm-done'
-};
-Object.keys(selectors).forEach(function(attr) {
-  var selector = selectors[attr];
-  Object.defineProperty(AlarmEdit.prototype, attr, {
-    get: function() {
-      var element = this.element.querySelector(selector);
-      Object.defineProperty(this, attr, {
-        value: element
-      });
-      return element;
-    },
-    configurable: true
-  });
-});
-
 Utils.extend(AlarmEdit.prototype, {
 
   alarm: null,
-  alarmRef: null,
-  timePicker: {
-    hour: null,
-    minute: null,
-    hour24State: null,
-    is12hFormat: false
-  },
   ringtonePlayer: AudioManager.createAudioPlayer(),
 
   handleNameInput: function(evt) {
@@ -247,21 +210,36 @@ Utils.extend(AlarmEdit.prototype, {
     this.initTimeSelect();
     this.initRepeatSelect();
     this.initSoundSelect();
-    this.initVibrateSelect();
     this.initSnoozeSelect();
+    this.checkboxes.vibrate.checked = this.alarm.vibrate;
+
+    // Update the labels for any FormButton dropdowns that have
+    // changed, because setting <select>.value does not fire a change
+    // event.
+    for (var key in this.buttons) {
+      var button = this.buttons[key];
+      if (button instanceof FormButton) {
+        button.refresh();
+      }
+    }
+
     location.hash = '#alarm-edit-panel';
   },
 
   initTimeSelect: function aev_initTimeSelect() {
-    // The format of input type="time" should be in HH:MM
-    var opts = { meridian: false, padHours: true };
-    var time = Utils.format.time(this.alarm.hour, this.alarm.minute, opts);
-    this.buttons.time.value = time;
+    // HTML5 <input type=time> expects 24-hour HH:MM format.
+    var hour = parseInt(this.alarm.hour, 10);
+    var minute = parseInt(this.alarm.minute, 10);
+    this.selects.time.value = (hour < 10 ? '0' : '') + hour +
+      ':' + (minute < 10 ? '0' : '') + minute;
   },
 
   getTimeSelect: function aev_getTimeSelect() {
-    return Utils.parseTime(this.selects.time.value);
+    // HTML5 <input type=time> returns data in 24-hour HH:MM format.
+    var splitTime = this.selects.time.value.split(':');
+    return { hour: splitTime[0], minute: splitTime[1] };
   },
+
   initRepeatSelect: function aev_initRepeatSelect() {
     this.buttons.repeat.value = this.alarm.repeat;
   },
@@ -281,14 +259,6 @@ Utils.extend(AlarmEdit.prototype, {
 
   stopPreviewSound: function aev_stopPreviewSound() {
     this.ringtonePlayer.pause();
-  },
-
-  initVibrateSelect: function aev_initVibrateSelect() {
-    this.buttons.vibrate.value = this.alarm.vibrate;
-  },
-
-  getVibrateSelect: function aev_getVibrateSelect() {
-    return this.buttons.vibrate.value;
   },
 
   initSnoozeSelect: function aev_initSnoozeSelect() {
@@ -320,7 +290,7 @@ Utils.extend(AlarmEdit.prototype, {
     this.alarm.time = [time.hour, time.minute];
     this.alarm.repeat = this.buttons.repeat.value;
     this.alarm.sound = this.getSoundSelect();
-    this.alarm.vibrate = this.getVibrateSelect();
+    this.alarm.vibrate = this.checkboxes.vibrate.checked;
     this.alarm.snooze = parseInt(this.getSnoozeSelect(), 10);
     AudioManager.setAlarmVolume(this.getAlarmVolumeValue());
 

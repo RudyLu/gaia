@@ -16,6 +16,7 @@ var Connectivity = (function(window, document, undefined) {
   var _initialized = false;
   var _macAddress = '';
   var _ = navigator.mozL10n.get;
+  var SettingsCache = require('modules/settings_cache');
 
   // in desktop helper we fake these device interfaces if they don't exist.
   var wifiManager = WifiHelper.getWifiManager();
@@ -24,9 +25,7 @@ var Connectivity = (function(window, document, undefined) {
 
   var initOrder = [
     updateWifi,
-    updateBluetooth,
-    // register blutooth system message handler
-    initSystemMessageHandler
+    updateBluetooth
   ];
 
   // XXX if wifiManager implements addEventListener function
@@ -36,16 +35,16 @@ var Connectivity = (function(window, document, undefined) {
   var wifiStatusChangeListeners = [updateWifi];
   var settings = Settings.mozSettings;
 
-  // Set wifi.enabled so that it mirrors the state of the hardware.
-  // wifi.enabled is not an ordinary user setting because the system
-  // turns it on and off when wifi goes up and down.
-  //
-  settings.createLock().set({'wifi.enabled': wifiManager.enabled});
-
   //
   // Now register callbacks to track the state of the wifi hardware
   //
   if (wifiManager) {
+    // Set wifi.enabled so that it mirrors the state of the hardware.
+    // wifi.enabled is not an ordinary user setting because the system
+    // turns it on and off when wifi goes up and down.
+    //
+    settings.createLock().set({'wifi.enabled': wifiManager.enabled});
+
     wifiManager.onenabled = function() {
       dispatchEvent(new CustomEvent('wifi-enabled'));
       wifiEnabled();
@@ -119,8 +118,10 @@ var Connectivity = (function(window, document, undefined) {
       storeMacAddress();
       // network.connection.status has one of the following values:
       // connecting, associated, connected, connectingfailed, disconnected.
+      var networkProp = wifiManager.connection.network ?
+          {ssid: wifiManager.connection.network.ssid} : null;
       localize(wifiDesc, 'fullStatus-' + wifiManager.connection.status,
-               wifiManager.connection.network);
+               networkProp);
     } else {
       localize(wifiDesc, 'disabled');
     }
@@ -145,18 +146,29 @@ var Connectivity = (function(window, document, undefined) {
     }
   }
 
+  // Keep the setting in sync with the hardware state.  We need to do this
+  // because b2g/dom/wifi/WifiWorker.js can turn the hardware on and off.
+  function syncWifiEnabled(enabled, callback) {
+    SettingsCache.getSettings(function(results) {
+      var wifiEnabled = results['wifi.enabled'];
+      if (wifiEnabled !== enabled) {
+        settings.createLock().set({'wifi.enabled': enabled});
+      }
+      callback();
+    });
+  }
+
   function wifiEnabled() {
-    // Keep the setting in sync with the hardware state.  We need to do this
-    // because b2g/dom/wifi/WifiWorker.js can turn the hardware on and off.
-    settings.createLock().set({'wifi.enabled': true});
-    wifiEnabledListeners.forEach(function(listener) { listener(); });
-    storeMacAddress();
+    syncWifiEnabled(true, function() {
+      wifiEnabledListeners.forEach(function(listener) { listener(); });
+      storeMacAddress();
+    });
   }
 
   function wifiDisabled() {
-    // Keep the setting in sync with the hardware state.
-    settings.createLock().set({'wifi.enabled': false});
-    wifiDisabledListeners.forEach(function(listener) { listener(); });
+    syncWifiEnabled(false, function() {
+      wifiDisabledListeners.forEach(function(listener) { listener(); });
+    });
   }
 
   function wifiStatusChange(event) {
@@ -232,25 +244,6 @@ var Connectivity = (function(window, document, undefined) {
     };
   }
 
-  function initSystemMessageHandler() {
-    // XXX this is not a good way to interact with bluetooth.js
-    var handlePairingRequest = function(message) {
-      Settings.currentPanel = '#bluetooth';
-      setTimeout(function() {
-        dispatchEvent(new CustomEvent('bluetooth-pairing-request', {
-          detail: message
-        }));
-      }, 1500);
-    };
-
-    // Bind message handler for incoming pairing requests
-    navigator.mozSetMessageHandler('bluetooth-pairing-request',
-      function bt_gotPairingRequestMessage(message) {
-        handlePairingRequest(message);
-      }
-    );
-  }
-
   /**
    * Public API, in case a "Connectivity" sub-panel needs it
    */
@@ -267,7 +260,7 @@ var Connectivity = (function(window, document, undefined) {
 
 
 // starting when we get a chance
-navigator.mozL10n.ready(function loadWhenIdle() {
+navigator.mozL10n.once(function loadWhenIdle() {
   var idleObserver = {
     time: 3,
     onidle: function() {

@@ -1,7 +1,20 @@
 /*global requireApp suite test assert setup teardown IMERender sinon */
 requireApp('keyboard/js/render.js');
 
+mocha.globals(['perfTimer']);
+
 suite('Renderer', function() {
+  suiteSetup(function() {
+    window.perfTimer = {
+      printTime: function() {},
+      startTimer: function() {}
+    };
+  });
+
+  suiteTeardown(function() {
+    window.perfTimer = null;
+  });
+
   function makeDescriptor(val) {
     return {
       configurable: true,
@@ -145,8 +158,10 @@ suite('Renderer', function() {
           keys[0].clientWidth + keys[1].clientWidth + keys[2].clientWidth,
           'Total width');
 
-        assert.equal(keys[0].classList.contains('float-key-first'), true);
-        assert.equal(keys[2].classList.contains('float-key-last'), true);
+        assert.equal(keys[0].classList.contains('float-key-first'), true,
+          'Has float-key-first');
+        assert.equal(keys[2].classList.contains('float-key-last'), true,
+          'Has float-key-last');
 
         next();
       });
@@ -175,8 +190,10 @@ suite('Renderer', function() {
         assert.equal(400,
           keys[0].clientWidth + keys[1].clientWidth + keys[2].clientWidth);
 
-        assert.equal(keys[0].classList.contains('float-key-first'), true);
-        assert.equal(keys[2].classList.contains('float-key-last'), true);
+        assert.equal(keys[0].classList.contains('float-key-first'), true,
+          'Has float-key-first');
+        assert.equal(keys[2].classList.contains('float-key-last'), true,
+          'Has float-key-last');
 
         next();
       });
@@ -417,7 +434,7 @@ suite('Renderer', function() {
       IMERender.init(uppercaseFn, sinon.stub().returns(false));
       IMERender.draw(layout, { uppercase: true });
 
-      var keys = document.querySelectorAll('.keyboard-key');
+      var keys = document.querySelectorAll('.keyboard-key .key-element');
       assert.equal(keys[0].textContent, 'U');
       assert.equal(keys[1].textContent, 'U');
     });
@@ -434,9 +451,9 @@ suite('Renderer', function() {
       IMERender.init(uppercaseFn, sinon.stub().returns(false));
       IMERender.draw(layout, { uppercase: false });
 
-      var keys = document.querySelectorAll('.keyboard-key');
-      assert.equal(keys[0].textContent, 'a');
-      assert.equal(keys[1].textContent, 'b');
+      var keys = document.querySelectorAll('.keyboard-key .key-element');
+      assert.equal(keys[0].firstChild.textContent, 'a');
+      assert.equal(keys[1].firstChild.textContent, 'b');
     });
 
     test('candidate-panel class should be set if flag is set', function() {
@@ -660,4 +677,43 @@ suite('Renderer', function() {
       });
     });
   });
+
+  suite('Highlight Keys', function() {
+    test('Highlight a key with uppercase', function() {
+      var key = document.createElement('div');
+
+      IMERender.highlightKey(key, {
+        isUpperCase: true,
+        isUpperCaseLocked: false
+      });
+
+      assert.isTrue(key.classList.contains('highlighted'));
+      assert.isFalse(key.classList.contains('lowercase'));
+    });
+
+    test('Highlight a key with lowercase', function() {
+      var key = document.createElement('div');
+
+      IMERender.highlightKey(key, {
+        isUpperCase: false,
+        isUpperCaseLocked: false
+      });
+
+      assert.isTrue(key.classList.contains('highlighted'));
+      assert.isTrue(key.classList.contains('lowercase'));
+    });
+
+    test('Highlight a key with capslock', function() {
+      var key = document.createElement('div');
+
+      IMERender.highlightKey(key, {
+        isUpperCase: false,
+        isUpperCaseLocked: true
+      });
+
+      assert.isTrue(key.classList.contains('highlighted'));
+      assert.isFalse(key.classList.contains('lowercase'));
+    });
+  });
 });
+

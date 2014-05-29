@@ -32,6 +32,64 @@ suite('ADB tests', function() {
   });
 });
 
+suite('Build GAIA from differece app list', function() {
+
+  suiteSetup(function() {
+    rmrf('profile');
+    rmrf('profile-debug');
+    rmrf('build_stage');
+  });
+
+  test('GAIA_DEVICE_TYPE=tablet make', function(done) {
+    helper.exec('GAIA_DEVICE_TYPE=tablet make', function(error, stdout, stderr) {
+      helper.checkError(error, stdout, stderr);
+
+      // zip path for system app
+      var zipPath = path.join(process.cwd(), 'profile', 'webapps',
+        'sms.gaiamobile.org', 'application.zip');
+
+      // sms should not exists in Tablet builds
+      assert.isFalse(fs.existsSync(zipPath));
+      done();
+    });
+  });
+
+  test('GAIA_DEVICE_TYPE=phone make', function(done) {
+    helper.exec('GAIA_DEVICE_TYPE=phone make', function(error, stdout, stderr) {
+      helper.checkError(error, stdout, stderr);
+
+      // zip path for sms app
+      var zipPath = path.join(process.cwd(), 'profile', 'webapps',
+        'sms.gaiamobile.org', 'application.zip');
+
+      // sms should not exists in Tablet builds
+      assert.ok(fs.existsSync(zipPath));
+      done();
+    });
+  });
+
+  test('GAIA_DEVICE_TYPE=tv make', function(done) {
+    helper.exec('GAIA_DEVICE_TYPE=tv make', function(error, stdout, stderr) {
+      helper.checkError(error, stdout, stderr);
+
+      // zip path for homescreen-stingray app
+      var zipPath = path.join(process.cwd(), 'profile', 'webapps',
+        'homescreen-stingray.gaiamobile.org', 'application.zip');
+
+      // homescreen-stingray should not exists in tv builds
+      assert.ok(fs.existsSync(zipPath));
+      done();
+    });
+  });
+
+  teardown(function() {
+    rmrf('profile');
+    rmrf('profile-debug');
+    rmrf('build_stage');
+  });
+
+});
+
 suite('Node modules tests', function() {
   test('make node_modules from git mirror', function(done) {
     rmrf('modules.tar');
@@ -83,9 +141,101 @@ suite('Build Integration tests', function() {
     rmrf(localesDir);
   });
 
+  function verifyIncludedFilesFromHtml(appName) {
+    var used = {
+      js: [],
+      resources: [],
+      style: [],
+      style_unstable: [],
+      locales: []
+    };
+    var zipPath = path.join(process.cwd(), 'profile', 'webapps',
+        appName + '.gaiamobile.org', 'application.zip');
+    var zip = new AdmZip(zipPath);
+
+    var zipEntries = zip.getEntries();
+    if (zipEntries.length === 0) {
+      return;
+    }
+
+    for (var f = 0; f < zipEntries.length; f++) {
+      var fileName = zipEntries[f].entryName;
+      var extention =
+        fileName.substr(fileName.lastIndexOf('.') + 1).toLowerCase();
+      if (extention === 'html') {
+        var allShared = extractSharedFile(zip, zipEntries[f], appName);
+      }
+    }
+
+    function extractSharedFile(zip, file, appName) {
+      var SHARED_USAGE =
+        /<(?:script|link).+=['"]\.?\.?\/?(shared\/[^\/]+\/[^''\s]+)["']/g;
+      var content = zip.readAsText(file);
+      while((matches = SHARED_USAGE.exec(content))!== null) {
+        var filePathInHtml = matches[1];
+        var fileInZip = zip.readFile(zip.getEntry(filePathInHtml));
+        var fileInApps;
+        if (/\.(png|gif|jpg)$/.test(filePathInHtml)) {
+          continue;
+        }
+        if (filePathInHtml.indexOf('shared/') === 0) {
+          fileInApps = fs.readFileSync(path.join(process.cwd(), filePathInHtml));
+        } else {
+          fileInApps = fs.readFileSync(path.join(process.cwd(),
+            'apps', appName, filePathInHtml));
+        }
+        assert.deepEqual(fileInZip, fileInApps, filePathInHtml);
+      }
+    }
+  }
+
+  function verifyIncludedImagesSize(appName, reso, official) {
+    var zipPath = path.join(process.cwd(), 'profile', 'webapps',
+        appName + '.gaiamobile.org', 'application.zip');
+    var zip = new AdmZip(zipPath);
+    var zipEntries = zip.getEntries();
+    if (zipEntries.length === 0) {
+      return;
+    }
+
+    var images = [];
+    for (var f = 0; f < zipEntries.length; f++) {
+      var fileInZip = zipEntries[f];
+      var fileName = fileInZip.entryName;
+      if (/\.(png|gif|jpg)$/.test(fileName)) {
+        if (reso !== 1 && fileName.indexOf('Browser_') === -1) {
+          fileName = fileName.replace(
+            /(.*)(\.(png|gif|jpg))$/, "$1@" + reso + "x$2");
+        }
+        compareWithApps(appName, fileName, fileInZip, reso, official);
+      }
+    }
+
+    function compareWithApps(appName, filePath, fileEntry, reso, official) {
+      var fileInApps;
+      var fileOfZip = zip.readFile(fileEntry);
+      if (filePath.indexOf('/branding/') !== -1) {
+        filePath = filePath.replace('/branding/',
+          official ? '/branding/official/' : '/branding/unofficial/');
+      }
+      if (filePath.indexOf('shared/') === 0) {
+        filePath = path.join(process.cwd(), filePath);
+      } else {
+        filePath = path.join(process.cwd(), 'apps', appName, filePath)
+      }
+
+      if (path.existsSync(filePath)) {
+        fileInApps = fs.readFileSync(filePath);
+      } else {
+        filePath = filePath.replace('@' + reso + 'x', '');
+        fileInApps = fs.readFileSync(filePath);
+      }
+      assert.deepEqual(fileOfZip, fileInApps, filePath + ' no found');
+    }
+  }
+
   test('make without rule & variable', function(done) {
-    helper.exec('ROCKETBAR=none make', { maxBuffer: 400*1024 },
-      function(error, stdout, stderr) {
+    helper.exec('make', function(error, stdout, stderr) {
       helper.checkError(error, stdout, stderr);
 
       // expected values for prefs and user_prefs
@@ -235,6 +385,16 @@ suite('Build Integration tests', function() {
     });
   });
 
+  test('make APP=system, checking all of the files are available',
+    function(done) {
+      helper.exec('make APP=system', function(error, stdout, stderr) {
+        helper.checkError(error, stdout, stderr);
+        verifyIncludedFilesFromHtml('system');
+        verifyIncludedImagesSize('system', 1, false);
+        done();
+      });
+    });
+
   test('make with PRODUCTION=1', function(done) {
     helper.exec('PRODUCTION=1 make', function(error, stdout, stderr) {
       helper.checkError(error, stdout, stderr);
@@ -253,13 +413,19 @@ suite('Build Integration tests', function() {
 
       helper.checkSettings(settings, expectedSettings);
       assert.isUndefined(sandbox.prefs['dom.payment.skipHTTPSCheck']);
+
+      // zip path for system app
+      var zipPath = path.join(process.cwd(), 'profile', 'webapps',
+        'uitest.gaiamobile.org', 'application.zip');
+
+      // uitest should not exists in production builds
+      assert.isFalse(fs.existsSync(zipPath));
       done();
     });
   });
 
   test('make with SIMULATOR=1', function(done) {
-    helper.exec('SIMULATOR=1 make', { maxBuffer: 400*1024 },
-    function(error, stdout, stderr) {
+    helper.exec('SIMULATOR=1 make', function(error, stdout, stderr) {
       helper.checkError(error, stdout, stderr);
 
       var settingsPath = path.join(process.cwd(), 'profile-debug',
@@ -336,8 +502,7 @@ suite('Build Integration tests', function() {
   });
 
   test('make with DEBUG=1', function(done) {
-    helper.exec('DEBUG=1 make', { maxBuffer: 400*1024 },
-    function(error, stdout, stderr) {
+    helper.exec('DEBUG=1 make', function(error, stdout, stderr) {
       helper.checkError(error, stdout, stderr);
 
       var installedExtsPath = path.join('profile-debug',
@@ -382,6 +547,7 @@ suite('Build Integration tests', function() {
         'dom.mozContacts.enabled': true,
         'dom.navigator-property.disable.mozContacts': false,
         'dom.global-constructor.disable.mozContact': false,
+        'image.mozsamplesize.enabled': true,
         'dom.experimental_forms': true,
         'dom.webapps.useCurrentProfile': true,
         'bluetooth.enabled': true,
@@ -445,8 +611,7 @@ suite('Build Integration tests', function() {
   });
 
   test('make with MOZILLA_OFFICIAL=1', function(done) {
-    helper.exec('MOZILLA_OFFICIAL=1 make', { maxBuffer: 400*1024 },
-    function(error, stdout, stderr) {
+    helper.exec('MOZILLA_OFFICIAL=1 make', function(error, stdout, stderr) {
       helper.checkError(error, stdout, stderr);
 
       // path in zip for unofficial branding
@@ -462,9 +627,8 @@ suite('Build Integration tests', function() {
     });
   });
 
-  test('make with ROCKETBAR=full', function(done) {
-    helper.exec('ROCKETBAR=full make', { maxBuffer: 400*1024 },
-      function(error, stdout, stderr) {
+  test('make with HAIDA=1', function(done) {
+    helper.exec('HAIDA=1 make', function(error, stdout, stderr) {
         helper.checkError(error, stdout, stderr);
 
         var hsBroZip = new AdmZip(path.join(process.cwd(), 'profile',
@@ -517,15 +681,67 @@ suite('Build Integration tests', function() {
     );
   });
 
+  test('make with GAIA_DEV_PIXELS_PER_PX=1.5', function(done) {
+    helper.exec('GAIA_DEV_PIXELS_PER_PX=1.5 APP=system make ',
+      function(error, stdout, stderr) {
+        helper.checkError(error, stdout, stderr);
+        verifyIncludedImagesSize('system', 1.5, false);
+        done();
+      }
+    );
+  });
+
   suite('Build file inclusion tests', function() {
-    test('build includes elements folder and sim-picker', function(done) {
+    test('build includes elements folder and sim_picker', function(done) {
       helper.exec('make', function(error, stdout, stderr) {
-        var pathInZip = 'shared/elements/sim-picker.html';
+        var pathInZip = 'shared/elements/sim_picker.html';
         var zipPath = path.join(process.cwd(), 'profile', 'webapps',
           'communications.gaiamobile.org', 'application.zip');
         var expectedSimPickerPath = path.join(process.cwd(),
-          'shared', 'elements', 'sim-picker.html');
+          'shared', 'elements', 'sim_picker.html');
         helper.checkFileInZip(zipPath, pathInZip, expectedSimPickerPath);
+        done();
+      });
+    });
+  });
+
+  suite('Pseudolocalizations', function() {
+    test('build with GAIA_CONCAT_LOCALES=0 doesn\'t include pseudolocales', function(done) {
+      helper.exec('GAIA_CONCAT_LOCALES=0 make', function(error, stdout, stderr) {
+        helper.checkError(error, stdout, stderr);
+        var zipPath = path.join(process.cwd(), 'profile', 'webapps',
+          'settings.gaiamobile.org', 'application.zip');
+        var zip = new AdmZip(zipPath);
+        var qpsPlocPathInZip = 'locales-obj/qps-ploc.json';
+        assert.isNull(zip.getEntry(qpsPlocPathInZip),
+          'accented English file ' + qpsPlocPathInZip + ' should not exist');
+        var qpsPlocmPathInZip = 'locales-obj/qps-plocm.json';
+        assert.isNull(zip.getEntry(qpsPlocmPathInZip),
+          'mirrored English file ' + qpsPlocmPathInZip + ' should not exist');
+        done();
+      });
+    });
+    test('build with GAIA_CONCAT_LOCALES=1 includes pseudolocales', function(done) {
+      helper.exec('GAIA_CONCAT_LOCALES=1 make', function(error, stdout, stderr) {
+        helper.checkError(error, stdout, stderr);
+        var zipPath = path.join(process.cwd(), 'profile', 'webapps',
+          'system.gaiamobile.org', 'application.zip');
+        var zip = new AdmZip(zipPath);
+        var enUSFileInZip = zip.getEntry('locales-obj/en-US.json');
+        var qpsPlocPathInZip = 'locales-obj/qps-ploc.json';
+        var qpsPlocmPathInZip = 'locales-obj/qps-plocm.json';
+        var qpsPlocFileInZip = zip.getEntry(qpsPlocPathInZip);
+        var qpsPlocmFileInZip = zip.getEntry(qpsPlocmPathInZip);
+        assert.isNotNull(qpsPlocFileInZip,
+          'accented English file ' + qpsPlocPathInZip + ' should exist');
+        assert.notDeepEqual(JSON.parse(zip.readAsText(qpsPlocFileInZip)),
+                            JSON.parse(zip.readAsText(enUSFileInZip)),
+          'accented English file should not be identical to regular English');
+        assert.isNotNull(qpsPlocmFileInZip,
+          'mirrored English file ' + qpsPlocmPathInZip + ' should exist');
+        assert.notDeepEqual(JSON.parse(zip.readAsText(qpsPlocmFileInZip)),
+                            JSON.parse(zip.readAsText(enUSFileInZip)),
+          'mirrored English file should not be identical to regular English');
         done();
       });
     });

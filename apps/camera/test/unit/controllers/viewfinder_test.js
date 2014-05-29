@@ -7,10 +7,10 @@ suite('controllers/viewfinder', function() {
 
     req([
       'app',
-      'lib/camera',
+      'lib/camera/camera',
       'controllers/viewfinder',
       'views/viewfinder',
-      'views/focus-ring',
+      'views/focus',
       'lib/activity',
       'lib/settings',
       'lib/setting'
@@ -54,14 +54,14 @@ suite('controllers/viewfinder', function() {
     this.app.settings.viewfinder.get.withArgs('scaleType').returns('fill');
     this.app.settings.grid.selected.withArgs('key').returns('off');
 
-    // Shortcuts
-    this.viewfinder = this.app.views.viewfinder;
-    this.focusRing = this.app.views.focusRing;
-    this.settings = this.app.settings;
-    this.camera = this.app.camera;
-
     // Test instance
     this.controller = new this.ViewfinderController(this.app);
+
+    // Shortcuts
+    this.viewfinder = this.controller.views.viewfinder;
+    this.focusRing = this.controller.views.focus;
+    this.settings = this.app.settings;
+    this.camera = this.app.camera;
   });
 
   suite('ViewfinderController()', function() {
@@ -69,12 +69,12 @@ suite('controllers/viewfinder', function() {
       assert.isTrue(this.app.on.calledWith('previewgallery:opened', this.controller.stopStream));
     });
 
-    test('Should start the stream when the PreviewGallery is closed', function() {
-      assert.isTrue(this.app.on.calledWith('previewgallery:closed', this.controller.startStream));
+    test('Should listen when the PreviewGallery is closed', function() {
+      assert.isTrue(this.app.on.calledWith('previewgallery:closed'));
     });
 
     test('Should stop the stream when on app blur', function() {
-      assert.isTrue(this.app.on.calledWith('blur', this.controller.stopStream));
+      assert.isTrue(this.app.on.calledWith('hidden', this.controller.stopStream));
     });
 
     test('Should hide the grid when the settings menu opened', function() {
@@ -94,7 +94,7 @@ suite('controllers/viewfinder', function() {
     });
 
     test('Should should set the foucsRing state when focus changes', function() {
-      assert.isTrue(this.app.on.calledWith('camera:focuschanged', this.focusRing.setState));
+      assert.isTrue(this.app.on.calledWith('camera:focusstatechanged', this.focusRing.setFocusState));
     });
 
     test('Should set the scaleType on the view', function() {
@@ -108,6 +108,22 @@ suite('controllers/viewfinder', function() {
 
       this.controller = new this.ViewfinderController(this.app);
       assert.isTrue(this.viewfinder.set.calledWith('grid', 'on'));
+    });
+  });
+
+  suite('ViewfinderController#onPreviewGalleryClosed', function() {
+    setup(function() {
+      sinon.spy(this.controller, 'startStream');
+    });
+
+    test('Should start the stream only if the app is visible', function() {
+      this.app.hidden = true;
+      this.controller.onPreviewGalleryClosed();
+      assert.isFalse(this.controller.startStream.called);
+
+      this.app.hidden = false;
+      this.controller.onPreviewGalleryClosed();
+      assert.isTrue(this.controller.startStream.called);
     });
   });
 
@@ -161,7 +177,7 @@ suite('controllers/viewfinder', function() {
     });
   });
 
-  suite('ViewfinderController#configureZoom()', function() {
+  suite('ViewfinderController#onZoomConfigured()', function() {
     setup(function() {
       this.camera.isZoomSupported.returns(true);
       this.settings.zoom.enabled.returns(true);
@@ -171,21 +187,21 @@ suite('controllers/viewfinder', function() {
     });
 
     test('Should call enableZoom on the viewfinder', function() {
-      this.controller.configureZoom();
+      this.controller.onZoomConfigured();
       assert.isTrue(this.viewfinder.enableZoom.calledWith(0, 3));
     });
 
     test('Should disable zoom if camera doesn\'t support zoom', function() {
       this.camera.isZoomSupported.returns(false);
 
-      this.controller.configureZoom();
+      this.controller.onZoomConfigured();
       assert.isTrue(this.viewfinder.disableZoom.called);
     });
 
     test('Should disable zoom if zoom disabled in settings', function() {
       this.settings.zoom.enabled.returns(false);
 
-      this.controller.configureZoom();
+      this.controller.onZoomConfigured();
       assert.isTrue(this.viewfinder.disableZoom.called);
     });
   });

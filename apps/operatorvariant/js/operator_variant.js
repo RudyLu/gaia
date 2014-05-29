@@ -17,10 +17,12 @@ var OperatorVariantManager = {
     '/js/customizers/network_type_customizer.js',
     '/js/customizers/ringtone_customizer.js',
     '/js/customizers/support_contacts_customizer.js',
+    '/js/customizers/sms_customizer.js',
     '/js/customizers/default_contacts_customizer.js',
     '/js/customizers/power_customizer.js',
     '/js/customizers/known_networks_customizer.js',
-    '/js/customizers/data_ftu_customizer.js'
+    '/js/customizers/data_ftu_customizer.js',
+    '/js/customizers/nfc_customizer.js'
   ],
 
   init: function ovm_init() {

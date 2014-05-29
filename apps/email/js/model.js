@@ -1,5 +1,5 @@
 /*global define, console */
-
+'use strict';
 define(function(require) {
   var evt = require('evt');
 
@@ -142,8 +142,13 @@ define(function(require) {
         // If already initialized before, clear out previous state.
         this.die();
 
-        var acctsSlice = this.acctsSlice = MailAPI.viewAccounts(false);
+        var acctsSlice = MailAPI.viewAccounts(false);
         acctsSlice.oncomplete = (function() {
+          // To prevent a race between Model.init() and
+          // acctsSlice.oncomplete, only assign model.acctsSlice when
+          // the slice has actually loaded (i.e. after
+          // acctsSlice.oncomplete fires).
+          model.acctsSlice = acctsSlice;
           if (acctsSlice.items.length) {
             // For now, just use the first one; we do attempt to put unified
             // first so this should generally do the right thing.
@@ -184,6 +189,7 @@ define(function(require) {
       var foldersSlice = this.api.viewFolders('account', account);
       foldersSlice.oncomplete = (function() {
         this.foldersSlice = foldersSlice;
+        this.foldersSlice.onchange = this.notifyFoldersSliceOnChange.bind(this);
         this.selectInbox(callback);
         this._callEmit('foldersSlice');
       }).bind(this);
@@ -257,6 +263,14 @@ define(function(require) {
     notifyInboxMessages: function(accountUpdate) {
       if (accountUpdate.id === this.account.id)
         model.emit('newInboxMessages', accountUpdate.count);
+    },
+
+    /**
+     * Triggered by the foldersSlice onchange event
+     * @param  {Object} folder the folder that changed.
+     */
+    notifyFoldersSliceOnChange: function(folder) {
+      model.emit('foldersSliceOnChange', folder);
     },
 
     _dieFolders: function() {

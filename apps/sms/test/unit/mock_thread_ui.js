@@ -33,8 +33,6 @@ var MockThreadUI = {
     });
   },
   initSentAudio: function() {},
-  enableActivityRequestMode: function() {},
-  resetActivityRequestMode: function() {},
   getAllInputs: function() {},
   getSelectedInputs: function() {},
   messageComposerInputHandler: function() {},
@@ -78,7 +76,6 @@ var MockThreadUI = {
   handleEvent: function() {},
   cleanFields: function() {},
   onSendClick: function() {},
-  onBeforeEnter: function() {},
   onMessageSending: function() {},
   onMessageSent: function() {},
   onMessageFailed: function() {},

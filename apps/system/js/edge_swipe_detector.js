@@ -1,7 +1,7 @@
 'use strict';
 
-const kEdgeIntertia = 150;
-const kEdgeThreshold = 0.2;
+const kEdgeIntertia = 250;
+const kEdgeThreshold = 0.3;
 
 var EdgeSwipeDetector = {
   previous: document.getElementById('left-panel'),
@@ -33,6 +33,9 @@ var EdgeSwipeDetector = {
 
   settingUpdate: function esd_settingUpdate(enabled) {
     this._settingEnabled = enabled;
+    if (this._lifecycleEnabled && enabled) {
+      this.screen.classList.add('edges');
+    }
     this._updateEnabled();
   },
 
@@ -55,7 +58,8 @@ var EdgeSwipeDetector = {
       case 'mousedown':
       case 'mousemove':
       case 'mouseup':
-        // Preventing gecko reflows
+        // Preventing gecko reflows until
+        // https://bugzilla.mozilla.org/show_bug.cgi?id=1005815 lands
         e.preventDefault();
         break;
       case 'touchstart':
@@ -71,9 +75,10 @@ var EdgeSwipeDetector = {
         this._touchEnd(e);
         break;
       case 'appopen':
-        this.screen.classList.add('edges');
-        this._lifecycleEnabled = true;
-        this._updateEnabled();
+        if (this._settingEnabled) {
+          this.screen.classList.add('edges');
+        }
+        this.lifecycleEnabled = true;
         break;
       case 'homescreenopening':
         this.screen.classList.remove('edges');
@@ -191,24 +196,17 @@ var EdgeSwipeDetector = {
 
     if (adjustedProgress < kEdgeThreshold || this._forwarding) {
       SheetsTransition.snapInPlace();
-      SheetsTransition.end();
       return;
     }
 
     var direction = this._direction;
     if (direction == 'ltr') {
       SheetsTransition.snapBack(speed);
+      StackManager.goPrev();
     } else {
       SheetsTransition.snapForward(speed);
+      StackManager.goNext();
     }
-
-    SheetsTransition.end(function afterTransition() {
-      if (direction == 'ltr') {
-        StackManager.goPrev();
-      } else {
-        StackManager.goNext();
-      }
-    });
   },
 
   _updateProgress: function esd_updateProgress(touch) {
@@ -232,7 +230,6 @@ var EdgeSwipeDetector = {
     this._touchForwarder.forward(e);
 
     SheetsTransition.snapInPlace();
-    SheetsTransition.end();
   }
 };
 

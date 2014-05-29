@@ -19,8 +19,8 @@ suite('settings.js', function() {
       return file.path;
     };
   });
-  suite('setWallpaper, setRingtone, setNotification, overrideSettings ' +
-        'and writeSettings',
+  suite('setWallpaper, setRingtone, setNotification, overrideSettings, ' +
+        'setHomescreenURL and writeSettings',
     function() {
     var config;
     var settings = {};
@@ -29,7 +29,8 @@ suite('settings.js', function() {
       config = {
         GAIA_DISTRIBUTION_DIR: 'testDistributionDir',
         GAIA_DIR: 'testGaia',
-        SETTINGS_PATH: 'testSettingsPath'
+        SETTINGS_PATH: 'testSettingsPath',
+        STAGE_DIR: 'testStageDir'
       };
       mockUtils.resolve = function(file, baseLink) {
         var fileExist = false;
@@ -134,6 +135,25 @@ suite('settings.js', function() {
         testResult.testConfig);
     });
 
+    test('deviceTypeSettings', function () {
+      var testResult = {
+        'testConfig': 'abc'
+      };
+      mockUtils.getFile = function() {
+        return {
+          exists: function() {
+            return true;
+          }
+        };
+      };
+      mockUtils.getJSON = function(json) {
+        return testResult;
+      };
+      app.deviceTypeSettings(settings, config);
+      assert.equal(settings.testConfig,
+        testResult.testConfig);
+    });
+
     test('writeSettings', function () {
       var settingsFile = {result: ''};
       var settings = { 'testKey': 'testValue' };
@@ -143,7 +163,7 @@ suite('settings.js', function() {
         };
       };
       mockUtils.writeContent = function(target, string) {
-        if (target.path === config.PROFILE_DIR + '/settings.json') {
+        if (target.path === config.STAGE_DIR + '/settings_stage.json') {
           settingsFile.result = string;
         }
       };
@@ -151,7 +171,32 @@ suite('settings.js', function() {
       assert.deepEqual(JSON.parse(settingsFile.result),
         settings);
     });
+
+    test('setHomescreenURL with default homescreen', function() {
+      config.GAIA_SCHEME = 'app://';
+      config.GAIA_DOMAIN = 'gaiamobile.com';
+      config.GAIA_PORT = ':8080';
+      var settings = {};
+      var testResult = mockUtils.gaiaManifestURL('homescreen',
+                    config.GAIA_SCHEME, config.GAIA_DOMAIN, config.GAIA_PORT);
+      app.setHomescreenURL(settings, config);
+      assert.equal(settings['homescreen.manifestURL'], testResult);
+    });
+
+    test('setHomescreenURL with customizable', function() {
+      config.GAIA_APPDIRS = 'home2 system sms';
+      config.GAIA_SCHEME = 'app://';
+      config.GAIA_DOMAIN = 'gaiamobile.com';
+      config.GAIA_PORT = ':8080';
+      var settings = { 'homescreen.appName': 'home2' };
+      var testResult = mockUtils.gaiaManifestURL('home2',
+                    config.GAIA_SCHEME, config.GAIA_DOMAIN, config.GAIA_PORT);
+      app.setHomescreenURL(settings, config);
+      assert.equal(settings['homescreen.manifestURL'], testResult);
+    });
   });
+
+
   suite('execute', function() {
     var config;
     setup(function() {
@@ -187,7 +232,6 @@ suite('settings.js', function() {
         assert.deepEqual({
           'debug.console.enabled': true,
           'developer.menu.enabled': true,
-          'apz.force-enable': true,
           'homescreen.manifestURL': config.GAIA_SCHEME +
             'homescreen.' + config.GAIA_DOMAIN + config.GAIA_PORT +
             '/manifest.webapp',
@@ -196,6 +240,7 @@ suite('settings.js', function() {
           'debugger.remote-mode': 'adb-only',
           'language.current': config.GAIA_DEFAULT_LOCALE,
           'wallpaper.image': undefined,
+          'dialer.ringtone.name': 'Classic Courier',
           'dialer.ringtone': undefined,
           'notification.ringtone': undefined,
           'ftu.pingURL': config.FTU_PING_URL },
@@ -218,9 +263,10 @@ suite('settings.js', function() {
           'language.current': config.GAIA_DEFAULT_LOCALE,
           'debugger.remote-mode': 'adb-only',
           'ftu.manifestURL': config.GAIA_SCHEME +
-            'communications.' + config.GAIA_DOMAIN + config.GAIA_PORT +
+            'ftu.' + config.GAIA_DOMAIN + config.GAIA_PORT +
             '/manifest.webapp',
           'wallpaper.image': undefined,
+          'dialer.ringtone.name': 'Classic Courier',
           'dialer.ringtone': undefined,
           'notification.ringtone': undefined,
           'ftu.pingURL': config.FTU_PING_URL },
@@ -244,6 +290,7 @@ suite('settings.js', function() {
           'language.current': config.GAIA_DEFAULT_LOCALE,
           'debugger.remote-mode': 'disabled',
           'wallpaper.image': undefined,
+          'dialer.ringtone.name': 'Classic Courier',
           'dialer.ringtone': undefined,
           'notification.ringtone': undefined,
           'ftu.pingURL': config.FTU_PING_URL },
@@ -270,6 +317,7 @@ suite('settings.js', function() {
           'lockscreen.enabled': false,
           'lockscreen.locked': false,
           'wallpaper.image': undefined,
+          'dialer.ringtone.name': 'Classic Courier',
           'dialer.ringtone': undefined,
           'notification.ringtone': undefined,
           'ftu.pingURL': config.FTU_PING_URL },

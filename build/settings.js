@@ -40,6 +40,7 @@ function setRingtone(settings, config) {
     config.GAIA_DIR);
 
   settings['dialer.ringtone'] = utils.getFileAsDataURI(ringtone);
+  settings['dialer.ringtone.name'] = 'Classic Courier';
 }
 
 function setNotification(settings, config) {
@@ -95,10 +96,10 @@ function setDefaultKeyboardLayouts(lang, settings, config) {
   settings['keyboard.default-layouts'] = keyboardSettings;
 }
 
-function overrideSettings(settings, config) {
+function deviceTypeSettings(settings, config) {
   // See if any override file exists and eventually override settings
-  let override = utils.resolve(config.SETTINGS_PATH,
-    config.GAIA_DIR);
+  let override = utils.getFile(config.GAIA_DIR,
+                  'build', 'config', config.GAIA_DEVICE_TYPE, 'settings.json');
   if (override.exists()) {
     let content = utils.getJSON(override);
     for (let key in content) {
@@ -107,9 +108,51 @@ function overrideSettings(settings, config) {
   }
 }
 
+function overrideSettings(settings, config) {
+  // See if any override file exists and eventually override settings
+  let override = utils.resolve(config.SETTINGS_PATH,
+    config.GAIA_DIR);
+  if (override.exists()) {
+    let content = utils.getJSON(override);
+
+    // Override ringtone if both ringtone and ringtone name properties are available
+    if (content['dialer.ringtone'] && !content['dialer.ringtone.name'] ||
+        !content['dialer.ringtone'] && content['dialer.ringtone.name']) {
+      delete content['dialer.ringtone'];
+      delete content['dialer.ringtone.name'];
+      throw new Error('ringtone not overrided because dialer.ringtone or ' +
+                      'dialer.ringtone.name not found in custom \'settings.json\'. ' +
+                      'Both properties must be set.');
+    }
+
+    for (let key in content) {
+      settings[key] = content[key];
+    }
+  }
+}
+
+function setHomescreenURL(settings, config) {
+  // 'homescreen' as default value of homescreen.appName
+  let appName = 'homescreen';
+
+  if (typeof(settings['homescreen.appName']) !== 'undefined') {
+    appName = settings['homescreen.appName'];
+
+    let homescreenExists = utils.existsInAppDirs(config.GAIA_APPDIRS, appName);
+
+    if (!homescreenExists) {
+      throw new Error('homescreen APP not found: ' + appName);
+    }
+    // no longer to use this settings so remove it.
+    delete settings['homescreen.appName'];
+  }
+  settings['homescreen.manifestURL'] = utils.gaiaManifestURL(appName,
+    config.GAIA_SCHEME, config.GAIA_DOMAIN, config.GAIA_PORT);
+}
+
 function writeSettings(settings, config) {
   // Finally write the settings file
-  let settingsFile = utils.getFile(config.PROFILE_DIR, 'settings.json');
+  let settingsFile = utils.getFile(config.STAGE_DIR, 'settings_stage.json');
   let content = JSON.stringify(settings);
   utils.writeContent(settingsFile, content + '\n');
 }
@@ -123,7 +166,6 @@ function execute(config) {
   }
 
   var settings = utils.getJSON(settingsFile);
-
   if (config.TARGET_BUILD_VARIANT != 'user') {
     // We want the console to be disabled for device builds using the user variant.
     settings['debug.console.enabled'] = true;
@@ -131,20 +173,11 @@ function execute(config) {
     // Activate developer menu under the system menu when long pressing
     // the power button by default for devs.
     settings['developer.menu.enabled'] = true;
-
-    // Turn on APZ for developers. The final activation for everything will
-    // be done in bug 909877, but it will be good to get as many regressions
-    // and bugs as possible before turning it on definitively.
-    settings['apz.force-enable'] = true;
   }
-
-  // Set the homescreen URL
-  settings['homescreen.manifestURL'] = utils.gaiaManifestURL('homescreen',
-    config.GAIA_SCHEME, config.GAIA_DOMAIN, config.GAIA_PORT);
 
   // Set the ftu manifest URL
   if (config.NOFTU === '0') {
-    settings['ftu.manifestURL'] = utils.gaiaManifestURL('communications',
+    settings['ftu.manifestURL'] = utils.gaiaManifestURL('ftu',
       config.GAIA_SCHEME, config.GAIA_DOMAIN, config.GAIA_PORT);
   }
 
@@ -155,8 +188,9 @@ function execute(config) {
   settings['rocketbar.searchAppURL'] = utils.gaiaOriginURL('search',
     config.GAIA_SCHEME, config.GAIA_DOMAIN, config.GAIA_PORT) + '/index.html';
 
-  if (config.ROCKETBAR && config.ROCKETBAR !== 'none') {
+  if (config.HAIDA) {
     settings['rocketbar.enabled'] = true;
+    settings['edgesgesture.enabled'] = true;
   }
 
   settings['debugger.remote-mode'] = config.REMOTE_DEBUGGER ? 'adb-only'
@@ -193,7 +227,12 @@ function execute(config) {
   }).then(function() {
     setNotification(settings, config);
   }).then(function() {
+    deviceTypeSettings(settings, config);
+  }).then(function() {
     overrideSettings(settings, config);
+  }).then(function() {
+    // Set the homescreen URL
+    setHomescreenURL(settings, config);
   }).then(function() {
     writeSettings(settings, config);
     return settings;
@@ -208,6 +247,9 @@ exports.execute = execute;
 exports.setWallpaper = setWallpaper;
 exports.setRingtone = setRingtone;
 exports.setNotification = setNotification;
+exports.deviceTypeSettings = deviceTypeSettings;
 exports.overrideSettings = overrideSettings;
 exports.writeSettings = writeSettings;
 exports.setDefaultKeyboardLayouts = setDefaultKeyboardLayouts;
+exports.setHomescreenURL = setHomescreenURL;
+

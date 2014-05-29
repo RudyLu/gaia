@@ -175,9 +175,16 @@ NfcUtils = {
   },
 
   /**
-   * toUTF8: returns a Uint8Array representation of a string
+   * Returns an Uint8Array representation of a string.
+   * 
+   * @param {String} str String to convert.
+   * @return {Uint8Array}
    */
   fromUTF8: function fromUTF8(str) {
+    if (!str) {
+      return null;
+    }
+
     var buf = new Uint8Array(str.length);
     for (var i = 0; i < str.length; i++) {
       buf[i] = str.charCodeAt(i);
@@ -189,6 +196,10 @@ NfcUtils = {
    * equalArrays: returns true or false whether the arrays are equal
    */
   equalArrays: function equalArrays(a1, a2) {
+    if (!a1 || !a2) {
+      return false;
+    }
+
     if (a1.length != a2.length) {
       return false;
     }
@@ -201,9 +212,16 @@ NfcUtils = {
   },
 
   /**
-   * fromUTF8: returns a string representation of a Uint8Array.
+   * Returns a string representation of an Uint8Array.
+   * 
+   * @param {Uint8Array} a Uint8Array instance.
+   * @return {String}
    */
   toUTF8: function toUTF8(a) {
+    if (!a) {
+      return null;
+    }
+
     var str = '';
     for (var i = 0; i < a.length; i++) {
       str += String.fromCharCode(a[i]);

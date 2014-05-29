@@ -1,4 +1,5 @@
 suite('controllers/hud', function() {
+  /*jshint maxlen:false*/
   /*global req*/
   'use strict';
 
@@ -7,7 +8,7 @@ suite('controllers/hud', function() {
 
     req([
       'app',
-      'lib/camera',
+      'lib/camera/camera',
       'controllers/hud',
       'views/hud',
       'views/controls',
@@ -35,7 +36,6 @@ suite('controllers/hud', function() {
   setup(function() {
     this.app = sinon.createStubInstance(this.App);
     this.app.camera = sinon.createStubInstance(this.Camera);
-    this.app.settings = sinon.createStubInstance(this.Settings);
     this.app.l10n = { get: sinon.spy(function(value) { return value; }) };
     this.app.views = {
       notification: sinon.createStubInstance(this.NotificationView),
@@ -45,6 +45,7 @@ suite('controllers/hud', function() {
     };
 
     // Stub 'cameras' setting
+    this.app.settings = {};
     this.app.settings.cameras = sinon.createStubInstance(this.Setting);
     this.app.settings.flashModes = sinon.createStubInstance(this.Setting);
     this.app.settings.settingsMenu = sinon.createStubInstance(this.Setting);
@@ -70,8 +71,8 @@ suite('controllers/hud', function() {
       assert.ok(this.app.on.calledWith('change:recording'));
     });
 
-    test('Should update the flash once the settings are configured', function() {
-      assert.ok(this.app.on.calledWith('settings:configured', this.controller.updateFlash));
+    test('Should update the flash support once settings are configured', function() {
+      sinon.assert.calledWith(this.app.on, 'settings:configured', this.controller.updateFlashSupport);
     });
 
     test('Should set \'camera\' to \'busy\' on view when busy', function() {
@@ -98,6 +99,25 @@ suite('controllers/hud', function() {
     test('Should set `recording` state on hud', function() {
       assert.ok(this.hud.setter.calledWith('recording'));
       assert.ok(this.app.on.calledWith('change:recording'));
+    });
+
+    test('Should enable camera button depending on support', function() {
+      this.settings.cameras.get
+        .withArgs('options')
+        .returns(['back']);
+
+      sinon.assert.calledWith(this.hud.enable, 'camera', false);
+
+      this.settings.cameras.get
+        .withArgs('options')
+        .returns(['back', 'front']);
+
+      this.controller = new this.HudController(this.app);
+      sinon.assert.calledWith(this.hud.enable, 'camera', true);
+    });
+
+    test('Should disable flash initially until support is known', function() {
+      sinon.assert.calledWith(this.hud.enable, 'flash', false);
     });
   });
 
@@ -132,7 +152,7 @@ suite('controllers/hud', function() {
         selected: sinon.spy()
       };
     });
-    
+
     test('Should display a notification', function() {
       this.controller.onFlashClick();
       assert.ok(this.notification.display.called);
@@ -140,10 +160,44 @@ suite('controllers/hud', function() {
   });
 
   suite('HudController#onModeChange()', function() {
+    setup(function() {
+      sinon.spy(this.controller, 'updateFlashMode');
+    });
+
     test('Should hide the displayed notification when the camera mode changes', function() {
       this.controller.onModeChange();
       assert.ok(this.notification.clear.called);
     });
+
+    test('Should update the flashMode', function() {
+      this.controller.onModeChange();
+      sinon.assert.called(this.controller.updateFlashMode);
+    });
   });
 
+  suite('HudController#onCameraClick()', function() {
+    setup(function() {
+      this.callback = this.hud.on.withArgs('click:camera').args[0][1];
+    });
+
+    test('Should clear notifications', function() {
+      this.callback();
+      sinon.assert.called(this.notification.clear);
+    });
+
+    test('Should call move to next available camera', function() {
+      this.callback();
+      sinon.assert.calledOnce(this.settings.cameras.next);
+    });
+
+    test('Should debounce (immediate) rapid button taps', function() {
+      this.callback();
+      sinon.assert.called(this.settings.cameras.next);
+      this.callback();
+      this.callback();
+      this.callback();
+      this.callback();
+      sinon.assert.calledOnce(this.settings.cameras.next);
+    });
+  });
 });

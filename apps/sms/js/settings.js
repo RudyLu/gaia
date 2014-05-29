@@ -2,7 +2,7 @@
   Message app settings related value and utilities.
 */
 
-/* global MobileOperator*/
+/* global MobileOperator, Promise */
 
 /* exported Settings */
 
@@ -15,15 +15,24 @@ var Settings = {
     smsServiceId: 'ril.sms.defaultServiceId'
   },
 
+  // we evaluate to 5KB the size overhead of wrapping a payload in a MMS
+  MMS_SIZE_OVERHEAD: 5 * 1024,
+
   _serviceIds: null,
 
-  mmsSizeLimitation: 300 * 1024, // Default mms message size limitation is 300K.
+  // We set the default maximum concatenated number of our SMS app to 10
+  // based on:
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=813686#c0
+  maxConcatenatedMessages: 10,
+  mmsSizeLimitation: 295 * 1024, // Default mms message size limitation is 295K
   mmsServiceId: null, // Default mms service SIM ID
   smsServiceId: null, // Default sms service SIM ID
 
   init: function settings_init() {
     var keyHandlerSet = {
-      'dom.mms.operatorSizeLimitation': Settings.initMmsSizeLimitation
+      'dom.mms.operatorSizeLimitation': this.initMmsSizeLimitation.bind(this),
+      'operatorResource.sms.maxConcat':
+        this.initSmsMaxConcatenatedMsg.bind(this)
     };
     var settings = navigator.mozSettings;
     var conns = navigator.mozMobileConnections;
@@ -60,12 +69,19 @@ var Settings = {
     }
   },
 
+  //Set Maximum concatenated number of our SMS
+  initSmsMaxConcatenatedMsg: function initSmsMaxConcatenatedMsg(num) {
+    if (num && !isNaN(num)) {
+      this.maxConcatenatedMessages = num;
+    }
+  },
+
   // Set MMS size limitation:
   // If operator does not specify MMS message size, we leave the decision to
   // MessageManager and return nothing if we can't get size limitation from db
   initMmsSizeLimitation: function initMmsSizeLimitation(size) {
     if (size && !isNaN(size)) {
-      Settings.mmsSizeLimitation = size;
+      this.mmsSizeLimitation = size - this.MMS_SIZE_OVERHEAD;
     }
   },
 
@@ -90,21 +106,30 @@ var Settings = {
     });
   },
 
-  switchMmsSimHandler: function switchSimHandler(targetId, callback) {
+  switchMmsSimHandler: function switchSimHandler(targetId) {
     var conn = window.navigator.mozMobileConnections[targetId];
-    if (conn && conn.data.state !== 'registered') {
-      // Listen to MobileConnections datachange to make sure we can start
-      // to retrieve mms only when data.state is registered. But we can't
-      // guarantee datachange event will work in other device.
-      conn.addEventListener('datachange', function onDataChange() {
+    return new Promise(function(resolve, reject) {
+      if (conn) {
         if (conn.data.state === 'registered') {
-          conn.removeEventListener('datachange', onDataChange);
-          callback();
-        }
-      });
+          // Call resolve directly if state is registered already
+          resolve();
+        } else {
+          // Listen to MobileConnections datachange to make sure we can start
+          // to retrieve mms only when data.state is registered. But we can't
+          // guarantee datachange event will work in other device.
+          conn.addEventListener('datachange', function onDataChange() {
+            if (conn.data.state === 'registered') {
+              conn.removeEventListener('datachange', onDataChange);
+              resolve();
+            }
+          });
 
-      this.setMmsSimServiceId(targetId);
-    }
+          this.setMmsSimServiceId(targetId);
+        }
+      } else {
+        reject('Invalid connection');
+      }
+    }.bind(this));
   },
 
   /**

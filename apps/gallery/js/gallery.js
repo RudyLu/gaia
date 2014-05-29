@@ -109,7 +109,7 @@ var photodb;
 // file, we have to get that from a device storage object for videos.
 var videostorage;
 
-var visibilityMonitor;
+var isInitThumbnail = false;
 
 var loader = LazyLoader;
 
@@ -380,46 +380,18 @@ function initThumbnails() {
   // If we've already been called once, then we've already got thumbnails
   // displayed. There is no need to re-enumerate them, so we just go
   // straight to scanning for new files
-  if (visibilityMonitor) {
+  if (isInitThumbnail) {
     photodb.scan();
     return;
   }
+
+  isInitThumbnail = true;
 
   // configure the template id for template group
   ThumbnailDateGroup.Template = new Template('thumbnail-group-header');
 
   // For gallery group view initialise ThumbnailList object
   thumbnailList = new ThumbnailList(ThumbnailDateGroup, thumbnails);
-
-  // Keep track of when thumbnails are onscreen and offscreen
-/*
-  // Tune for low memory usage and small batch jobes to fetch new
-  // images.  Lower fps / frequent but smaller jank.
-  var visibilityMargin = 360;
-  var minimumScrollDelta = 1;
-*/
-
-  // Tune for fast panning for long distances, which requires larger
-  // batch jobs.  Higher fps / infrequent but larger jank.
-  //
-  // These magic constants were determined as follows
-  //  - keep "a lot" of images loaded:
-  //      max 300 images = 100 rows
-  //       = 10600px on HVGA = (10600 - 480) / 2 margins = 5060
-  //
-  //  - batch up as much work as possible while showing unpainted
-  //    thumbnails as little as possible.  4000px determined by
-  //    experimentation.  (Provides 10 rows' worth loading zone.)
-  var visibilityMargin = 5060;
-  var minimumScrollDelta = 4000;
-
-  visibilityMonitor =
-    monitorTagVisibility(thumbnails, 'li',
-                         visibilityMargin,    // extra space top and bottom
-                         minimumScrollDelta,  // min scroll before we do work
-                         thumbnailOnscreen,   // set background image
-                         thumbnailOffscreen); // remove background image
-
 
   // Handle clicks on the thumbnails we're about to create
   thumbnails.addEventListener('click', thumbnailClickHandler);
@@ -659,7 +631,7 @@ function setView(view) {
   switch (currentView) {
     case LAYOUT_MODE.select:
       // Clear the selection, if there is one
-      Array.forEach(thumbnails.querySelectorAll('.selected.thumbnail'),
+      Array.forEach(thumbnails.querySelectorAll('.selected.thumbnailImage'),
                     function(elt) { elt.classList.remove('selected'); });
       if (!isPhone)
         showFile(currentFileIndex);
@@ -746,18 +718,6 @@ function setNFCSharing(enable) {
     // We need to remove onpeerready while out of fullscreen view.
     window.navigator.mozNfc.onpeerready = null;
   }
-}
-
-// monitorChildVisibility() calls this when a thumbnail comes onscreen
-function thumbnailOnscreen(thumbnail) {
-  if (thumbnail.dataset.backgroundImage)
-    thumbnail.style.backgroundImage = thumbnail.dataset.backgroundImage;
-}
-
-// monitorChildVisibility() calls this when a thumbnail goes offscreen
-function thumbnailOffscreen(thumbnail) {
-  if (thumbnail.dataset.backgroundImage)
-    thumbnail.style.backgroundImage = null;
 }
 
 //
@@ -893,78 +853,8 @@ function cropAndEndPick() {
   }
   else {
     cropEditor.getCroppedRegionBlob(pickType, pickWidth, pickHeight,
-                                    convertToFileBackedBlob);
+                                    endPick);
   }
-}
-
-// HACK HACK HACK
-//
-// For bug 975599, we need to use a file backed blob in pendingPick.postResult
-// so this function saves the blob to a temporary file in device storage and
-// then reads that file back and passes that to endPick.
-//
-// When the underlying bug is fixed, we can remove this function and just
-// call endPick directly as the getCroppedRegionBlob callback.
-//
-
-function convertToFileBackedBlob(memoryBackedBlob) {
-  var TEMP_IMAGE_DIR = '.gallery/cropped';
-  var storage = navigator.getDeviceStorage('pictures');
-
-  function saveFileBackedBlob() {
-    // Pick a random number, remove the "0." prefix from it,
-    // add a dot then add the mime type with the "image/" removed from it
-    // to get a unique temporary filename for each cropped image
-    var filename = TEMP_IMAGE_DIR + '/' +
-                   Math.random().toString().substring(2) + '.' +
-                   memoryBackedBlob.type.substring(6);
-
-    function onerror() {
-      console.error('Failed to return file backed blob');
-      endPick(memoryBackedBlob);
-    }
-
-    var write = storage.addNamed(memoryBackedBlob, filename);
-    write.onsuccess = function() {
-      var read = storage.get(filename);
-      read.onsuccess = function() {
-        endPick(read.result);
-      };
-      read.onerror = onerror;
-    };
-    write.onerror = onerror;
-  }
-
-  // Clean up files with lastmodified date > 1 day in TEMP_IMAGE_DIR and
-  // then save the blob to a temporary file in device storage
-  var yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  var cursor = storage.enumerate(TEMP_IMAGE_DIR);
-  cursor.onsuccess = function() {
-    function next() {
-      cursor.continue();
-    }
-    var file = cursor.result;
-    if (file) {
-      if (file.lastModifiedDate < yesterday) {
-        var request = storage.delete(file.name);
-        request.onsuccess = request.onerror = next;
-      }
-      else {
-       next();
-      }
-    }
-    else {
-      saveFileBackedBlob();
-    }
-  };
-  cursor.onerror = function() {
-    // We expect an error if the cropped directory does not exist yet,
-    // so only report it if it is something unexpected.
-    if (cursor.error.name !== 'NotFoundError') {
-      console.error('Failed to clean temp directory', cursor.error.name);
-    }
-    saveFileBackedBlob();
-  };
 }
 
 function endPick(blob) {
@@ -1019,7 +909,7 @@ window.addEventListener('visibilitychange', function() {
 // 3. On tiny/large with listView -> go to fullscreen image
 function thumbnailClickHandler(evt) {
   var target = evt.target;
-  if (!target || !target.classList.contains('thumbnail'))
+  if (!target || !target.classList.contains('thumbnailImage'))
     return;
 
   var index = getFileIndex(target.dataset.filename);
@@ -1167,7 +1057,7 @@ function launchCameraApp() {
 }
 
 function deleteSelectedItems() {
-  var selected = thumbnails.querySelectorAll('.selected.thumbnail');
+  var selected = thumbnails.querySelectorAll('.selected.thumbnailImage');
   if (selected.length === 0)
     return;
 

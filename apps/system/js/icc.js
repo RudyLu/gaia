@@ -119,6 +119,12 @@ var icc = {
   },
 
   handleSTKCommand: function icc_handleSTKCommand(message) {
+    // Protection to bad formed messages
+    if (!message || !message.iccId || !message.command ||
+        !message.command.typeOfCommand || !message.command.options) {
+      return DUMP('STK Proactive Command bad formed: ', message);
+    }
+
     DUMP('STK Proactive Command for SIM ' + message.iccId + ': ',
       message.command);
     if (FtuLauncher.isFtuRunning()) {
@@ -131,7 +137,13 @@ var icc = {
       return DUMP('FTU is running, delaying STK...');
     }
 
-    var cmdId = '0x' + message.command.typeOfCommand.toString(16);
+    /* TODO: cleanup branching after bug 819831 landed */
+    var cmdId;
+    if (typeof message.command.typeOfCommand === 'string') {
+      cmdId = message.command.typeOfCommand;
+    } else {
+      cmdId = '0x' + message.command.typeOfCommand.toString(16);
+    }
     if (icc_worker[cmdId]) {
       return icc_worker[cmdId](message);
     }
@@ -509,7 +521,7 @@ var icc = {
     this.icc_input_btn_help.onclick = function() {
       clearInputTimeout();
       self.hideViews();
-      self.responseSTKCommand({
+      self.responseSTKCommand(stkMessage, {
         resultCode: self._iccManager.STK_RESULT_HELP_INFO_REQUIRED
       });
       callback(null);

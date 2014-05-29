@@ -20,12 +20,12 @@
 require('/shared/js/lazy_loader.js');
 require('/shared/js/text_normalizer.js');
 require('/shared/js/tag_visibility_monitor.js');
+require('/shared/js/contacts/utilities/dom.js');
+require('/shared/js/contacts/utilities/templates.js');
+require('/shared/js/contacts/utilities/event_listeners.js');
 require('/shared/test/unit/mocks/mock_contact_all_fields.js');
-requireApp('communications/contacts/js/views/search.js');
+require('/shared/js/contacts/search.js');
 requireApp('communications/contacts/js/views/list.js');
-requireApp('communications/contacts/js/utilities/dom.js');
-requireApp('communications/contacts/js/utilities/event_listeners.js');
-requireApp('communications/contacts/js/utilities/templates.js');
 requireApp('communications/contacts/test/unit/mock_cookie.js');
 requireApp('communications/contacts/test/unit/mock_asyncstorage.js');
 requireApp('communications/contacts/test/unit/mock_navigation.js');
@@ -184,13 +184,29 @@ suite('Render contacts list', function() {
   }
 
   function assertContactFound(contact) {
-    var selectorStr = 'li';
-    selectorStr = 'li.contact-item';
+    var selectorStr = 'li.contact-item';
 
     var showContact = searchList.querySelectorAll(selectorStr);
     assert.length(showContact, 1);
     assert.equal(showContact[0].dataset.uuid, contact.id);
     assert.isTrue(noResults.classList.contains('hide'));
+  }
+
+  function assertHighlight(phrase) {
+    var selectorStr = 'li.contact-item';
+    var showContact = searchList.querySelectorAll(selectorStr);
+    assert.isTrue(showContact.length > 0);
+
+    var regExp = new RegExp('^' + phrase + '$', 'i');
+    var highlightClass = contacts.Search.getHighlightClass();
+    var highlightedNodes = searchList.getElementsByClassName(highlightClass);
+    for (var i = 0, l = highlightedNodes.length; i < l; i++) {
+      // we want to be non-case-sensitive so simple comparision
+      // of string will not work here. There could also be problems
+      // with different languages when using String.toLowerCase(),
+      // thats why we use Regular Expressions
+      assert.isTrue(regExp.test(highlightedNodes[i].innerHTML));
+    }
   }
 
   function getStringToBeOrdered(contact, orderByLastName) {
@@ -249,10 +265,7 @@ suite('Render contacts list', function() {
     containerSection.innerHTML += '<menu id="standard-menu" type="toolbar">' +
       '<button id="add-contact-button"><span></span></button>' +
       '<button id="settings-button"><span></span></button>' +
-      '<button id="select-action" class="hide"><span></span></button>' +
-      '</menu>' + '<menu id="select-menu" type="toolbar" class="hide">' +
-      '<button role="menuitem" id="select-action"></button>' +
-      '</menu>';
+    '</menu>';
     document.body.appendChild(containerSection);
 
     container = document.createElement('div');
@@ -315,10 +328,19 @@ suite('Render contacts list', function() {
 
     selectSection = document.createElement('form');
     selectSection.id = 'selectable-form';
-    selectSection.innerHTML = '<menu id="select-all-wrapper">' +
+    selectSection.innerHTML = '<section role="region">' +
+    '<header>' +
+      '<button><span class="icon icon-close">close</span></button>' +
+      '<menu type="toolbar">' +
+        '<button type="button" id="select-action"></button>' +
+      '</menu>' +
+      '<h1 id="edit-title" data-l10n-id="contacts"></h1>' +
+      '</header>' +
+    '</section>' +
+    '<menu id="select-all-wrapper">' +
       '<button id="deselect-all" disabled="disabled"></button>' +
       '<button id="select-all"></button>' +
-      '</menu>';
+    '</menu>';
 
     document.body.appendChild(selectSection);
 
@@ -364,7 +386,6 @@ suite('Render contacts list', function() {
         };
       }
     };
-
 
     realContacts = window.Contacts;
     window.Contacts = MockContacts;
@@ -1087,6 +1108,31 @@ suite('Render contacts list', function() {
       });
     });
 
+    test('Search gets updated if contact changes',
+        function(done) {
+      mockContacts = new MockContactsList();
+      var contact = mockContacts[0];
+
+      doLoad(subject, mockContacts, function() {
+        contacts.Search.enterSearchMode({preventDefault: function() {}});
+        // Search by the first character
+        searchBox.value = contact.givenName[0][0];
+        contacts.Search.search(function search_finished() {
+          assertContactFound(contact);
+          // Keep the first character to have the same search valid
+          contact.givenName[0] = contact.givenName[0][0] + ' New Name';
+          sinon.spy(contacts.Search, 'updateSearchList');
+          subject.refresh(contact, function() {
+            var listStr = list.textContent;
+            assert.isTrue(listStr.indexOf(contact.givenName[0]) !== -1);
+            var searchListStr = searchList.textContent;
+            assert.isTrue(searchListStr.indexOf(contact.givenName[0]) !== -1);
+            done();
+          });
+        });
+      });
+    });
+
     test('Search non-alphabetical characters', function(done) {
       mockContacts = new MockContactsList();
 
@@ -1224,6 +1270,40 @@ suite('Render contacts list', function() {
       });
     });
 
+    test('Search phrase highlightded correctly for first letter',
+        function(done) {
+      mockContacts = new MockContactsList();
+      var contactIndex = Math.floor(Math.random() * mockContacts.length);
+      var contact = mockContacts[contactIndex];
+
+      doLoad(subject, mockContacts, function() {
+        var firstLetter = contact.givenName[0].charAt(0);
+        searchBox.value = firstLetter;
+        contacts.Search.search(function search_finished() {
+          assertHighlight(firstLetter);
+          contacts.Search.invalidateCache();
+          done();
+        });
+      });
+    });
+
+    test('Search phrase highlightded correctly for more than one letter',
+        function(done) {
+      mockContacts = new MockContactsList();
+      var contactIndex = Math.floor(Math.random() * mockContacts.length);
+      var contact = mockContacts[contactIndex];
+
+      doLoad(subject, mockContacts, function() {
+        var firstLetter = contact.givenName[0];
+        searchBox.value = firstLetter;
+        contacts.Search.search(function search_finished() {
+          assertHighlight(firstLetter);
+          contacts.Search.invalidateCache();
+          done();
+        });
+      });
+    });
+
     test('Order string lazy calculated', function(done) {
       mockContacts = new MockContactsList();
       doLoad(subject, mockContacts, function() {
@@ -1324,30 +1404,10 @@ suite('Render contacts list', function() {
 
   suite('Select mode', function() {
     var elements = {
-      'standardMenu': {
-        'id': 'standard-menu',
-        'selectMode': 'hide',
-        'normalMode': 'show'
-      },
-      'selectMenu': {
-        'id': 'select-menu',
+      'selectForm': {
+        'id': 'selectable-form',
         'selectMode': 'show',
         'normalMode': 'hide'
-      },
-      'closeButton': {
-        'id': 'cancel_activity',
-        'selectMode': 'show',
-        'normalMode': 'hide'
-      },
-      'selectAllButton': {
-        'id': 'select-all',
-        'selectMode': 'show',
-        'normalMode': 'show' // We don't care, the form will be hide
-      },
-      'deselectAllButton': {
-        'id': 'deselect-all',
-        'selectMode': 'show',
-        'normalMode': 'show' // We don't care, the form will be hide
       }
     };
     var mockNavigationStack;
@@ -1389,18 +1449,7 @@ suite('Render contacts list', function() {
         assert.isTrue(selectActionButton.disabled);
 
         done();
-      }, mockNavigationStack, 'transition');
-    });
-
-    test('enter search mode', function() {
-      contacts.List.initSearch(function onInit() {
-        contacts.Search.enterSearchMode({preventDefault: function() {}});
-        assert.equal(mockNavigationStack.getCurrentView(),
-                     'search-view');
-        assert.equal(mockNavigationStack.getCurrentTransition(),
-                     'none');
-        contacts.Search.exitSearchMode({preventDefault: function() {}});
-      });
+      }, mockNavigationStack);
     });
 
     suite('Selection checks', function() {
@@ -1409,7 +1458,7 @@ suite('Render contacts list', function() {
         doLoad(subject, mockContacts, function() {
           subject.selectFromList('', null, function() {
             done();
-          }, new MockNavigationStack(), 'transition');
+          }, new MockNavigationStack());
         });
       });
 
@@ -1441,6 +1490,24 @@ suite('Render contacts list', function() {
         for (var check of checks) {
           assert.include(uuids, check.value);
         }
+      });
+
+      test('danger class is not present in checks', function() {
+        var checks = list.querySelectorAll('input[type="checkbox"]');
+        for (var check of checks) {
+          assert.isFalse(check.parentNode.classList.contains('danger'));
+        }
+      });
+
+      test('danger class is present if options.isDanger is true',
+        function(done) {
+          subject.selectFromList('', null, function() {
+            var checks = list.querySelectorAll('input[type="checkbox"]');
+            for (var check of checks) {
+              assert.isTrue(check.parentNode.classList.contains('danger'));
+            }
+            done();
+          }, new MockNavigationStack(), { isDanger: true });
       });
 
       test('if no contact is selected, action button is disabled',
@@ -1480,45 +1547,26 @@ suite('Render contacts list', function() {
 
     suite('Exit select mode', function() {
       function checkVisibilityExit() {
-        // Buttons visibility
-        for (var i in elements) {
-          var element = elements[i];
-
-          if (typeof element != 'object') {
-            return;
-          }
-          var node = document.getElementById(element.id);
-          if (element.normalMode == 'show') {
-            assert.isFalse(node.classList.contains('hide'));
-          } else {
-            assert.isTrue(node.classList.contains('hide'));
-          }
-        }
-
         // We still have the check boxes, but they are hidden
         assert.isFalse(list.classList.contains('selecting'));
         assert.isFalse(searchList.classList.contains('selecting'));
       }
+
       setup(function(done) {
         mockContacts = new MockContactsList();
         doLoad(subject, mockContacts, function() {
           subject.selectFromList('', null, function() {
-            // Simulate the click to close
             done();
-          }, new MockNavigationStack(), 'transition');
+          }, new MockNavigationStack());
         });
-      });
-
-      test('Exit select mode by dismissing', function() {
-        var close = document.querySelector('#cancel_activity');
-        close.click();
-
-        checkVisibilityExit();
       });
 
       test('check visibility of components', function() {
         contacts.List.exitSelectMode();
+
         checkVisibilityExit();
+        assert.isFalse(selectSection.classList.contains('in-edit-mode'));
+        assert.isFalse(selectSection.classList.contains('contacts-select'));
       });
     });
 
@@ -1531,7 +1579,7 @@ suite('Render contacts list', function() {
             var close = document.querySelector('#cancel_activity');
             close.click();
             done();
-          }, new MockNavigationStack(), 'transition');
+          }, new MockNavigationStack(), { isDanger: true });
         });
 
       });
@@ -1541,8 +1589,11 @@ suite('Render contacts list', function() {
           var contactsRows = list.querySelectorAll('li');
           var checks = list.querySelectorAll('input[type="checkbox"]');
           assert.equal(contactsRows.length, checks.length);
+          for (var check of checks) {
+            assert.isFalse(check.parentNode.classList.contains('danger'));
+          }
           done();
-        }, new MockNavigationStack(), 'transition');
+        }, new MockNavigationStack(), { isDanger: false });
       });
     });
   });

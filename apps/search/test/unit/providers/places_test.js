@@ -4,7 +4,10 @@
 require('/shared/test/unit/mocks/mock_navigator_datastore.js');
 require('/shared/js/utilities.js');
 requireApp('search/test/unit/mock_search.js');
+requireApp('search/test/unit/mock_googlelink.js');
 requireApp('search/js/providers/provider.js');
+
+mocha.globals(['Places', 'SettingsListener']);
 
 suite('search/providers/places', function() {
   var fakeElement, stubById, subject;
@@ -14,6 +17,10 @@ suite('search/providers/places', function() {
     realDatastore = navigator.getDataStores;
     navigator.getDataStores = MockNavigatorDatastore.getDataStores;
     MockNavigatorDatastore._records = {};
+
+    window.SettingsListener = {
+      observe: function() {}
+    };
 
     MockDatastore.sync = function() {
       var cursor = {
@@ -36,6 +43,7 @@ suite('search/providers/places', function() {
 
   suiteTeardown(function() {
     navigator.getDataStores = realDatastore;
+    delete window.SettingsListener;
   });
 
   setup(function(done) {
@@ -44,7 +52,7 @@ suite('search/providers/places', function() {
     stubById = this.sinon.stub(document, 'getElementById')
                           .returns(fakeElement.cloneNode(true));
     requireApp('search/js/providers/places.js', function() {
-      subject = Search.providers.Places;
+      subject = window.Places;
       subject.init();
       done();
     });
@@ -63,9 +71,14 @@ suite('search/providers/places', function() {
 
     test('renders data url', function() {
       subject.search('mozilla', Search.collect.bind(Search, subject));
-      
+
       var place = subject.container.querySelector('.result');
       assert.equal(place.dataset.url, 'http://mozilla.org');
+      assert.equal(place.querySelector('.title').innerHTML, 'homepage');
+      assert.equal(place.getAttribute('aria-label'), 'homepage');
+      assert.equal(place.getAttribute('role'), 'link');
+      assert.equal(place.querySelector('.icon').getAttribute('role'),
+        'presentation');
     });
   });
 

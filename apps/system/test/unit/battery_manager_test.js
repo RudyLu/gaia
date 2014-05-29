@@ -10,7 +10,7 @@ requireApp('system/js/battery_manager.js');
 
 var mocksForBatteryManager = new MocksHelper([
   'SettingsListener',
-  'SleepMenu',
+  'sleepMenu',
   'GestureDetector'
 ]).init();
 
@@ -117,11 +117,10 @@ suite('battery manager >', function() {
 
       test('should send batteryshutdown when battery is below threshold',
       function() {
-        var dispatchEventStub = this.sinon.stub(window, 'dispatchEvent')
-          .throws('should send batteryshutdown event');
-        dispatchEventStub.withArgs(sinon.match.has('type', 'batteryshutdown'));
+        var dispatchEventStub = this.sinon.stub(window, 'dispatchEvent');
         sendLevelChange(0.00);
-        assert.isTrue(dispatchEventStub.called);
+        sinon.assert.calledWithMatch(window.dispatchEvent,
+                                     { type: 'batteryshutdown' });
       });
     });
 

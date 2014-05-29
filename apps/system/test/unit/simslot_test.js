@@ -10,7 +10,7 @@ suite('SIMSlot', function() {
   });
 
   setup(function(callback) {
-    requireApp('system/js/simslot.js', callback);
+    requireApp('system/shared/js/simslot.js', callback);
   });
 
   teardown(function() {
@@ -54,7 +54,9 @@ suite('SIMSlot', function() {
   });
 
   ['pinRequired', 'pukRequired', 'networkLocked',
-   'corporateLocked', 'serviceProviderLocked'].forEach(function(lockType) {
+   'corporateLocked', 'serviceProviderLocked', 'network1Locked',
+   'network2Locked', 'hrpdNetworkLocked', 'ruimCorporateLocked',
+   'ruimServiceProviderLocked'].forEach(function(lockType) {
     test('isLocked: ' + lockType, function() {
       var card = document.createElement('div');
       card.cardState = lockType;

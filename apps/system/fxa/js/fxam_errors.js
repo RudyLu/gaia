@@ -22,7 +22,7 @@
       title: 'fxa-reset-password-in-settings-title',
       message: 'fxa-reset-password-in-settings-message'
     },
-    INVALID_ACCOUNTID: {
+    INVALID_EMAIL: {
       title: 'fxa-invalid-email-title',
       message: 'fxa-invalid-email-message'
     },
@@ -51,8 +51,12 @@
       message: 'fxa-generic-error-message'
     },
     COPPA_ERROR: {
-      title: 'fxa-coppa-error-title',
-      message: 'fxa-coppa-error-message'
+      title: 'fxa-coppa-failure-error-title',
+      message: 'fxa-coppa-failure-error-message'
+    },
+    COPPA_FTU_ERROR: {
+      title: 'fxa-coppa-failure-error-title',
+      message: 'fxa-coppa-ftu-error-message'
     },
     OFFLINE: {
       title: 'fxa-offline-error-title',

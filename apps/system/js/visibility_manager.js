@@ -26,7 +26,13 @@
       'attentionscreenhide',
       'status-active',
       'status-inactive',
-      'mozChromeEvent'
+      'mozChromeEvent',
+      'appclosing',
+      'homescreenopening',
+      'rocketbar-overlayopened',
+      'rocketbar-overlayclosed',
+      'utility-tray-overlayopened',
+      'utility-tray-overlayclosed'
     ];
   };
 
@@ -47,21 +53,23 @@
       clearTimeout(this._attentionScreenTimer);
     }
     switch (evt.type) {
+      // XXX: See Bug 999318.
+      // Audio channel is always normal without going back to none.
+      // We are actively discard audio channel state when homescreen
+      // is opened.
+      case 'appclosing':
+      case 'homescreenopening':
+        this._normalAudioChannelActive = false;
+        break;
       case 'status-active':
       case 'attentionscreenhide':
       case 'will-unlock':
-        if (window.lockScreen && window.lockScreen.locked) {
-          return;
-        }
-
-        this.publish('showwindows');
         if (!AttentionScreen.isFullyVisible()) {
           this.publish('showwindow', { type: evt.type });
         }
         this._resetDeviceLockedTimer();
         break;
       case 'lock':
-        this.publish('hidewindows');
         // If the audio is active, the app should not set non-visible
         // otherwise it will be muted.
         // TODO: Remove this hack.
@@ -84,13 +92,21 @@
       case 'attentionscreenshow':
         this._setAttentionScreenVisibility(evt);
         break;
+      case 'rocketbar-overlayopened':
+      case 'utility-tray-overlayopened':
+        this.publish('hidewindowforscreenreader');
+        break;
+      case 'rocketbar-overlayclosed':
+      case 'utility-tray-overlayclosed':
+        this.publish('showwindowforscreenreader');
+        break;
       case 'mozChromeEvent':
         if (evt.detail.type == 'visible-audio-channel-changed') {
           this._resetDeviceLockedTimer();
 
           if (this._normalAudioChannelActive &&
               evt.detail.channel !== 'normal' &&
-              window.lockScreen && window.lockScreen.locked) {
+              window.System.locked) {
             this._deviceLockedTimer = setTimeout(function setVisibility() {
               this.publish('hidewindow',
                 { screenshoting: false, type: evt.type });

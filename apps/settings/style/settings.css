@@ -499,6 +499,33 @@ ul li > label.range-icons.brightness:before {
   width: calc(100% - 10.7rem);
 }
 
+ul li > label.range-icons.volume:before {
+  left: 1.4rem;
+  right: auto;
+  width: 3rem;
+  top: 4.4rem;
+}
+
+ul li > label.range-icons.volume.media:before {
+  background:
+    url(images/sound_volume_media.png) no-repeat 0 50% / 3rem;
+}
+
+ul li > label.range-icons.volume.notification:before {
+  background:
+    url(images/sound_volume_ringer.png) no-repeat 0 50% / 3rem;
+}
+
+ul li > label.range-icons.volume.alarm:before {
+  background:
+    url(images/sound_volume_alarm.png) no-repeat 0 50% / 3rem;
+}
+
+ul li > label.range-icons.volume input {
+  position: inherit;
+  margin-left: 5.8rem;
+  width: calc(100% - 7.5rem);
+}
 
 /******************************************************************************
  * SIM Toolkit
@@ -681,6 +708,30 @@ section[data-dialog] > header:first-child .icon.icon-back {
 }
 
 /******************************************************************************
+ * Firefox Accounts
+ */
+
+.fxa-logo {
+  background-image: url('images/fxa_logo.png');
+  background-repeat: no-repeat;
+  margin: 3rem auto 0;
+  width: 17rem;
+  height: 19.5rem;
+}
+
+#fxa-unverified .description {
+  background-image: url('images/fxa_envelope.png');
+  background-repeat: no-repeat;
+  background-position: 0 1.5rem;
+  padding-top: 1.5rem;
+}
+
+#fxa-unverified-text {
+  padding-top: 0.8rem;
+  margin-left: 6rem;
+}
+
+/******************************************************************************
  * Toaster
  */
 section[role="status"] {
@@ -801,4 +852,14 @@ html[dir="rtl"] #feedback-happy {
 
 html[dir="rtl"] #feedback-sad {
   float: left;
+}
+
+html[dir="rtl"] ul li > label.range-icons.volume:before {
+  left: auto;
+  right: 1.4rem;
+  background-position: 100% 50%;
+}
+
+html[dir="rtl"] ul li > label.range-icons.volume input {
+  margin-right: 5.8rem;
 }

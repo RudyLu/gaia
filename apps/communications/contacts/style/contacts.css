@@ -1,3 +1,5 @@
+@import url("root.css");
+
 /* Contact detail header */
 .contact-header {
   margin: -1.4rem -2rem 1rem;
@@ -27,11 +29,6 @@ section[role="region"] > header:first-child .icon.icon-edit-contact {
 
 .view-contacts-list .view-body-inner {
   padding-left: 0;
-}
-
-#contact-name-title {
-  max-width: 22rem;
-  float: left;
 }
 
 /* Contact detail main section */
@@ -144,20 +141,6 @@ section[role="region"] > header:first-child .icon.icon-edit-contact {
   text-overflow: ellipsis;
 }
 
-#contact-detail li button.icon-call {
-  padding-left: 0;
-}
-
-#contact-detail li button>div {
-  display: inline-flex;
-  width: calc(100% - 1.5rem);
-  margin-left: 1.5rem;
-}
-
-#contact-detail li button>div b {
-  flex: 1;
-}
-
 #contact-detail .social-actions button {
   margin-bottom: 1rem;
 }
@@ -238,23 +221,25 @@ section[role="region"] > header:first-child .icon.icon-edit-contact {
 }
 
 /* FB info (non-editable) */
-.view-edit-contact .facebook fieldset {
-  border-color: #255c95;
-  background: #cbd4df;
-  color: #969696;
-}
-
 .view-edit-contact .facebook fieldset legend,
-.view-edit-contact .facebook fieldset input {
-  color: #969696;
+.view-edit-contact .facebook fieldset input[type="date"] {
+  width: 100%;
+  border-color: #acbee4;
+  color: #8d9abb;
+  background-image: url(fb/dialog.svg);
 }
 
-.view-edit-contact .facebook fieldset section {
-  border-left-color: #255c95;
+.view-edit-contact .facebook input {
+  border-color: #acbee4;
+  color: #8d9abb;
 }
 
-.view-edit-contact .facebook fieldset section p {
-  border-bottom-color: #255c95;
+.view-edit-contact .facebook span {
+  color: #8d9abb;
+}
+
+.view-edit-contact .facebook input[value=""] {
+  display: none;
 }
 
 hr {
@@ -380,6 +365,10 @@ form p textarea + button[type="reset"].hide {
 
 section[role="region"] > header .icon.icon-settings {
   background-image: url(/contacts/style/gphx/bitmap/default/vw-header/icons/settings.png);
+}
+
+#view-settings {
+  z-index: 101;
 }
 
 #view-settings .view-body-inner {
@@ -658,7 +647,11 @@ section[role="region"] > header .icon.icon-settings {
 }
 
 .remark {
-  color: #ff4e00;
+  color: #339999;
+}
+
+.remark-missed {
+  color: #CC0000;
 }
 
 .valueselector {
@@ -703,11 +696,19 @@ section[role="region"] > header .icon.icon-settings {
   pointer-events: none;
   position: absolute;
   top: 0;
-  left: 1rem;
-  right: 0;
+  left: 1.5rem;
+  right: 2rem;
   line-height: 4rem;
+  font-size: 1.6rem;
   font-weight: normal;
-  background: url(/shared/style/input_areas/images/icons/arrow.png) no-repeat 100% 100% / 1.2rem;
+  color: #333;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.datetime + input[type="date"] {
+  font-size: 0;
 }
 
 .placeholder {
@@ -718,4 +719,25 @@ section[role="region"] > header .icon.icon-settings {
 .hidden-input {
   /* visibility: hidden; will avoid events to reach the <input> */
   opacity: 0;
+}
+
+form[role="dialog"][data-type="edit"] header {
+  transform: translateY(-5rem);
+}
+
+form[role="dialog"][data-type="edit"] > menu {
+  transform: translateY(110%);
+}
+
+form[role="dialog"][data-type="edit"].contacts-select.in-edit-mode header,
+form[role="dialog"][data-type="edit"].contacts-select.in-edit-mode > menu {
+  transition: 0s;
+}
+
+form[role="dialog"][data-type="edit"].contacts-select:not(.insearchmode) > menu {
+  transform: translateY(0);
+}
+
+form[role="dialog"][data-type="edit"].contacts-select:not(.insearchmode) header {
+  transform: translateY(0);
 }

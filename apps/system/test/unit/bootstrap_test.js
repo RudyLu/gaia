@@ -1,111 +1,97 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- /
-/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
-
+'use strict';
 /*global MockNavigatormozApps, MockNavigatorSettings, MocksHelper, MockL10n*/
 /*global MockApplications, Applications*/
 
-'use strict';
-
+requireApp('system/shared/js/async_storage.js');
+requireApp('system/shared/js/screen_layout.js');
+requireApp('system/shared/test/unit/mocks/mock_icc_helper.js');
 requireApp('system/shared/test/unit/mocks/mock_navigator_moz_apps.js');
 requireApp('system/shared/test/unit/mocks/mock_navigator_moz_settings.js');
 requireApp('system/shared/test/unit/mocks/mock_settings_listener.js');
 requireApp('system/shared/test/unit/mocks/mock_settings_url.js');
-requireApp('system/test/unit/mock_activities.js');
+
+requireApp('system/js/accessibility.js');
+requireApp('system/js/activities.js');
+requireApp('system/js/activity_window_factory.js');
+requireApp('system/js/activity_window_manager.js');
+requireApp('system/js/app_window_factory.js');
+requireApp('system/js/devtools/developer_hud.js');
+requireApp('system/js/dialer_agent.js');
+requireApp('system/js/ftu_launcher.js');
+requireApp('system/js/rocketbar.js');
+requireApp('system/js/home_gesture.js');
+requireApp('system/js/home_searchbar.js');
+requireApp('system/js/homescreen_launcher.js');
+requireApp('system/js/internet_sharing.js');
+requireApp('system/js/layout_manager.js');
+requireApp('system/js/lockscreen_window_manager.js');
+requireApp('system/js/media_recording.js');
+requireApp('system/js/permission_manager.js');
+requireApp('system/js/remote_debugger.js');
+requireApp('system/js/secure_window_factory.js');
+requireApp('system/js/secure_window_manager.js');
+requireApp('system/js/software_button_manager.js');
+requireApp('system/js/source_view.js');
+requireApp('system/js/storage.js');
+requireApp('system/js/system_dialog_manager.js');
+requireApp('system/js/telephony_settings.js');
+requireApp('system/js/ttlview.js');
+requireApp('system/js/visibility_manager.js');
+
 requireApp('system/test/unit/mock_applications.js');
-requireApp('system/test/unit/mock_devtools_view.js');
-requireApp('system/test/unit/mock_dialer_ringer.js');
-requireApp('system/test/unit/mock_ftu_launcher.js');
-requireApp('system/test/unit/mock_home_gesture.js');
-requireApp('system/test/unit/mock_homescreen_launcher.js');
 requireApp('system/test/unit/mock_l10n.js');
 requireApp('system/test/unit/mock_media_recording.js');
-requireApp('system/test/unit/mock_permission_manager.js');
+requireApp('system/test/unit/mock_mediaplayback_manager.js');
 requireApp('system/test/unit/mock_places.js');
-requireApp('system/test/unit/mock_remote_debugger.js');
-requireApp('system/test/unit/mock_rocketbar.js');
 requireApp('system/test/unit/mock_screen_manager.js');
-requireApp('system/test/unit/mock_software_button_manager.js');
-requireApp('system/test/unit/mock_source_view.js');
-requireApp('system/test/unit/mock_storage.js');
-requireApp('system/test/unit/mock_telephony_settings.js');
-requireApp('system/test/unit/mock_system_dialog_manager.js');
-requireApp('system/test/unit/mock_ttl_view.js');
-requireApp('system/test/unit/mock_title.js');
-requireApp('system/test/unit/mock_activity_window_factory.js');
-requireApp('system/test/unit/mock_visibility_manager.js');
-requireApp('system/test/unit/mock_layout_manager.js');
-requireApp('system/test/unit/mock_secure_window_manager.js');
-requireApp('system/test/unit/mock_lockscreen_window_manager.js');
-requireApp('system/test/unit/mock_secure_window_factory.js');
-requireApp('system/test/unit/mock_activity_window_factory.js');
-requireApp('system/test/unit/mock_app_window_factory.js');
+requireApp('system/test/unit/mock_task_manager.js');
 
 mocha.globals([
-  'Shortcuts',
-  'wallpaperURL',
+  'accessibility',
+  'activityWindowManager',
   'activities',
+  'applications',
+  'appWindowFactory',
   'cancelHomeTouchstart',
   'cancelHomeTouchend',
   'cancelHomeClick',
-  'secureWindowManager',
-  'secureWindowFactory',
-  'lockScreenWindowManager',
-  'systemDialogManager',
-  'devtoolsView',
-  'dialerRinger',
+  'developerHUD',
+  'dialerAgent',
   'homeGesture',
+  'homeSearchbar',
+  'homescreenLauncher',
+  'internetSharing',
+  'layoutManager',
+  'lockScreenWindowManager',
   'mediaRecording',
+  'mediaPlaybackManager',
+  'permissionManager',
+  'places',
   'remoteDebugger',
+  'rocketbar',
+  'secureWindowFactory',
+  'secureWindowManager',
+  'Shortcuts',
   'sourceView',
-  'storage',
   'softwareButtonManager',
+  'storage',
+  'systemDialogManager',
+  'taskManager',
   'telephonySettings',
   'ttlView',
-  'title',
-  'appWindowFactory',
-  'LayoutManager',
-  'activityWindowFactory',
   'visibilityManager',
-  'Applications',
-  'activityWindowFactory',
-  'homescreenLauncher',
-  'ActivityWindowFactory',
-  'visibilityManager',
-  'applications',
-  'layoutManager',
-  'permissionManager'
+  'wallpaperURL'
 ]);
 
 var mocksForBootstrap = new MocksHelper([
-  'Activities',
   'Applications',
-  'DevtoolsView',
-  'DialerRinger',
-  'FtuLauncher',
-  'HomeGesture',
-  'HomescreenLauncher',
-  'MediaRecording',
-  'PermissionManager',
-  'Places',
-  'RemoteDebugger',
-  'Rocketbar',
+  'IccHelper',
   'ScreenManager',
+  'MediaPlaybackManager',
+  'Places',
   'SettingsListener',
   'SettingsURL',
-  'SoftwareButtonManager',
-  'SourceView',
-  'Storage',
-  'TelephonySettings',
-  'SystemDialogManager',
-  'TTLView',
-  'Title',
-  'AppWindowFactory',
-  'VisibilityManager',
-  'LayoutManager',
-  'SecureWindowManager',
-  'SecureWindowFactory',
-  'ActivityWindowFactory',
-  'LockScreenWindowManager',
+  'TaskManager',
   'L10n'
 ]).init();
 
@@ -116,8 +102,20 @@ suite('system/Bootstrap', function() {
   var realDocumentElementDir;
   var realDocumentElementLang;
   var realApplications;
+  var stubById;
+  var fakeElement;
 
   mocksForBootstrap.attachTestHelpers();
+
+  setup(function() {
+    fakeElement = document.createElement('div');
+    stubById = this.sinon.stub(document, 'getElementById')
+                         .returns(fakeElement.cloneNode(true));
+  });
+
+  teardown(function() {
+    stubById.restore();
+  });
 
   suiteSetup(function(done) {
     realNavigatormozApps = navigator.mozApps;

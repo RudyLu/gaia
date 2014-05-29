@@ -92,10 +92,10 @@ Options:
     --restart restart target instance between tests. This option will remove 
         the /data/local/indexedDB and /data/b2g/mozilla folders and restore the 
         device back to a common state
-    --yocto gather power draw data while running tests 
-        (see https://developer.mozilla.org/en-US/docs/Mozilla/Firefox_OS/Platform/Automated_testing/gaia-ui-tests/Gaia_UI_Tests_Run_Tests#Gathering_Power_Draw_Data)
-    --timeout < time in milliseconds >  to set default timeout values (30s for page load timeout, 
-        10s for search timeout and 10s for script timeout) to a common specified value
+    --timeout < time in milliseconds > to set all of the gaiatest and Marionette
+        timeout values to the specified value. Without this set, gaiatest will
+        try to detect the b2g instance and set safe timeouts for search, page
+        and script timeouts.
 
 Testing on a Device
 ===================

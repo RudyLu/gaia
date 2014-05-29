@@ -28,6 +28,24 @@ const IMERender = (function() {
   var cachedWindowHeight = -1;
   var cachedWindowWidth = -1;
 
+  const ariaLabelMap = {
+    '⇪': 'upperCaseKey',
+    '⌫': 'backSpaceKey',
+    '&nbsp': 'spaceKey',
+    '↵': 'returnKey',
+    '.': 'periodKey',
+    ',': 'commaKey',
+    ':': 'colonKey',
+    ';': 'semicolonKey',
+    '?': 'questionMarkKey',
+    '!': 'exclamationPointKey',
+    '(': 'leftBracketKey',
+    ')': 'rightBracketKey',
+    '"': 'doubleQuoteKey',
+    '«': 'leftDoubleAngleQuoteKey',
+    '»': 'rightDoubleAngleQuoteKey'
+  };
+
   window.addEventListener('resize', function kr_onresize() {
     cachedWindowHeight = window.innerHeight;
     cachedWindowWidth = window.innerWidth;
@@ -87,10 +105,15 @@ const IMERender = (function() {
       capsLockKey.classList.remove('kbr-key-active');
       capsLockKey.classList.remove('kbr-key-hold');
     }
+
+    capsLockKey.setAttribute('aria-pressed', !!state);
   };
 
   // Draw the keyboard and its components. Meat is here.
   var draw = function kr_draw(layout, flags, callback) {
+    perfTimer.printTime('IMERender.draw');
+    perfTimer.startTimer('IMERender.draw');
+
     flags = flags || {};
 
     var supportsSwitching = 'mozInputMethod' in navigator ?
@@ -142,6 +165,12 @@ const IMERender = (function() {
         requestAnimationFrame(callback);
       }
     }
+
+    // XXX We have to wait for layout to complete before
+    // return this function
+    container.offsetWidth;
+
+    perfTimer.printTime('BLOCKING IMERender.draw', 'IMERender.draw');
   };
 
   /**
@@ -206,6 +235,8 @@ const IMERender = (function() {
         var ratio = key.ratio || 1;
         rowLayoutWidth += ratio;
 
+        var outputChar = flags.uppercase ? upperCaseKeyChar : keyChar;
+
         var keyWidth = placeHolderWidth * ratio;
         var dataset = [{'key': 'row', 'value': nrow}];
         dataset.push({'key': 'column', 'value': ncolumn});
@@ -222,9 +253,11 @@ const IMERender = (function() {
             value: 'true'
           });
         }
-        var outputChar = flags.uppercase ? upperCaseKeyChar : keyChar;
+
+        dataset.push({'key': 'lowercaseLabel', 'value': keyChar });
+
         kbRow.appendChild(buildKey(outputChar, className, keyWidth + 'px',
-          dataset, key.altNote, attributeList));
+          dataset, key.altNote, attributeList, getAriaLabel(key)));
       }));
 
       kbRow.dataset.layoutWidth = rowLayoutWidth;
@@ -251,27 +284,28 @@ const IMERender = (function() {
     }
   };
 
-  var showIME = function hm_showIME() {
-    delete ime.dataset.hidden;
+  var getAriaLabel = function mk_getAriaLabel(key) {
+    var _ = (navigator.mozL10n &&
+             navigator.mozL10n.readyState === 'complete') ?
+      navigator.mozL10n.get : function() { return ''; };
+    return _(key.ariaLabel || ariaLabelMap[key.value] || key.value);
   };
 
-  var hideIME = function km_hideIME() {
-    ime.dataset.hidden = 'true';
-  };
-
-  // Highlight a key
-  var highlightKey = function kr_updateKeyHighlight(key, alternativeKey) {
+  // Highlight the key according to the case.
+  var highlightKey = function kr_updateKeyHighlight(key, options) {
     key.classList.add('highlighted');
 
-    if (alternativeKey) {
-      var spanToReplace = key.querySelector('.visual-wrapper span');
-      spanToReplace.textContent = alternativeKey;
+    // Show lowercase pop.
+    if (options &&
+        (!options.isUpperCase && !options.isUpperCaseLocked)) {
+      key.classList.add('lowercase');
     }
   };
 
   // Unhighlight a key
   var unHighlightKey = function kr_unHighlightKey(key) {
     key.classList.remove('highlighted');
+    key.classList.remove('lowercase');
   };
 
   // Show pending symbols with highlight (selection) if provided
@@ -312,9 +346,11 @@ const IMERender = (function() {
     }
   };
 
-  var toggleCandidatePanel = function(expand) {
+  var toggleCandidatePanel = function(expand, resetScroll) {
     var candidatePanel = activeIme.querySelector('.keyboard-candidate-panel');
-    candidatePanel.scrollTop = candidatePanel.scrollLeft = 0;
+    if (resetScroll) {
+      candidatePanel.scrollTop = candidatePanel.scrollLeft = 0;
+    }
 
     if (expand) {
       ime.classList.remove('candidate-panel');
@@ -334,6 +370,14 @@ const IMERender = (function() {
   var showCandidates = function(candidates, noWindowHeightUpdate) {
     if (!activeIme)
       return;
+
+    if (inputMethodName == 'vietnamese' && candidates.length) {
+      // In the Vietnamese IM, the candidates correspond to tones.
+      // There will be either 2 or 5. All must appear.
+      numberOfCandidatesPerRow = candidates.length;
+      candidateUnitWidth =
+        Math.floor(ime.clientWidth / numberOfCandidatesPerRow);
+    }
 
     // TODO: Save the element
     var candidatePanel = activeIme.querySelector('.keyboard-candidate-panel');
@@ -371,6 +415,7 @@ const IMERender = (function() {
 
           // Each candidate gets its own div
           var div = document.createElement('div');
+          div.setAttribute('role', 'presentation');
           suggestContainer.appendChild(div);
 
           var text, data, correction = false;
@@ -387,6 +432,7 @@ const IMERender = (function() {
           }
 
           var span = fitText(div, text);
+          span.setAttribute('role', 'option');
           span.dataset.selection = true;
           span.dataset.data = data;
           if (correction)
@@ -438,7 +484,7 @@ const IMERender = (function() {
         candidatePanel.innerHTML = '';
 
         candidatePanelToggleButton.style.display = 'none';
-        toggleCandidatePanel(false);
+        toggleCandidatePanel(false, false);
         docFragment = candidatesFragmentCode(1, candidates, true);
         candidatePanel.appendChild(docFragment);
       }
@@ -485,11 +531,20 @@ const IMERender = (function() {
     var candidatesLength = candidates.length;
 
     for (var i = 0; i < candidatesLength; i++) {
-      var cand = candidates[i][0];
-      var data = candidates[i][1];
-      var span = document.createElement('span');
-      var unit = (cand.length >> 1) + 1;
+      var cand, data;
+      if (typeof candidates[i] == 'string') {
+        cand = data = candidates[i];
+      } else {
+        cand = candidates[i][0];
+        data = candidates[i][1];
+      }
 
+      var unit = (cand.length >> 1) + 1;
+      if (inputMethodName == 'vietnamese') {
+        unit = 1;
+      }
+
+      var span = document.createElement('span');
       span.textContent = cand;
       span.dataset.selection = true;
       span.dataset.data = data;
@@ -569,7 +624,8 @@ const IMERender = (function() {
       // characters in the original and the alternative
       var width = 0.75 * key.offsetWidth / keycharwidth * alt.length;
 
-      content.appendChild(buildKey(alt, '', width + 'px', dataset));
+      content.appendChild(buildKey(alt, '', width + 'px', dataset, null, null,
+        getAriaLabel(key)));
     });
     menu.innerHTML = '';
     menu.appendChild(content);
@@ -640,58 +696,60 @@ const IMERender = (function() {
 
   // Recalculate dimensions for the current render
   var resizeUI = function(layout, callback) {
+    perfTimer.printTime('IMERender.resizeUI');
+    perfTimer.startTimer('IMERender.resizeUI');
+
     var RESIZE_UI_TIMEOUT = 0;
 
-    // This function consists of three actual functions
+    // This function consists of two actual functions
     // 1. setKeyWidth (sets the correct width for every key)
-    // 2. firstAndLastKeyLarger (makes sure all keys fill up available space)
-    // 3. getVisualData (stores visual offsets in internal array)
+    // 2. getVisualData (stores visual offsets in internal array)
     // these are seperated into separate groups because they do similar
     // operations and minimizing reflow causes because of this
-
     function setKeyWidth() {
-      var ratio, keys;
+      perfTimer.printTime('IMERender.resizeUI:setKeyWidth');
+      perfTimer.startTimer('IMERender.resizeUI:setKeyWidth');
 
-      for (var r = 0, row; row = rows[r]; r += 1) {
-        keys = row.childNodes;
-        for (var k = 0, key; key = keys[k]; k += 1) {
-          ratio = layout.keys[r][k].ratio || 1;
+      [].forEach.call(rows, function(rowEl, rIx) {
+        var rowLayoutWidth = parseInt(rowEl.dataset.layoutWidth, 10);
+        var keysInRow = rowEl.childNodes.length;
 
-          key.style.width = Math.floor(placeHolderWidth * ratio) + 'px';
-        }
-      }
+        [].forEach.call(rowEl.childNodes, function(keyEl, kIx) {
+          var key = layout.keys[rIx][kIx];
+          var wrapperRatio = key.ratio || 1;
+          var keyRatio = wrapperRatio;
 
-      setTimeout(firstAndLastKeyLarger, RESIZE_UI_TIMEOUT);
-    }
+          // First and last keys should fill up space
+          if (kIx === 0) {
+            keyEl.classList.add('float-key-first');
+            keyRatio = wrapperRatio + ((layoutWidth - rowLayoutWidth) / 2);
+          }
+          else if (kIx === keysInRow - 1) {
+            keyEl.classList.add('float-key-last');
+            keyRatio = wrapperRatio + ((layoutWidth - rowLayoutWidth) / 2);
+          }
 
-    function firstAndLastKeyLarger() {
-      for (var r = 0, row = rows[r]; r < rows.length; row = rows[++r]) {
-        // Only do rows that have space on left or right side
-        var rowLayoutWidth = parseInt(row.dataset.layoutWidth, 10);
-        if (rowLayoutWidth === layoutWidth) {
-          continue;
-        }
+          keyEl.style.width = (placeHolderWidth * keyRatio | 0) + 'px';
 
-        var allKeys = row.childNodes;
-        var keys = [allKeys[0], allKeys[allKeys.length - 1]];
-
-        for (var k = 0, key = keys[k]; k < keys.length; key = keys[++k]) {
-          var visualKey = key.querySelector('.visual-wrapper');
-          var ratio = layout.keys[r][k].ratio || 1;
-          // keep visual key width
-          visualKey.style.width = visualKey.offsetWidth + 'px';
-
-          // calculate new tap area
-          var newRatio = ratio + ((layoutWidth - rowLayoutWidth) / 2);
-          key.style.width = Math.floor(placeHolderWidth * newRatio) + 'px';
-          key.classList.add('float-key-' + (k === 0 ? 'first' : 'last'));
-        }
-      }
+          // Default aligns 100%, if they differ set width on the wrapper
+          if (keyRatio !== wrapperRatio) {
+            var wrapperEl = keyEl.querySelector('.visual-wrapper');
+            wrapperEl.style.width =
+              (placeHolderWidth * wrapperRatio | 0) + 'px';
+          }
+        });
+      });
 
       setTimeout(getVisualData, RESIZE_UI_TIMEOUT);
+
+      perfTimer.printTime('BLOCKING IMERender.resizeUI:setKeyWidth',
+        'IMERender.resizeUI:setKeyWidth');
     }
 
     function getVisualData() {
+      perfTimer.printTime('IMERender.resizeUI:getVisualData');
+      perfTimer.startTimer('IMERender.resizeUI:getVisualData');
+
       // Now that key sizes have been set and adjusted for the row,
       // loop again and record the size and position of each. If we
       // do this as part of the loop above, we get bad position data.
@@ -716,6 +774,9 @@ const IMERender = (function() {
         ime.querySelectorAll('.candidate-row span'),
         function(item) {
           var unit = (item.textContent.length >> 1) + 1;
+          if (inputMethodName == 'vietnamese') {
+            unit = 1;
+          }
           item.style.width = (unit * candidateUnitWidth - 2) + 'px';
         }
       );
@@ -723,6 +784,13 @@ const IMERender = (function() {
       if (callback) {
         callback();
       }
+
+      // XXX We have to wait for layout to complete before
+      // return this function
+      ime.offsetWidth;
+
+      perfTimer.printTime('BLOCKING IMERender.resizeUI:getVisualData',
+        'IMERender.resizeUI:getVisualData');
     }
 
     var changeScale;
@@ -761,6 +829,12 @@ const IMERender = (function() {
     var rows = activeIme.querySelectorAll('.keyboard-row');
 
     setKeyWidth();
+
+    // XXX We have to wait for layout to complete before
+    // return this function
+    activeIme.offsetWidth;
+
+    perfTimer.printTime('BLOCKING IMERender.resizeUI', 'IMERender.resizeUI');
   };
 
   //
@@ -783,7 +857,13 @@ const IMERender = (function() {
   };
 
   var candidatePanelCode = function() {
+    var _ = (navigator.mozL10n &&
+             navigator.mozL10n.readyState === 'complete') ?
+      navigator.mozL10n.get : function(x) { return x };
+
     var candidatePanel = document.createElement('div');
+    candidatePanel.setAttribute('role', 'group');
+    candidatePanel.setAttribute('aria-label', _('wordSuggestions'));
     candidatePanel.classList.add('keyboard-candidate-panel');
     if (inputMethodName)
       candidatePanel.classList.add(inputMethodName);
@@ -791,10 +871,13 @@ const IMERender = (function() {
     var dismissButton = document.createElement('div');
     dismissButton.classList.add('dismiss-suggestions-button');
     dismissButton.classList.add('hide');
+    dismissButton.setAttribute('role', 'button');
+    dismissButton.setAttribute('aria-label', _('dismiss'));
     candidatePanel.appendChild(dismissButton);
 
     var suggestionContainer = document.createElement('div');
     suggestionContainer.classList.add('suggestions-container');
+    suggestionContainer.setAttribute('role', 'listbox');
     candidatePanel.appendChild(suggestionContainer);
 
     return candidatePanel;
@@ -816,7 +899,7 @@ const IMERender = (function() {
   };
 
   var buildKey = function buildKey(label, className, width, dataset, altNote,
-                                   attributeList) {
+                                   attributeList, ariaLabel) {
 
     var altNoteNode;
     if (altNote) {
@@ -839,14 +922,16 @@ const IMERender = (function() {
       contentNode.dataset[data.key] = data.value;
     });
 
-    if (contentNode.dataset.keycode != KeyboardEvent.DOM_VK_RETURN &&
-        contentNode.dataset.keycode != KeyboardEvent.DOM_VK_BACK_SPACE) {
+    if (!contentNode.classList.contains('special-key')) {
       // The 'key' role tells an assistive technology that these buttons
       // are used for composing text or numbers, and should be easier to
-      // activate than usual buttons. We keep return and backspace as
+      // activate than usual buttons. We keep special keys, like backsapce, as
       // buttons so that their activation is not performed by mistake.
       contentNode.setAttribute('role', 'key');
     }
+
+    // Set aria-label
+    contentNode.setAttribute('aria-label', ariaLabel);
 
     var vWrapperNode = document.createElement('span');
     vWrapperNode.className = 'visual-wrapper';
@@ -855,9 +940,21 @@ const IMERender = (function() {
     // Using innerHTML here because some labels (so far only the &nbsp; in the
     // space key) can be HTML entities.
     labelNode.innerHTML = label;
+    labelNode.className = 'key-element';
     labelNode.dataset.label = label;
-
     vWrapperNode.appendChild(labelNode);
+
+    // Add uppercase and lowercase pop-up for highlighted key
+    labelNode = document.createElement('span');
+    labelNode.innerHTML = label;
+    labelNode.className = 'uppercase popup';
+    vWrapperNode.appendChild(labelNode);
+
+    labelNode = document.createElement('span');
+    labelNode.innerHTML = contentNode.dataset.lowercaseLabel;
+    labelNode.className = 'lowercase popup';
+    vWrapperNode.appendChild(labelNode);
+
     if (altNoteNode) {
       vWrapperNode.appendChild(altNoteNode);
     }
@@ -979,8 +1076,6 @@ const IMERender = (function() {
     get menu() {
       return menu;
     },
-    'hideIME': hideIME,
-    'showIME': showIME,
     'highlightKey': highlightKey,
     'unHighlightKey': unHighlightKey,
     'showAlternativesCharMenu': showAlternativesCharMenu,

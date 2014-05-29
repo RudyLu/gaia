@@ -1,4 +1,5 @@
 (function() {
+
   'use strict';
   /* global Search, UrlHelper */
 
@@ -29,23 +30,22 @@
 
     providers: {},
 
+    searchResults: document.getElementById('search-results'),
+    newTabPage: document.getElementById('newtab-page'),
+
     init: function() {
       // Initialize the parent port connection
       var self = this;
       navigator.mozApps.getSelf().onsuccess = function() {
         var app = this.result;
-        app.connect('search-results').then(
-          function onConnectionAccepted(ports) {
-            ports.forEach(function(port) {
-              self._port = port;
-            });
-
-            setConnectionHandler();
-          },
-          function onConnectionRejected(reason) {
-            console.log('Error connecting: ' + reason + '\n');
-          }
-        );
+        app.connect('search-results').then(function onConnAccepted(ports) {
+          ports.forEach(function(port) {
+            self._port = port;
+          });
+          setConnectionHandler();
+        }, function onConnectionRejected(reason) {
+          console.log('Error connecting: ' + reason + '\n');
+        });
       };
 
       function setConnectionHandler() {
@@ -63,7 +63,7 @@
 
       function initializeProviders() {
         for (var i in self.providers) {
-          self.providers[i].init();
+          self.providers[i].init(self);
         }
       }
     },
@@ -72,7 +72,16 @@
      * Adds a search provider
      */
     provider: function(provider) {
-      this.providers[provider.name] = provider;
+      if (!(provider.name in this.providers)) {
+        this.providers[provider.name] = provider;
+      }
+    },
+
+    /**
+     * Removes a search provider
+     */
+    removeProvider: function(provider) {
+      delete this.providers[provider.name];
     },
 
     /**
@@ -89,6 +98,8 @@
      */
     change: function(msg) {
       clearTimeout(this.changeTimeout);
+
+      this.showSearchResults();
 
       var input = msg.data.input;
       var providers = this.providers;
@@ -110,10 +121,7 @@
      */
     expandSearch: function(query) {
       this.clear();
-      var webProvider = this.providers.WebResults;
-      webProvider.search(query, function onCollect(results) {
-        webProvider.render(results);
-      });
+      this.providers.WebResults.fullscreen(query);
       this.providers.BGImage.fetchImage(query);
     },
 
@@ -150,7 +158,7 @@
         }
         var fuzzyDedupeIds = [host, dedupeId];
 
-         // Try to use some simple domain heuristics to find duplicates
+        // Try to use some simple domain heuristics to find duplicates
         // E.g, we would want to de-dupe between:
         // m.site.org and touch.site.org, sub.m.site.org and m.site.org
         // We also try to avoid deduping on second level domains by
@@ -235,6 +243,32 @@
       }
     },
 
+    showBlank: function() {
+      if (this.searchResults) {
+        this.newTabPage.classList.add('hidden');
+        this.searchResults.classList.add('hidden');
+      }
+    },
+
+    /**
+     * Called when the user displays the task manager
+     */
+    showTaskManager: function() {
+      this.showBlank();
+    },
+
+    showSearchResults: function() {
+      if (this.searchResults) {
+        this.searchResults.classList.remove('hidden');
+        this.newTabPage.classList.add('hidden');
+      }
+    },
+
+    showNewTabPage: function() {
+      this.searchResults.classList.add('hidden');
+      this.newTabPage.classList.remove('hidden');
+    },
+
     /**
      * Aborts all in-progress provider requests.
      */
@@ -259,22 +293,19 @@
      * @param {Object} config Optional configuration.
      */
     navigate: function(url, config) {
-      var features = {
-        remote: true,
-        useAsyncPanZoom: true
-      };
+      var activity = new window.MozActivity({name: 'view', data: {
+        type: 'url',
+        url: url
+      }});
+      // Keep jshint happy
+      activity.onsuccess = function() {};
+    },
 
-      config = config || {};
-      for (var i in config) {
-        features[i] = config[i];
-      }
-
-      var featureStr = Object.keys(features)
-        .map(function(key) {
-          return encodeURIComponent(key) + '=' +
-            encodeURIComponent(features[key]);
-        }).join(',');
-      window.open(url, '_blank', featureStr);
+    requestScreenshot: function(url) {
+      this._port.postMessage({
+        'action': 'request-screenshot',
+        'url': url
+      });
     },
 
     /**
@@ -282,6 +313,7 @@
      */
     setInput: function(input) {
       this._port.postMessage({
+        'action': 'input',
         'input': input
       });
       this.expandSearch(input);

@@ -1,0 +1,10 @@
+{
+  "system": {
+    "src": ["apps/system/js/**/*.js",
+            "!apps/system/js/lockscreen_window_manager.js"
+    ],
+    "options": {
+     "destination": "docs/system"
+    }
+  }
+}

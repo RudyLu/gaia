@@ -14,33 +14,32 @@ manifest.appcache
 /apps/homescreen/everything.me/config/local.json
 /apps/costcontrol/js/config.json
 /apps/sms/js/blacklist.json
-/test_apps/test-agent/test/config.json
-
-/apps/*/test/unit/_sandbox.html
-/apps/*/test/unit/_proxy.html
-/apps/*/locales-obj
-/apps/*/shared
 /apps/settings/resources/network.json
 /apps/settings/resources/support.json
 /apps/settings/resources/sensors.json
 /apps/settings/resources/findmydevice.json
 /apps/system/resources/icc.json
 /apps/system/resources/wapuaprof.json
-/test_apps/*/test/unit/_sandbox.html
-/test_apps/*/test/unit/_proxy.html
-/test_apps/*/locales-obj
-/test_external_apps/*/locales-obj
-/showcase_apps/*/test/unit/_sandbox.html
-/showcase_apps/*/test/unit/_proxy.html
-/showcase_apps/*/locales-obj
+
+/apps/*/test/unit/_sandbox.html
+/apps/*/test/unit/_proxy.html
+/apps/*/locales-obj
+
+/dev_apps/test-agent/test/config.json
+/dev_apps/*/test/unit/_sandbox.html
+/dev_apps/*/test/unit/_proxy.html
+/dev_apps/*/locales-obj
 
 /shared/test/integration/node_modules
 /shared/resources/keyboard_layouts.json
+/shared/pages/import/js/parameters.js
 
 /b2g
 /profile/
 /profile-debug/
 /profile-test/
+/profile-gaia-test-b2g/
+/profile-gaia-test-firefox/
 /profile.tar.gz
 /.xulrunner-url
 /xulrunner/
@@ -53,7 +52,6 @@ manifest.appcache
 /build/config/custom-settings.json
 /build_stage/
 /local.mk
-/.b2g.mk
 
 /tools/xpcwindow/vendor/
 
@@ -70,9 +68,3 @@ mozilla-b2g-gaia-node-modules-*
 /.cproject
 /.project
 /.settings
-
-/external-apps/*/test/unit/_sandbox.html
-/external-apps/*/test/unit/_proxy.html
-
-/test_external_apps/*/test/unit/_sandbox.html
-/test_external_apps/*/test/unit/_proxy.html

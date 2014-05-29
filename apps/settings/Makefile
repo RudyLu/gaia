@@ -3,12 +3,18 @@
 # # the root Makefile.  If you know what you're doing, you can manually define
 # # XULRUNNERSDK and XPCSHELLSDK on the command line.
 ifndef XPCSHELLSDK
-$(error This Makefile needs to be run by the root gaia makefile. Use `make APP=camera` from the root gaia directory.)
+$(error This Makefile needs to be run by the root gaia makefile. Use `make APP=settings` from the root gaia directory.)
 endif
 
 -include $(PWD)/build/common.mk
 
-.PHONY: all clean $(STAGE_APP_DIR)/resources/gaia_commit.txt $(STAGE_APP_DIR)/resources/support.json $(STAGE_APP_DIR)/resources/sensors.json $(STAGE_APP_DIR)/js/main.js
+ifeq ($(GAIA_OPTIMIZE), 1)
+	GAIA_SETTINGS_MINIFY?=uglify2
+else
+	GAIA_SETTINGS_MINIFY?=none
+endif
+
+.PHONY: all $(STAGE_APP_DIR)/resources/gaia_commit.txt $(STAGE_APP_DIR)/resources/support.json $(STAGE_APP_DIR)/resources/sensors.json $(STAGE_APP_DIR)/js/main.js
 
 all: $(STAGE_APP_DIR)/resources/gaia_commit.txt $(STAGE_APP_DIR)/resources/support.json $(STAGE_APP_DIR)/resources/sensors.json $(STAGE_APP_DIR)/js/main.js
 
@@ -27,12 +33,11 @@ else
 		date +%s >> $(STAGE_APP_DIR)/resources/gaia_commit.txt;
 endif
 
-$(STAGE_APP_DIR): clean
+$(STAGE_APP_DIR):
 	mkdir -p $(STAGE_APP_DIR)
 
 $(STAGE_APP_DIR)/js/main.js: | $(STAGE_APP_DIR)
-	cp -rp ../../shared $(STAGE_APP_DIR)/shared
-	$(XULRUNNERSDK) $(XPCSHELLSDK) ../../build/r.js -o build/require_config.jslike
+	$(XULRUNNERSDK) $(XPCSHELLSDK) ../../build/r.js -o build/settings.build.jslike optimize=$(GAIA_SETTINGS_MINIFY)
 
 $(STAGE_APP_DIR)/resources/support.json $(STAGE_APP_DIR)/resources/sensors.json: build/build.js $(STAGE_APP_DIR)
 	@$(call run-js-command,app/build)

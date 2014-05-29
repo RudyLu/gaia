@@ -1,5 +1,5 @@
 'use strict';
-/*global applications, AppWindowManager, AppWindow */
+/*global applications, AppWindowManager, AppWindow, rocketbar */
 
 (function(window) {
   /**
@@ -10,7 +10,6 @@
   var WrapperFactory = {
     init: function wf_init() {
       window.addEventListener('mozbrowseropenwindow', this, true);
-      // Use capture in order to catch the event before PopupManager does
     },
 
     handleEvent: function wf_handleEvent(evt) {
@@ -35,6 +34,12 @@
           acc[decodeURIComponent(feature[0])] = decodeURIComponent(feature[1]);
           return acc;
         }, {});
+
+      if (features.features === 'rocketbarstartpage') {
+        evt.stopImmediatePropagation();
+        rocketbar.showNewTabPage();
+        return;
+      }
 
       // Handles only call to window.open with `remote=true` feature.
       if (!('remote' in features) || features.remote !== 'true') {
@@ -61,7 +66,6 @@
       }
 
       // So, we are going to open a remote window.
-      // Now, avoid PopupManager listener to be fired.
       evt.stopImmediatePropagation();
 
       var name = detail.name;

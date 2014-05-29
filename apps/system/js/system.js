@@ -33,11 +33,6 @@
      */
     slowTransition: false,
 
-    publish: function sys_publish(eventName, detail) {
-      var evt = new CustomEvent(eventName, { detail: detail });
-      window.dispatchEvent(evt);
-    },
-
     debug: function sys_debug() {
       if (DEBUG) {
         console.log('[System]' +
@@ -57,6 +52,16 @@
         throw new Error('dump');
       } catch (e) {
         console.log(e.stack);
+      }
+    },
+
+    get locked() {
+      // Someone ask this state too early.
+      if ('undefined' === typeof window.lockScreenWindowManager) {
+        return false;
+      } else {
+        // Map it from the manager who actually manage the state.
+        return window.lockScreenWindowManager.states.active;
       }
     }
   };

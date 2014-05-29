@@ -4,8 +4,7 @@
 /*global Template, Utils, Threads, Contacts, Threads,
          WaitingScreen, MozSmsFilter, MessageManager, TimeHeaders,
          Drafts, Thread, ThreadUI, OptionMenu, ActivityPicker,
-         PerformanceTestingHelper, StickyHeader */
-
+         PerformanceTestingHelper, StickyHeader, Navigation */
 /*exported ThreadListUI */
 (function(exports) {
 'use strict';
@@ -43,8 +42,14 @@ var ThreadListUI = {
     }, this);
 
     this.mainWrapper = document.getElementById('main-wrapper');
+    this.composerButton = document.getElementById('icon-add');
 
     this.delNumList = [];
+
+    // TODO this should probably move to a "WrapperView" class
+    this.composerButton.addEventListener(
+      'click', this.launchComposer.bind(this)
+    );
 
     this.checkAllButton.addEventListener(
       'click', this.toggleCheckedAll.bind(this, true)
@@ -84,6 +89,12 @@ var ThreadListUI = {
 
     this.sticky =
       new StickyHeader(this.container, document.getElementById('sticky'));
+  },
+
+  beforeLeave: function thlui_beforeLeave() {
+    // This should be in afterLeave, but the edit mode interface does not seem
+    // to slide correctly. Bug 1009541
+    this.cancelEdit();
   },
 
   getAllInputs: function thlui_getAllInputs() {
@@ -158,7 +169,13 @@ var ThreadListUI = {
         n: others
       });
 
-      photo.style.backgroundImage = 'url(' + src + ')';
+      if (src === '') {
+        photo.style.backgroundImage = null;
+        photo.parentNode.classList.add('empty');
+      } else {
+        photo.style.backgroundImage = 'url(' + src + ')';
+        photo.parentNode.classList.remove('empty');
+      }
     });
   },
 
@@ -174,8 +191,31 @@ var ThreadListUI = {
           this.checkInputs();
         }
 
+        if (event.target.nodeName === 'LABEL') {
+          return;
+        }
+
         if ((draftId = this.draftLinks.get(event.target))) {
+          // TODO: Bug 1010216: remove this
           ThreadUI.draft = Drafts.get(draftId);
+        }
+
+        var parent = event.target.parentNode;
+        var parentThreadId = parent.dataset.threadId;
+
+        if (parentThreadId) {
+          event.preventDefault();
+          // TODO Bug 1014226 will introduce a draftId instead of threadId for
+          // drafts, this will allow removing the test with is-draft here.
+          if (parent.classList.contains('is-draft')) {
+            Navigation.toPanel('composer', {
+              draftId: +parentThreadId
+            });
+          } else {
+            Navigation.toPanel('thread', {
+              id: +parentThreadId
+            });
+          }
         }
 
         break;
@@ -183,6 +223,12 @@ var ThreadListUI = {
         event.preventDefault();
         break;
     }
+  },
+
+  launchComposer: function thui_launchComposer(e) {
+    // prevent following the link, see also bug 1014219
+    e.preventDefault();
+    Navigation.toPanel('composer');
   },
 
   checkInputs: function thlui_checkInputs() {
@@ -513,6 +559,7 @@ var ThreadListUI = {
     li.dataset.threadId = id;
     li.dataset.time = timestamp;
     li.dataset.lastMessageType = type;
+    li.classList.add('threadlist-item');
 
     if (record.unreadCount > 0) {
       li.classList.add('unread');
@@ -539,7 +586,7 @@ var ThreadListUI = {
 
     // Render markup with thread data
     li.innerHTML = this.tmpl.thread.interpolate({
-      hash: isDraft ? '#new' : '#thread=' + id,
+      hash: isDraft ? '#composer' : '#thread=' + id,
       mode: isDraft ? 'drafts' : 'threads',
       id: isDraft ? draftId : id,
       number: number,
@@ -612,9 +659,11 @@ var ThreadListUI = {
       // remove the current thread node in order to place the new one properly
       this.removeThread(thread.id);
     }
-    this.appendThread(thread);
+
     this.setEmpty(false);
-    this.sticky.refresh();
+    if (this.appendThread(thread)) {
+      this.sticky.refresh();
+    }
   },
 
   onMessageSending: function thlui_onMessageSending(message) {
@@ -625,9 +674,17 @@ var ThreadListUI = {
     this.updateThread(message, { unread: true });
   },
 
+  /**
+   * Append a thread to the global threads container. Creates a time container
+   * (i.e. for a day or some other time period) for this thread if it doesn't
+   * exist already.
+   *
+   * @return Boolean true if a time container was created, false otherwise
+   */
   appendThread: function thlui_appendThread(thread) {
     var timestamp = +thread.timestamp;
     var drafts = Drafts.byThreadId(thread.id);
+    var firstThreadInContainer = false;
 
     if (drafts.length) {
       timestamp = Math.max(drafts.latest.timestamp, timestamp);
@@ -652,6 +709,8 @@ var ThreadListUI = {
       threadsContainer = threadsContainerWrapper.childNodes[1];
       // Place our new content in the DOM
       ThreadListUI.insertThreadContainer(threadsContainerWrapper, timestamp);
+      // We had to create a container, so this will be the first thread in it.
+      firstThreadInContainer = true;
     }
 
     // Where have I to place the new thread?
@@ -671,6 +730,8 @@ var ThreadListUI = {
     if (this.inEditMode) {
       this.checkInputs();
     }
+
+    return firstThreadInContainer;
   },
 
   // Adds a new grouping header if necessary (today, tomorrow, ...)
@@ -685,7 +746,7 @@ var ThreadListUI = {
     // Append 'time-update' state
     headerDOM.dataset.timeUpdate = 'repeat';
     headerDOM.dataset.time = timestamp;
-    headerDOM.dataset.isThread = true;
+    headerDOM.dataset.dateOnly = true;
 
     // Create UL DOM Element
     var threadsContainerDOM = document.createElement('ul');
@@ -701,7 +762,7 @@ var ThreadListUI = {
   },
 
   // Method for updating all contact info after creating a contact
-  updateContactsInfo: function mm_updateContactsInfo() {
+  updateContactsInfo: function thlui_updateContactsInfo() {
     Contacts.clearUnknown();
     // Prevents cases where updateContactsInfo method is called
     // before ThreadListUI.container exists (as observed by errors

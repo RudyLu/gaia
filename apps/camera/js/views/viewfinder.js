@@ -8,51 +8,16 @@ define(function(require, exports, module) {
 var bind = require('lib/bind');
 var CameraUtils = require('lib/camera-utils');
 var debug = require('debug')('view:viewfinder');
-var constants = require('config/camera');
 var View = require('vendor/view');
 
 /**
  * Locals
  */
 
-var lastTouchA = null;
-var lastTouchB = null;
-var isScaling = false;
 var isZoomEnabled = false;
-var sensitivity = constants.ZOOM_GESTURE_SENSITIVITY;
 var scaleSizeTo = {
   fill: CameraUtils.scaleSizeToFillViewport,
   fit: CameraUtils.scaleSizeToFitViewport
-};
-
-var getNewTouchA = function(touches) {
-  if (!lastTouchA) return null;
-  for (var i = 0, length = touches.length, touch; i < length; i++) {
-    touch = touches[i];
-    if (touch.identifier === lastTouchA.identifier) return touch;
-  }
-  return null;
-};
-
-var getNewTouchB = function(touches) {
-  if (!lastTouchB) return null;
-  for (var i = 0, length = touches.length, touch; i < length; i++) {
-    touch = touches[i];
-    if (touch.identifier === lastTouchB.identifier) return touch;
-  }
-  return null;
-};
-
-var getDeltaZoom = function(touchA, touchB) {
-  if (!touchA || !lastTouchA || !touchB || !lastTouchB) return 0;
-
-  var oldDistance = Math.sqrt(
-                      Math.pow(lastTouchB.pageX - lastTouchA.pageX, 2) +
-                      Math.pow(lastTouchB.pageY - lastTouchA.pageY, 2));
-  var newDistance = Math.sqrt(
-                      Math.pow(touchB.pageX - touchA.pageX, 2) +
-                      Math.pow(touchB.pageY - touchA.pageY, 2));
-  return newDistance - oldDistance;
 };
 
 var clamp = function(value, minimum, maximum) {
@@ -68,65 +33,35 @@ module.exports = View.extend({
     this.render();
 
     bind(this.el, 'click', this.onClick);
-    bind(this.el, 'touchstart', this.onTouchStart);
-    bind(this.el, 'touchmove', this.onTouchMove);
-    bind(this.el, 'touchend', this.onTouchEnd);
     bind(this.el, 'animationend', this.onShutterEnd);
+
+    this.getSize();
   },
 
   render: function() {
     this.el.innerHTML = this.template();
-
     // Find elements
     this.els.frame = this.find('.js-frame');
     this.els.video = this.find('.js-video');
     this.els.videoContainer = this.find('.js-video-container');
   },
 
+  /**
+   * Stores the container size.
+   *
+   * We're using window dimensions
+   * here to avoid causing costly
+   * reflows.
+   *
+   * @public
+   */
+  getSize: function() {
+    this.width = window.innerWidth;
+    this.height = window.innerHeight;
+  },
+
   onClick: function(e) {
-    this.emit('click');
-  },
-
-  onTouchStart: function(evt) {
-    var touchCount = evt.targetTouches.length;
-    if (touchCount === 2) {
-      lastTouchA = evt.targetTouches[0];
-      lastTouchB = evt.targetTouches[1];
-      isScaling = true;
-      this.emit('pinchStart');
-
-      evt.preventDefault();
-    }
-  },
-
-  onTouchMove: function(evt) {
-    if (!isScaling) {
-      return;
-    }
-
-    var touchA = getNewTouchA(evt.targetTouches);
-    var touchB = getNewTouchB(evt.targetTouches);
-
-    var deltaZoom = getDeltaZoom(touchA, touchB);
-    var zoom = this._zoom * (1 + (deltaZoom / sensitivity));
-
-    this.setZoom(zoom);
-
-    this.emit('pinchChange', this._zoom);
-
-    lastTouchA = touchA;
-    lastTouchB = touchB;
-  },
-
-  onTouchEnd: function(evt) {
-    if (!isScaling) {
-      return;
-    }
-
-    if (evt.targetTouches.length < 2) {
-      isScaling = false;
-      this.emit('pinchEnd');
-    }
+    this.emit('click', e);
   },
 
   enableZoom: function(minimumZoom, maximumZoom) {
@@ -179,6 +114,16 @@ module.exports = View.extend({
     this._zoom = clamp(zoom, this._minimumZoom, this._maximumZoom);
   },
 
+  _useZoomPreviewAdjustment: false,
+
+  enableZoomPreviewAdjustment: function() {
+    this._useZoomPreviewAdjustment = true;
+  },
+
+  disableZoomPreviewAdjustment: function() {
+    this._useZoomPreviewAdjustment = false;
+  },
+
   /**
    * Adjust the scale of the <video/> tag to compensate for the inability
    * of the Camera API to zoom the preview stream beyond a certain point.
@@ -186,7 +131,9 @@ module.exports = View.extend({
    * calculated by `Camera.prototype.getZoomPreviewAdjustment()`.
    */
   setZoomPreviewAdjustment: function(zoomPreviewAdjustment) {
-    this.els.video.style.transform = 'scale(' + zoomPreviewAdjustment + ')';
+    if (this._useZoomPreviewAdjustment) {
+      this.els.video.style.transform = 'scale(' + zoomPreviewAdjustment + ')';
+    }
   },
 
   stopStream: function() {
@@ -194,11 +141,13 @@ module.exports = View.extend({
   },
 
   fadeOut: function(done) {
+    debug('fade-out');
     this.el.classList.remove('visible');
     if (done) { setTimeout(done, this.fadeTime);}
   },
 
   fadeIn: function(done) {
+    debug('fade-in');
     this.el.classList.add('visible');
     if (done) { setTimeout(done, this.fadeTime); }
   },
@@ -232,25 +181,24 @@ module.exports = View.extend({
    * @param  {Boolean} mirrored
    */
   updatePreview: function(preview, sensorAngle, mirrored) {
-    var elementWidth = this.el.clientWidth;
-    var elementHeight = this.el.clientHeight;
+    if (!preview) { return; }
     var aspect;
 
     // Invert dimensions if the camera's `sensorAngle` is
     // 0 or 180 degrees.
     if (sensorAngle % 180 === 0) {
       this.container = {
-        width: elementWidth,
-        height: elementHeight,
-        aspect: elementWidth / elementHeight
+        width: this.width,
+        height: this.height,
+        aspect: this.width / this.height
       };
 
       aspect = preview.height / preview.width;
     } else {
       this.container = {
-        width: elementHeight,
-        height: elementWidth,
-        aspect: elementHeight / elementWidth
+        width: this.height,
+        height: this.width,
+        aspect: this.height / this.width
       };
 
       aspect = preview.width / preview.height;

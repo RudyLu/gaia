@@ -3,7 +3,8 @@
  * startup and eventually notifications.
  **/
 /*jshint browser: true */
-/*global define, requirejs, confirm, console, TestUrlResolver */
+/*global define, requirejs, console, TestUrlResolver */
+'use strict';
 
 // Set up loading of scripts, but only if not in tests, which set up
 // their own config.
@@ -62,6 +63,8 @@ var appMessages = require('app_messages'),
     model = require('model'),
     headerCursor = require('header_cursor').cursor,
     Cards = common.Cards,
+    slice = Array.prototype.slice,
+    waitingForCreateAccountPrompt = false,
     activityCallback = null;
 
 require('sync');
@@ -153,8 +156,9 @@ var startCardArgs = {
 
 function pushStartCard(id, addedArgs) {
   var args = startCardArgs[id];
-  if (!args)
+  if (!args) {
     throw new Error('Invalid start card: ' + id);
+  }
 
   //Add in cached node to use (could be null)
   args[3].cachedNode = cachedNode;
@@ -263,8 +267,9 @@ document.addEventListener('visibilitychange', function onVisibilityChange() {
 evt.on('accountModified', function(accountId, data) {
   model.latestOnce('acctsSlice', function() {
     var account = model.getAccount(accountId);
-    if (account)
+    if (account) {
       account.modifyAccount(data);
+    }
   });
 });
 
@@ -279,6 +284,11 @@ evt.on('addAccount', function() {
 });
 
 function resetApp() {
+  // Clear any existing local state and reset UI/model state.
+  waitForAppMessage = false;
+  waitingForCreateAccountPrompt = false;
+  activityCallback = null;
+
   Cards.removeAllCards();
   model.init();
 }
@@ -321,11 +331,14 @@ evt.on('showLatestAccount', function() {
 
 model.on('acctsSlice', function() {
   if (!model.hasAccount()) {
-    resetCards('setup_account_info');
+    if (!waitingForCreateAccountPrompt) {
+      resetCards('setup_account_info');
+    }
   } else {
     model.latestOnce('foldersSlice', function() {
-      if (waitForAppMessage)
+      if (waitForAppMessage) {
         return;
+      }
 
       // If an activity was waiting for an account, trigger it now.
       if (activityContinued()) {
@@ -337,33 +350,64 @@ model.on('acctsSlice', function() {
   }
 });
 
-appMessages.on('activity', function(type, data, rawActivity) {
+// Rate limit rapid fire entries, like an accidental double tap. While the card
+// code adjusts for the taps, in the case of configured account, user can end up
+// with multiple compose or reader cards in the stack, which is probably
+// confusing, and the rapid tapping is likely just an accident, or an incorrect
+// user belief that double taps are needed for activation.
+// Using one entry time tracker across all gate entries since ideally we do not
+// want to handle a second fast action regardless of source. We want the first
+// one to have a chance of getting a bit further along. If this becomes an issue
+// though, the closure created inside getEntry could track a unique time for
+// each gateEntry use.
+var lastEntryTime = 0;
+function gateEntry(fn) {
+  return function() {
+    var entryTime = Date.now();
+    // Only one entry per second.
+    if (entryTime < lastEntryTime + 1000) {
+      console.log('email entry gate blocked fast repeated action');
+      return;
+    }
+    lastEntryTime = entryTime;
 
+    return fn.apply(null, slice.call(arguments));
+  };
+}
+
+appMessages.on('activity', gateEntry(function(type, data, rawActivity) {
   function initComposer() {
     Cards.pushCard('compose', 'default', 'immediate', {
       activity: rawActivity,
       composerData: {
-        onComposer: function(composer) {
+        onComposer: function(composer, composeCard) {
           var attachmentBlobs = data.attachmentBlobs;
           /* to/cc/bcc/subject/body all have default values that shouldn't
           be clobbered if they are not specified in the URI*/
-          if (data.to)
+          if (data.to) {
             composer.to = data.to;
-          if (data.subject)
+          }
+          if (data.subject) {
             composer.subject = data.subject;
-          if (data.body)
+          }
+          if (data.body) {
             composer.body = { text: data.body };
-          if (data.cc)
+          }
+          if (data.cc) {
             composer.cc = data.cc;
-          if (data.bcc)
+          }
+          if (data.bcc) {
             composer.bcc = data.bcc;
+          }
           if (attachmentBlobs) {
+            var attachmentsToAdd = [];
             for (var iBlob = 0; iBlob < attachmentBlobs.length; iBlob++) {
-              composer.addAttachment({
+              attachmentsToAdd.push({
                 name: data.attachmentNames[iBlob],
                 blob: attachmentBlobs[iBlob]
               });
             }
+            composeCard.addAttachmentsSubjectToSizeLimits(attachmentsToAdd);
           }
         }
       }
@@ -371,16 +415,24 @@ appMessages.on('activity', function(type, data, rawActivity) {
   }
 
   function promptEmptyAccount() {
-    var req = confirm(mozL10n.get('setup-empty-account-prompt'));
-    if (!req) {
-      rawActivity.postError('cancelled');
-    }
+    common.ConfirmDialog.show(mozL10n.get('setup-empty-account-prompt'),
+    function(confirmed) {
+      if (!confirmed) {
+        rawActivity.postError('cancelled');
+      }
 
-    // No longer need to wait for the activity to complete, it needs
-    // normal card flow
-    waitForAppMessage = false;
+      waitingForCreateAccountPrompt = false;
 
-    activityCallback = initComposer;
+      // No longer need to wait for the activity to complete, it needs
+      // normal card flow
+      waitForAppMessage = false;
+
+      activityCallback = initComposer;
+
+      // Always just reset to setup account in case the system does
+      // not properly close out the email app on a cancelled activity.
+      resetCards('setup_account_info');
+    });
   }
 
   // Remove previous cards because the card stack could get
@@ -402,6 +454,7 @@ appMessages.on('activity', function(type, data, rawActivity) {
     if (model.hasAccount()) {
       initComposer();
     } else {
+      waitingForCreateAccountPrompt = true;
       promptEmptyAccount();
     }
   } else {
@@ -410,15 +463,16 @@ appMessages.on('activity', function(type, data, rawActivity) {
     // account prompt will be triggered quickly in the next section.
     initComposer();
 
+    waitingForCreateAccountPrompt = true;
     model.latestOnce('acctsSlice', function activityOnAccount() {
       if (!model.hasAccount()) {
         promptEmptyAccount();
       }
     });
   }
-});
+}));
 
-appMessages.on('notification', function(data) {
+appMessages.on('notification', gateEntry(function(data) {
   var type = data ? data.type : '';
 
   model.latestOnce('foldersSlice', function latestFolderSlice() {
@@ -475,7 +529,7 @@ appMessages.on('notification', function(data) {
       }
     }
   });
-});
+}));
 
 model.init();
 });

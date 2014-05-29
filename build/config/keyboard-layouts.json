@@ -44,9 +44,13 @@
         {"layoutId": "en", "app": ["apps", "keyboard"]}
     ],
     "eu": [
+        {"layoutId": "es", "app": ["apps", "keyboard"]},
+        {"layoutId": "fr", "app": ["apps", "keyboard"]},
         {"layoutId": "en", "app": ["apps", "keyboard"]}
     ],
     "ff": [
+        {"layoutId": "ff", "app": ["apps", "keyboard"]},
+        {"layoutId": "fr", "app": ["apps", "keyboard"]},
         {"layoutId": "en", "app": ["apps", "keyboard"]}
     ],
     "fr": [
@@ -62,13 +66,14 @@
         {"layoutId": "en", "app": ["apps", "keyboard"]}
     ],
     "gl": [
-        {"layoutId": "en", "app": ["apps", "keyboard"]}
+        {"layoutId": "es", "app": ["apps", "keyboard"]}
     ],
     "he": [
         {"layoutId": "he", "app": ["apps", "keyboard"]},
         {"layoutId": "en", "app": ["apps", "keyboard"]}
     ],
     "hi-IN": [
+        {"layoutId": "hi", "app": ["apps", "keyboard"]},
         {"layoutId": "en", "app": ["apps", "keyboard"]}
     ],
     "hr": [
@@ -147,6 +152,10 @@
     "sv-SE": [
         {"layoutId": "sv", "app": ["apps", "keyboard"]}
     ],
+    "ta": [
+        {"layoutId": "ta", "app": ["apps", "keyboard"]},
+        {"layoutId": "en", "app": ["apps", "keyboard"]}
+    ],
     "te": [
         {"layoutId": "en", "app": ["apps", "keyboard"]}
     ],
@@ -156,6 +165,10 @@
     ],
     "ur": [
         {"layoutId": "en", "app": ["apps", "keyboard"]}
+    ],
+    "vi": [
+        {"layoutId": "vi-Typewriter", "app": ["apps", "keyboard"]},
+        {"layoutId": "fr", "app": ["apps", "keyboard"]}
     ],
     "zh-CN": [
         {"layoutId": "zh-Hans-Pinyin", "app": ["apps", "keyboard"]},

@@ -44,6 +44,12 @@ var UtilityTray = {
     window.addEventListener('keyboardchanged', this);
     window.addEventListener('keyboardchangecanceled', this);
 
+    // Firing when user swipes down with a screen reader when focused on
+    // status bar.
+    window.addEventListener('statusbarwheel', this);
+    // Firing when user swipes up with a screen reader when focused on grippy.
+    this.grippy.addEventListener('wheel', this);
+
     this.overlay.addEventListener('transitionend', this);
 
     if (window.navigator.mozMobileConnections) {
@@ -82,10 +88,13 @@ var UtilityTray = {
       // When IME switcher shows, prevent the keyboard's focus getting changed.
       case 'keyboardimeswitchershow':
         this.overlay.addEventListener('mousedown', this._pdIMESwitcherShow);
+        this.statusbar.addEventListener('mousedown', this._pdIMESwitcherShow);
         break;
 
       case 'keyboardimeswitcherhide':
         this.overlay.removeEventListener('mousedown', this._pdIMESwitcherShow);
+        this.statusbar.removeEventListener('mousedown',
+                                           this._pdIMESwitcherShow);
         break;
 
       case 'screenchange':
@@ -94,7 +103,7 @@ var UtilityTray = {
         break;
 
       case 'touchstart':
-        if (lockScreen.locked) {
+        if (window.System.locked) {
           return;
         }
 
@@ -132,6 +141,16 @@ var UtilityTray = {
         this.active = false;
 
         this.onTouchEnd(touch);
+        break;
+
+      case 'statusbarwheel':
+        this.show();
+        break;
+      case 'wheel':
+        if (evt.deltaMode === evt.DOM_DELTA_PAGE && evt.deltaY &&
+          evt.deltaY > 0) {
+          this.hide();
+        }
         break;
 
       case 'transitionend':
@@ -174,7 +193,7 @@ var UtilityTray = {
 
   onTouchEnd: function ut_onTouchEnd(touch) {
     // Prevent utility tray shows while the screen got black out.
-    if (window.lockScreen && window.lockScreen.locked) {
+    if (window.System.locked) {
       this.hide(true);
     } else {
       var significant = (Math.abs(this.lastDelta) > (this.screenHeight / 5));
@@ -196,9 +215,10 @@ var UtilityTray = {
 
     // If the transition has not started yet there won't be any transitionend
     // event so let's not wait in order to remove the utility-tray class.
-    if (instant || style.MozTransform == '') {
+    if (instant || style.MozTransform === '') {
       this.screen.classList.remove('utility-tray');
     }
+    window.dispatchEvent(new CustomEvent('utility-tray-overlayclosed'));
 
     if (!alreadyHidden) {
       var evt = document.createEvent('CustomEvent');
@@ -214,6 +234,7 @@ var UtilityTray = {
     style.MozTransform = 'translateY(100%)';
     this.shown = true;
     this.screen.classList.add('utility-tray');
+    window.dispatchEvent(new CustomEvent('utility-tray-overlayopened'));
 
     if (!alreadyShown) {
       var evt = document.createEvent('CustomEvent');

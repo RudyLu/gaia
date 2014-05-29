@@ -16,7 +16,7 @@ class TestFtu(GaiaTestCase):
 
     def test_ftu_skip_tour_for_desktop(self):
 
-        self.assertGreater(self.ftu.languages_list, 0, "No languages listed on screen")
+        self.wait_for_condition(lambda m: self.ftu.languages_list > 0, message="No languages listed on screen")
 
         # select en-US due to the condition of this test is only for en-US
         self.ftu.tap_language("en-US")
@@ -36,6 +36,8 @@ class TestFtu(GaiaTestCase):
         # Disable geolocation
         self.ftu.disable_geolocation()
         self.ftu.tap_next_to_import_contacts_section()
+
+        self.ftu.tap_next_to_firefox_accounts_section()
 
         self.ftu.tap_next_to_welcome_browser_section()
 

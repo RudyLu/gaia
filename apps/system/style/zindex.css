@@ -51,16 +51,21 @@
 
 /* Promote the transitioning appWindow to this level as the entry and exiting
  * transition of the cards view. */
-#screen.cards-view > [data-z-index-level="app"] > .appWindow.active:not(.homescreen),
-#screen.cards-view > [data-z-index-level="app"] > .appWindow.transition-opening:not(.homescreen),
-#screen.cards-view > [data-z-index-level="app"] > .appWindow.transition-closing.to-cardview:not(.homescreen),
-#screen.cards-view > [data-z-index-level="app"] > .appWindow.transition-opening.fullscreen-app:not(.homescreen),
-#screen.cards-view > [data-z-index-level="app"] > .appWindow.transition-closing.fullscreen-app.to-cardview:not(.homescreen) {
+#screen.cards-view:not(.task-manager) > [data-z-index-level="app"] > .appWindow.active:not(.homescreen),
+#screen.cards-view:not(.task-manager) > [data-z-index-level="app"] > .appWindow.transition-opening:not(.homescreen),
+#screen.cards-view:not(.task-manager) > [data-z-index-level="app"] > .appWindow.transition-closing.to-cardview:not(.homescreen),
+#screen.cards-view:not(.task-manager) > [data-z-index-level="app"] > .appWindow.transition-opening.fullscreen-app:not(.homescreen),
+#screen.cards-view:not(.task-manager) > [data-z-index-level="app"] > .appWindow.transition-closing.fullscreen-app.to-cardview:not(.homescreen) {
   z-index: 65537;
 }
 
 #screen.cards-view > [data-z-index-level="cards-view"] {
   z-index: 65535;
+}
+
+/* move app windows to sit above homescreen but below task manager */
+#screen.task-manager > #windows > .in-task-manager:not(.homescreen) {
+  z-index: 2043;
 }
 
 /* Keyboard is shown above task manager */
@@ -133,10 +138,20 @@
   z-index: 4098 !important;
 }
 
-#screen > [data-z-index-level="app"] > .lockScreenWindow.active
+#screen > [data-z-index-level="app"] > .lockScreenWindow.active,
+#screen > [data-z-index-level="app"] > .lockScreenWindow.transition-opening
 {
   /* Or the .appWindow one would be first adopted.*/
   z-index: 2048 !important;
+}
+
+/**
+ * Before the window get opened, it should overlap upon the foreground app,
+ * or the user can still manipulate before the window opened.
+ */
+#screen > [data-z-index-level="app"] > .lockScreenWindow.transition-opening
+{
+  pointer-events: auto;
 }
 
 /* Permission screen is here because of the lockscreen camera. */
@@ -154,6 +169,10 @@
 
 /* Keep keyboard and edges zones under lockscreen when locked */
 #screen.locked > [data-z-index-level="keyboards"] {
+  z-index: 2044;
+}
+
+#screen.task-manager > #cards-view[data-z-index-level="cards-view"] {
   z-index: 2044;
 }
 
@@ -198,7 +217,6 @@
  * - app frame must be on top of homescreen frame, inactive or active.
  * - finally, everything else needs to be on top of them (hence the lowest nums)
  */
-#screen > [data-z-index-level="app"] > .appWindow[data-z-index-level="top-app"],
 #screen > [data-z-index-level="app"] > .appWindow.out-to-right {
   z-index: 8;
 }
@@ -211,11 +229,12 @@
   z-index: 6;
 }
 
-#screen > [data-z-index-level="app"] > .appWindow.active:not(.homescreen) {
+#screen > [data-z-index-level="app"] > .appWindow.active:not(.homescreen),
+#screen.edges > [data-z-index-level="app"] > .appWindow:not(.homescreen),
+#screen > [data-z-index-level="app"] > .appWindow.will-become-active {
   z-index: 6;
 }
 
-#screen > [data-z-index-level="app"] > .appWindow[data-z-index-level="bottom-app"],
 #screen > [data-z-index-level="app"] > .appWindow.in-from-left {
   z-index: 5;
 }

@@ -34,6 +34,26 @@ suite('Utils', function() {
     navigator.mozL10n = nativeMozL10n;
   });
 
+  setup(function() {
+    // Override generic mozL10n.get for this test
+    this.sinon.stub(navigator.mozL10n, 'get',
+      function get(key, params) {
+        if (params) {
+          if (key == 'thread-header') {
+            return params.numberType + ' | ' + params.numberDetail;
+          }
+          return key + JSON.stringify(params);
+        }
+        if (key == 'thread-separator') {
+          return ' | ';
+        }
+        if (key == 'carrier-separator') {
+          return ', ';
+        }
+        return key;
+    });
+  });
+
   suite('Utils.escapeRegex', function() {
 
     test('functional', function() {
@@ -711,6 +731,8 @@ suite('Utils', function() {
       'default_quality_resized.jpg': null
     };
 
+    this.timeout(5000);
+
     suiteSetup(function(done) {
       // load test blobs for image resize testing
       var assetsNeeded = 0;
@@ -738,6 +760,23 @@ suite('Utils', function() {
       Object.keys(qualityTestData).forEach(loadBlob, qualityTestData);
     });
 
+    setup(function() {
+      this.sinon.spy(window.URL, 'createObjectURL');
+      this.sinon.spy(window.URL, 'revokeObjectURL');
+    });
+
+    function assertCreatedBlobUrlsAreRevoked() {
+      var createdObjectURLs = window.URL.createObjectURL.returnValues;
+      var revokedObjectURLs = window.URL.revokeObjectURL.args.map(
+        (args) => args[0]
+      );
+
+      assert.deepEqual(
+        createdObjectURLs, revokedObjectURLs,
+        'All created Blob URLs are revoked'
+      );
+    }
+
     Object.keys(typeTestData).forEach(function(filename) {
       test(filename, function(done) {
         var blob = typeTestData[filename];
@@ -745,9 +784,12 @@ suite('Utils', function() {
         var limit = Math.min(100000, (blob.size / 2));
 
         Utils.getResizedImgBlob(blob, limit, function(resizedBlob) {
-          assert.isTrue(resizedBlob.size < limit,
-            'resizedBlob is smaller than ' + limit);
-          done();
+          done(function() {
+            assert.isTrue(resizedBlob.size < limit,
+              'resizedBlob is smaller than ' + limit);
+
+            assertCreatedBlobUrlsAreRevoked();
+          });
         });
       });
     });
@@ -755,14 +797,15 @@ suite('Utils', function() {
     test('Image size is smaller than limit', function(done) {
       var blob = qualityTestData['low_quality.jpg'];
       var limit = blob.size * 2;
-      this.sinon.spy(Utils, 'resizeImageBlobWithRatio');
-      var resizeSpy = Utils.resizeImageBlobWithRatio;
+      this.sinon.spy(Utils, '_resizeImageBlobWithRatio');
 
       Utils.getResizedImgBlob(blob, limit, function(resizedBlob) {
-        assert.isTrue(resizedBlob === blob,
-          'resizedBlob and blob should be the same');
-        assert.equal(resizeSpy.callCount, 0);
-        done();
+        done(function() {
+          assert.equal(resizedBlob, blob,
+            'resizedBlob and blob should be the same');
+          sinon.assert.notCalled(Utils._resizeImageBlobWithRatio);
+          assertCreatedBlobUrlsAreRevoked();
+        });
       });
     });
 
@@ -772,7 +815,7 @@ suite('Utils', function() {
       var defaultBlob = qualityTestData['default_quality_resized.jpg'];
       var limit = blob.size / 2;
 
-      this.sinon.stub(HTMLCanvasElement.prototype,
+      var toBlobStub = this.sinon.stub(HTMLCanvasElement.prototype,
         'toBlob', function(callback, type, quality) {
           if (quality) {
             callback(resizedBlob);
@@ -781,14 +824,19 @@ suite('Utils', function() {
           }
       });
 
-      Utils.getResizedImgBlob(blob, limit, function(resizedBlob) {
-        var toBlobSpy = HTMLCanvasElement.prototype.toBlob;
-        assert.isTrue(resizedBlob.size < limit,
-          'resizedBlob is smaller than ' + limit);
-        assert.equal(toBlobSpy.callCount, 2);
-        assert.equal(toBlobSpy.args[0][2], undefined);
-        assert.equal(toBlobSpy.args[1][2], 0.75);
-        done();
+      Utils.getResizedImgBlob(blob, limit, function(result) {
+        done(function() {
+          assert.isTrue(
+            result.size < limit,
+            'result blob is smaller than ' + limit
+          );
+
+          sinon.assert.calledTwice(toBlobStub);
+
+          assert.equal(toBlobStub.args[0][2], undefined);
+          assert.equal(toBlobStub.args[1][2], 0.65);
+          assertCreatedBlobUrlsAreRevoked();
+        });
       });
     });
 
@@ -798,40 +846,43 @@ suite('Utils', function() {
       var defaultBlob = qualityTestData['default_quality_resized.jpg'];
       var limit = blob.size / 2;
 
-      this.sinon.spy(Utils, 'resizeImageBlobWithRatio');
-      var resizeSpy = Utils.resizeImageBlobWithRatio;
+      var resizeSpy = this.sinon.spy(Utils, '_resizeImageBlobWithRatio');
 
-      this.sinon.stub(HTMLCanvasElement.prototype,
-        'toBlob', function(callback, type, quality) {
-          var firstRatio = resizeSpy.firstCall.args[0].ratio;
-          var lastRatio = resizeSpy.lastCall.args[0].ratio;
-          if (lastRatio > firstRatio) {
+      this.sinon.stub(
+        HTMLCanvasElement.prototype, 'toBlob',
+        function(callback, type, quality) {
+          if (resizeSpy.callCount == 2) {
+            // return the resizedBlob only when we're trying with an higher
+            // ratio, so that we can test the whole process
             callback(resizedBlob);
           } else {
             callback(defaultBlob);
           }
-      });
+        }
+      );
 
       Utils.getResizedImgBlob(blob, limit, function(resizedBlob) {
-        assert.isTrue(resizedBlob.size < limit,
-          'resizedBlob is smaller than ' + limit);
-        var toBlobSpy = HTMLCanvasElement.prototype.toBlob;
+        done(function() {
+          assert.isTrue(resizedBlob.size < limit,
+            'resizedBlob is smaller than ' + limit);
+          var toBlobSpy = HTMLCanvasElement.prototype.toBlob;
 
-        // Image quality testing should go down 3 qulity level first
-        // than force the image rescale to smaller size.
-        assert.equal(toBlobSpy.callCount, 5);
-        assert.equal(toBlobSpy.args[0][2], undefined);
-        assert.equal(toBlobSpy.args[1][2], 0.75);
-        assert.equal(toBlobSpy.args[2][2], 0.5);
-        assert.equal(toBlobSpy.args[3][2], 0.25);
-        assert.equal(toBlobSpy.args[4][2], undefined);
+          // Image quality testing should go down 3 quality level first
+          // than force the image rescale to smaller size.
+          assert.equal(toBlobSpy.callCount, 5);
+          assert.equal(toBlobSpy.args[0][2], undefined);
+          assert.equal(toBlobSpy.args[1][2], 0.65);
+          assert.equal(toBlobSpy.args[2][2], 0.5);
+          assert.equal(toBlobSpy.args[3][2], 0.25);
+          assert.equal(toBlobSpy.args[4][2], undefined);
 
-        // Verify getResizedImgBlob is called twice and resizeRatio
-        // parameter is set in sencond calls
-        assert.equal(resizeSpy.callCount, 2);
-        assert.ok(resizeSpy.firstCall.args[0].ratio <
-          resizeSpy.lastCall.args[0].ratio);
-        done();
+          // Verify getResizedImgBlob is called twice and resize ratio
+          // parameter is changed in the second call
+          sinon.assert.calledTwice(Utils._resizeImageBlobWithRatio);
+          assert.ok(resizeSpy.firstCall.args[0].ratio <
+            resizeSpy.lastCall.args[0].ratio);
+          assertCreatedBlobUrlsAreRevoked();
+        });
       });
     });
   });
@@ -1008,7 +1059,23 @@ suite('getDisplayObject', function() {
   var nativeMozL10n = navigator.mozL10n;
   setup(function() {
     navigator.mozL10n = MockL10n;
-    this.sinon.spy(navigator.mozL10n, 'get');
+    // Override generic mozL10n.get for this test
+    this.sinon.stub(navigator.mozL10n, 'get',
+      function get(key, params) {
+        if (params) {
+          if (key == 'thread-header') {
+            return params.numberType + ' | ' + params.numberDetail;
+          }
+          return key + JSON.stringify(params);
+        }
+        if (key == 'thread-separator') {
+          return ' | ';
+        }
+        if (key == 'carrier-separator') {
+          return ', ';
+        }
+        return key;
+    });
   });
 
   teardown(function() {
@@ -1078,6 +1145,58 @@ suite('getDisplayObject', function() {
     assert.equal(data.separator, ' | ');
     assert.equal(data.type, type);
     assert.equal(data.carrier, carrier + ', ');
+    assert.equal(data.number, value);
+  });
+});
+
+suite('getDisplayObject l10n values', function() {
+  var nativeMozL10n;
+
+  setup(function() {
+    nativeMozL10n = navigator.mozL10n;
+    navigator.mozL10n = MockL10n;
+  });
+
+  teardown(function() {
+    navigator.mozL10n = nativeMozL10n;
+    nativeMozL10n = null;
+  });
+
+  test('(l10n) Empty separator (l10n)', function() {
+    this.sinon.stub(navigator.mozL10n, 'get').returns('');
+    var type = 'Mobile';
+    var carrier = 'Carrier';
+    var value = 111111;
+    var data = Utils.getDisplayObject(null, {
+      'value': value,
+      'carrier': carrier,
+      'type': [type]
+    });
+
+    assert.equal(data.name, value);
+    assert.equal(data.separator, ' | ');
+    assert.equal(data.type, type);
+    assert.equal(data.carrier, carrier + ', ');
+    assert.equal(data.number, value);
+  });
+
+  test('(l10n) Different separators (l10n)', function() {
+    var l10nStub = this.sinon.stub(navigator.mozL10n, 'get');
+    l10nStub.withArgs('thread-separator').returns(' # ');
+    l10nStub.withArgs('carrier-separator').returns(': ');
+    var type = 'Mobile';
+    var carrier = 'Carrier';
+    var value = 111111;
+    var data = Utils.getDisplayObject(null, {
+      'value': value,
+      'carrier': carrier,
+      'type': [type]
+    });
+
+    assert.equal(data.name, value);
+    assert.equal(data.separator, ' # ');
+    assert.equal(data.type, type);
+    assert.equal(data.carrier, carrier + ': ');
     assert.equal(data.number, value);
   });
 });
@@ -1172,3 +1291,57 @@ suite('getContactDisplayInfo', function() {
     );
   });
 });
+
+test('getClosestSampleSize', function() {
+  assert.equal(Utils.getClosestSampleSize(1), 1);
+  assert.equal(Utils.getClosestSampleSize(2), 2);
+  assert.equal(Utils.getClosestSampleSize(3), 2);
+  assert.equal(Utils.getClosestSampleSize(4), 4);
+  assert.equal(Utils.getClosestSampleSize(5), 4);
+  assert.equal(Utils.getClosestSampleSize(5.5), 4);
+  assert.equal(Utils.getClosestSampleSize(6), 4);
+  assert.equal(Utils.getClosestSampleSize(7), 4);
+  assert.equal(Utils.getClosestSampleSize(8), 8);
+  assert.equal(Utils.getClosestSampleSize(9), 8);
+});
+
+test('extend()', function() {
+  var source = {
+    prop1: 'prop1-source',
+    prop2: 'prop2-source'
+  };
+
+  var target = {
+    prop2: 'prop2-target',
+    prop3: 'prop3-target'
+  };
+
+  var prototype = {
+    prop4: 'prop4-proto'
+  };
+
+  target.prototype = Object.create(prototype);
+
+  Utils.extend(target, source);
+
+  assert.equal(
+    target.prop1, source.prop1,
+    'copies over properties'
+  );
+
+  assert.equal(
+    target.prop2, source.prop2,
+    'overrides properties'
+  );
+
+  assert.equal(
+    target.prop3, 'prop3-target',
+    'does not change properties that is not in target'
+  );
+
+  assert.isUndefined(
+    target.prop4,
+    'does not copy over properties from prototype'
+  );
+});
+

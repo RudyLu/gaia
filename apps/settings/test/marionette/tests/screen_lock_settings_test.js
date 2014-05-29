@@ -1,5 +1,7 @@
-/* global require, test, setup, marionette */
 'use strict';
+
+/* Modified for stability test */
+
 var Settings = require('../app/app'),
     assert = require('assert');
 
@@ -25,7 +27,8 @@ marionette('manipulate screenLock settings', function() {
       'screenlock is checked');
   });
 
-  test('passcode can\'t be enabled when passcode is wrong', function() {
+  // Disabled for intermittent failures. Bug 983171
+  test.skip('passcode can\'t be enabled when passcode is wrong', function() {
     screenLockPanel.toggleScreenLock();
     screenLockPanel.togglePasscodeLock();
     screenLockPanel.typePasscode('1234', '5678');
@@ -130,7 +133,8 @@ marionette('manipulate screenLock settings', function() {
         'passcode is still checked');
   });
 
-  test(
+  // Disabled for intermittent failures. Bug 983171
+  test.skip(
     'passcode is enabled and won\'t get disabled if you tap back button ' +
     'when we try to edit passcode',
     function() {

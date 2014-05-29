@@ -4,6 +4,11 @@
   overflow-x: hidden;
   will-change: scroll-position;
 }
+
+[data-mode="search"] .msg-list-scrollouter {
+  height: calc(100% - 13.5rem);
+}
+
 .msg-list-scrollinner {
   /* Give it a z-index of 0 so that all its contents are forced into a single stacking
      context. This simplifies display list construction because our many positioned
@@ -23,12 +28,6 @@
   height: 4rem;
 }
 
-.msg-search-tease-bar {
-  background-color: #eee;
-  text-align: center;
-  border-bottom: 0.1rem solid #bdbdbd;
-}
-
 [data-mode="search"] .msg-search-tease-bar {
   display: none;
 }
@@ -42,20 +41,6 @@
   pointer-events: none;
 }
 
-input.msg-search-text-tease {
-  display: inline-block;
-  width: calc(100% - 3rem);
-  height: 3rem;
-  margin: 0.1rem 0 0.4rem;
-  font-size: 1.7rem;
-  border: 0.1rem solid #c2c2c2;
-  border-radius: 0.3rem;
-}
-
-.msg-search-text {
-  font-size: 1.7rem !important;
-}
-
 .msg-no-subject {
   font-style: italic;
 }
@@ -65,12 +50,32 @@ input.msg-search-text-tease {
  */
 .msg-header-item {
   display: block;
-  position: relative;
+  position: absolute;
+  width: 100%;
   height: 8rem;
 }
 .msg-header-item:active {
   background-color: #b1f1ff;
 }
+
+/*
+Default data placeholder items. To limit scrolling
+impact, these styles should not be ones that trigger
+reflows. Foreground/background colors should be safe.
+ */
+.msg-header-item.default-data .msg-header-author {
+  color: #e7e8e9;
+}
+.msg-header-item.default-data .msg-header-subject {
+  color: #e7e8e9;
+}
+.msg-header-item.default-data .msg-header-snippet {
+  color: #e7e8e9;
+}
+.msg-header-item.default-data .msg-header-date {
+  color: white;
+}
+
 .msg-header-unread-section {
   position: absolute;
   top: 50%;
@@ -136,7 +141,6 @@ input.msg-search-text-tease {
   display: table-cell;
   width: -moz-min-content;
   white-space: nowrap;
-  margin-left: 1ch;
 }
 .msg-header-date-unread {
   color: #1D8399;
@@ -226,11 +230,16 @@ input.msg-search-text-tease {
   font-size: 1.7rem;
   line-height: 2.6rem;
   margin: 1rem 1.5rem;
+  word-wrap: break-word;
 }
 
 .card-message-reader .msg-body-container > progress {
   display: block;
   margin: 0 auto;
+}
+
+.card-message-reader .scrollregion-below-header {
+  height: calc(100% - 9.5rem);
 }
 
 .msg-attachments-container {
@@ -320,6 +329,24 @@ input.msg-search-text-tease {
   right: 0.5rem;
 }
 
+.msg-attachment-too-large { display: none; }
+.msg-attachment-item[state="toolarge"] { height: auto; }
+.msg-attachment-item[state="toolarge"] > .msg-attachment-too-large {
+  display: block;
+  line-height: 1;
+  color: rgba(0, 0, 0, 0.5);
+  margin-top: -4rem;
+  margin-bottom: -2.5rem;
+  margin-right: 6rem;
+  padding-left: 2.2rem;
+}
+.msg-attachment-item[state="toolarge"]  > .msg-attachment-download {
+  display: inline-block;
+  opacity: 0.3;
+  background: none;
+  margin-top: 0.6rem;
+}
+
 .moz-external-link {
   color: blue;
   cursor: pointer;
@@ -328,7 +355,6 @@ input.msg-search-text-tease {
 .msg-body-content {
   color: black;
   margin: 0.4rem 0;
-  word-wrap: break-word;
 }
 .msg-body-signature {
   color: blue;
@@ -435,8 +461,23 @@ input.msg-search-text-tease {
   background-position: 50% 100% !important;
 }
 
-.msg-search-btn {
-  background-image: url("images/icons/search.png") !important;
+.bb-tablist .msg-last-sync {
+  text-align: center;
+  line-height: 4.5rem;
+  color: #5f5f5f;
+  flex: 2 2 0px;
+  font-size: 1.3rem;
+  font-style: italic;
+}
+
+.msg-last-sync.long .msg-last-synced-label,
+.msg-last-sync.long .msg-last-synced-value {
+  display: block;
+  line-height: 1.5rem;
+}
+
+.msg-last-sync.long .msg-last-synced-label {
+  margin-top: 0.7rem;
 }
 
 .msg-edit-btn {
@@ -459,7 +500,9 @@ input.msg-search-text-tease {
   * opaque background to optimize Gecko.
   * See Bug 962699. */
 .msg-messages-container {
-   background-color: #fff;
+  position: relative;
+  background-color: #fff;
+  overflow: hidden;
 }
 
 .msg-delete-btn {
@@ -574,6 +617,9 @@ input.msg-search-text-tease {
   width: 3rem;
   height: 3rem;
   margin: 0.5rem 1rem 0 0;
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: 3rem auto;
 }
 
 .msg-reply-menu-reply:before {

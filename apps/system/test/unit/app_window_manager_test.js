@@ -1,20 +1,22 @@
+/* global AppWindowManager, AppWindow, homescreenLauncher,
+          MockAttentionScreen, HomescreenWindow, MocksHelper,
+          MockSettingsListener, HomescreenLauncher */
 'use strict';
 
 mocha.globals(['SettingsListener', 'removeEventListener', 'addEventListener',
-      'dispatchEvent', 'ActivityWindow', 'activityWindowFactory',
+      'dispatchEvent', 'ActivityWindow',
       'AppWindowManager', 'Applications', 'ManifestHelper',
       'KeyboardManager', 'StatusBar', 'HomescreenWindow',
       'SoftwareButtonManager', 'AttentionScreen', 'AppWindow',
-      'lockScreen', 'OrientationManager', 'BrowserFrame',
+      'OrientationManager', 'BrowserFrame',
       'BrowserConfigHelper', 'System', 'BrowserMixin', 'TransitionMixin',
-      'homescreenLauncher', 'layoutManager']);
+      'homescreenLauncher', 'layoutManager', 'lockscreen']);
 
 requireApp('system/shared/test/unit/mocks/mock_manifest_helper.js');
-requireApp('system/test/unit/mock_lock_screen.js');
+requireApp('system/test/unit/mock_system.js');
 requireApp('system/test/unit/mock_orientation_manager.js');
 requireApp('system/test/unit/mock_applications.js');
 requireApp('system/test/unit/mock_activity_window.js');
-requireApp('system/test/unit/mock_activity_window_factory.js');
 requireApp('system/test/unit/mock_keyboard_manager.js');
 requireApp('system/test/unit/mock_software_button_manager.js');
 requireApp('system/test/unit/mock_attention_screen.js');
@@ -28,10 +30,10 @@ requireApp('system/shared/test/unit/mocks/mock_settings_listener.js');
 
 var mocksForAppWindowManager = new MocksHelper([
   'OrientationManager', 'AttentionScreen',
-  'ActivityWindow', 'ActivityWindowFactory',
+  'ActivityWindow', 'System',
   'Applications', 'SettingsListener', 'HomescreenLauncher',
   'ManifestHelper', 'KeyboardManager', 'StatusBar', 'SoftwareButtonManager',
-  'HomescreenWindow', 'AppWindow', 'LayoutManager'
+  'HomescreenWindow', 'AppWindow', 'LayoutManager',
 ]).init();
 
 suite('system/AppWindowManager', function() {
@@ -41,11 +43,8 @@ suite('system/AppWindowManager', function() {
   setup(function(done) {
     stubById = this.sinon.stub(document, 'getElementById');
     stubById.returns(document.createElement('div'));
-
-    window.lockScreen = MockLockScreen;
-    window.activityWindowFactory = new ActivityWindowFactory();
-    window.activityWindowFactory.start();
-    window.layoutManager = new LayoutManager().start();
+    
+    window.layoutManager = new window.LayoutManager();
 
     home = new HomescreenWindow('fakeHome');
     window.homescreenLauncher = new HomescreenLauncher().start();
@@ -68,9 +67,6 @@ suite('system/AppWindowManager', function() {
 
   teardown(function() {
     AppWindowManager.uninit();
-    delete window.lockScreen;
-    window.activityWindowFactory.stop();
-    delete window.activityWindowFactory;
     delete window.layoutManager;
     // MockHelper won't invoke mTeardown() for us
     // since MockHomescreenLauncher is instantiable now
@@ -138,7 +134,8 @@ suite('system/AppWindowManager', function() {
     manifest: {},
     manifestURL: 'app://wwww.fake7/ManifestURL',
     origin: 'app://www.fake7',
-    isActivity: true
+    isActivity: true,
+    parentApp: ''
   };
 
   function injectRunningApps() {
@@ -146,9 +143,19 @@ suite('system/AppWindowManager', function() {
     Array.slice(arguments).forEach(function iterator(app) {
       AppWindowManager._apps[app.instanceID] = app;
     });
-  };
+  }
 
   suite('Handle events', function() {
+    test('If cardview will open, keyboard should be dismissed', function() {
+      var stubBlur = this.sinon.stub(app1, 'blur');
+      this.sinon.stub(app1, 'getTopMostWindow').returns(app1);
+      AppWindowManager._activeApp = app1;
+      AppWindowManager.handleEvent({
+        type: 'cardviewbeforeshow'
+      });
+      assert.isTrue(stubBlur.called);
+    });
+
     test('Home Gesture enabled', function() {
       var stubBroadcastMessage =
         this.sinon.stub(AppWindowManager, 'broadcastMessage');
@@ -211,12 +218,51 @@ suite('system/AppWindowManager', function() {
       assert.isTrue(stubDisplay.calledWith());
     });
 
+    test('FTU is skipped when lockscreen is active', function() {
+      var originalLocked = window.System.locked;
+      window.System.locked = true;
+      injectRunningApps();
+      var stubDisplay = this.sinon.stub(AppWindowManager, 'display');
+      var stubSetVisible = this.sinon.stub(home, 'setVisible');
+
+      AppWindowManager.handleEvent({ type: 'ftuskip' });
+      assert.isFalse(stubDisplay.calledWith());
+      assert.isTrue(stubSetVisible.calledWith(false));
+      window.System.locked = originalLocked;
+    });
+
     test('System resize', function() {
       AppWindowManager._activeApp = app1;
       var stubResize = this.sinon.stub(app1, 'resize');
 
       AppWindowManager.handleEvent({ type: 'system-resize' });
       assert.isTrue(stubResize.called);
+    });
+
+    suite('when a document is fullscreen', function() {
+      var realFullScreen;
+
+      setup(function() {
+        realFullScreen = document.mozFullScreen;
+        Object.defineProperty(document, 'mozFullScreen', {
+          configurable: true,
+          get: function() { return true; }
+        });
+      });
+
+      teardown(function() {
+        Object.defineProperty(document, 'mozFullScreen', {
+          configurable: true,
+          get: function() { return realFullScreen; }
+        });
+      });
+
+      test('should exit fullscreen when the sheet transition starts',
+      function() {
+        var cancelSpy = this.sinon.spy(document, 'mozCancelFullScreen');
+        AppWindowManager.handleEvent({ type: 'sheetstransitionstart' });
+        sinon.assert.calledOnce(cancelSpy);
+      });
     });
 
     test('app request to close', function() {
@@ -282,22 +328,6 @@ suite('system/AppWindowManager', function() {
 
     });
 
-    test('Hide whole windows', function() {
-      var stubSetAttribute =
-        this.sinon.stub(AppWindowManager.element, 'setAttribute');
-
-      AppWindowManager.handleEvent({ type: 'hidewindows' });
-      assert.isTrue(stubSetAttribute.calledWith('aria-hidden', 'true'));
-    });
-
-    test('Show whole windows', function() {
-      var stubSetAttribute =
-        this.sinon.stub(AppWindowManager.element, 'setAttribute');
-
-      AppWindowManager.handleEvent({ type: 'showwindows' });
-      assert.isTrue(stubSetAttribute.calledWith('aria-hidden', 'false'));
-    });
-
     test('Launch app', function() {
       var stubLaunch =
         this.sinon.stub(AppWindowManager, 'launch');
@@ -330,6 +360,32 @@ suite('system/AppWindowManager', function() {
       });
 
       assert.isTrue(stubSetVisible.calledWith(false));
+    });
+
+    test('Show for screen reader top window', function() {
+      injectRunningApps(app1);
+      AppWindowManager._activeApp = app1;
+      var stubSetVisibleForScreenReader = this.sinon.stub(app1,
+        'setVisibleForScreenReader');
+
+      AppWindowManager.handleEvent({
+        type: 'showwindowforscreenreader'
+      });
+
+      assert.isTrue(stubSetVisibleForScreenReader.calledWith(true));
+    });
+
+    test('Hide for screen reader top window', function() {
+      injectRunningApps(app1);
+      AppWindowManager._activeApp = app1;
+      var stubSetVisibleForScreenReader = this.sinon.stub(app1,
+        'setVisibleForScreenReader');
+
+      AppWindowManager.handleEvent({
+        type: 'hidewindowforscreenreader'
+      });
+
+      assert.isTrue(stubSetVisibleForScreenReader.calledWith(false));
     });
 
     test('Overlay start on top of in process app', function() {
@@ -369,6 +425,15 @@ suite('system/AppWindowManager', function() {
       AppWindowManager._activeApp = app2;
       AppWindowManager._updateActiveApp(app1.instanceID);
       assert.deepEqual(AppWindowManager._activeApp, app1);
+    });
+
+    test('should resize the new active app', function() {
+      injectRunningApps(app1, app2, app3, app4);
+      AppWindowManager._activeApp = app2;
+
+      var resizeSpy = this.sinon.spy(app1, 'resize');
+      AppWindowManager._updateActiveApp(app1.instanceID);
+      sinon.assert.calledOnce(resizeSpy);
     });
   });
 
@@ -523,11 +588,11 @@ suite('system/AppWindowManager', function() {
     });
 
     test('Launch app is running and change URL', function() {
-      injectRunningApps();
+      injectRunningApps(app5);
       var stubDisplay = this.sinon.stub(AppWindowManager, 'display');
       var stubChangeURL = this.sinon.stub(app5, 'modifyURLatBackground');
-      AppWindowManager._apps[app5.instanceID] = app5;
       AppWindowManager.launch(fakeAppConfig5Background);
+      assert.isTrue(stubChangeURL.called);
       assert.isFalse(stubDisplay.called);
     });
 
@@ -546,23 +611,8 @@ suite('system/AppWindowManager', function() {
       AppWindowManager.launch(fakeAppConfig7Activity);
 
       assert.isTrue(stubDisplay.called);
-      assert.equal(app7.activityCaller, app1);
-      assert.equal(app1.activityCallee, app7);
-    });
-
-    test('Launch activity from inline activity', function() {
-      injectRunningApps(app1, app7);
-      AppWindowManager._updateActiveApp(app1.instanceID);
-
-      var activity = new ActivityWindow({});
-      activityWindowFactory._activeActivity = activity;
-
-      var stubDisplay = this.sinon.stub(AppWindowManager, 'display');
-      AppWindowManager.launch(fakeAppConfig7Activity);
-
-      assert.isTrue(stubDisplay.called);
-      assert.equal(app7.activityCaller, activity);
-      assert.equal(activity.activityCallee, app7);
+      assert.equal(app7.callerWindow, app1);
+      assert.equal(app1.calleeWindow, app7);
     });
   });
 
@@ -584,6 +634,42 @@ suite('system/AppWindowManager', function() {
     test('continuous-transition.enabled', function() {
       MockSettingsListener.mCallbacks['continuous-transition.enabled'](true);
       assert.isTrue(AppWindowManager.continuousTransition);
+    });
+  });
+
+  suite('linkWindowActivity', function() {
+    var fakeAppConfig = Object.create(fakeAppConfig7Activity);
+
+    setup(function() {
+      // we fake getHomescreen as app2
+      this.sinon.stub(homescreenLauncher, 'getHomescreen').returns(app2);
+    });
+
+    test('caller is system app, we would go to homescreen', function() {
+      // callee is app7, caller is homescreen
+      injectRunningApps(app7);
+      fakeAppConfig.parentApp = window.location.origin;
+
+      AppWindowManager.linkWindowActivity(fakeAppConfig);
+
+      assert.deepEqual(app2.calleeWindow, app7);
+      assert.deepEqual(app7.callerWindow, app2);
+      assert.isTrue(homescreenLauncher.getHomescreen.called);
+    });
+
+    test('caller is not system app, we would go back to original app',
+      function() {
+        // callee is app7, caller is app2
+        injectRunningApps(app7);
+        AppWindowManager._activeApp = app1;
+        fakeAppConfig.parentApp = '';
+        this.sinon.stub(app1, 'getTopMostWindow').returns(app2);
+
+        AppWindowManager.linkWindowActivity(fakeAppConfig);
+
+        assert.deepEqual(app2.calleeWindow, app7);
+        assert.deepEqual(app7.callerWindow, app2);
+        assert.isFalse(homescreenLauncher.getHomescreen.called);
     });
   });
 

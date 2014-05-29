@@ -2,12 +2,14 @@
  * UI infrastructure code and utility code for the gaia email app.
  **/
 /*jshint browser: true */
-/*global define, console, hookupInputAreaResetButtons */
+/*global define, console */
+'use strict';
 define(function(require, exports) {
 
 var Cards, Toaster,
     mozL10n = require('l10n!'),
     toasterNode = require('tmpl!./cards/toaster.html'),
+    confirmDialogTemplateNode = require('tmpl!./cards/confirm_dialog.html'),
     ValueSelector = require('value_selector');
 
 var hookupInputAreaResetButtons = require('input_areas');
@@ -28,13 +30,6 @@ function batchAddClass(domNode, searchClass, classToAdd) {
   var nodes = domNode.getElementsByClassName(searchClass);
   for (var i = 0; i < nodes.length; i++) {
     nodes[i].classList.add(classToAdd);
-  }
-}
-
-function batchRemoveClass(domNode, searchClass, classToRemove) {
-  var nodes = domNode.getElementsByClassName(searchClass);
-  for (var i = 0; i < nodes.length; i++) {
-    nodes[i].classList.remove(classToRemove);
   }
 }
 
@@ -400,7 +395,6 @@ Cards = {
    */
   pushCard: function(type, mode, showMethod, args, placement) {
     var cardDef = this._cardDefs[type];
-    var typePrefix = type.split('-')[0];
 
     args = args || {};
 
@@ -460,8 +454,9 @@ Cards = {
     }
     this._cardStack.splice(cardIndex, 0, cardInst);
 
-    if (!args.cachedNode)
+    if (!args.cachedNode) {
       this._cardsNode.insertBefore(domNode, insertBuddy);
+    }
 
     // If the card has any <button type="reset"> buttons,
     // make them clear the field they're next to and not the entire form.
@@ -609,7 +604,7 @@ Cards = {
     var cardIndex = this._findCard(query),
         cardInst = this._cardStack[cardIndex];
     if (!('told' in cardInst.cardImpl))
-      console.warn("Tried to tell a card that's not listening!", query, what);
+      console.warn('Tried to tell a card that\'s not listening!', query, what);
     else
       cardInst.cardImpl.told(what);
   },
@@ -682,14 +677,18 @@ Cards = {
    *   @param[nextCardSpec #:optional]{
    *     If a showMethod is not 'none', the card to show after removal.
    *   }
+   *   @param[skipDefault #:optional Boolean]{
+   *     Skips the default pushCard if the removal ends up with no more
+   *     cards in the stack.
+   *   }
    * ]
    */
   removeCardAndSuccessors: function(cardDomNode, showMethod, numCards,
-                                    nextCardSpec) {
+                                    nextCardSpec, skipDefault) {
     if (!this._cardStack.length)
       return;
 
-    if (cardDomNode && this._cardStack.length === 1) {
+    if (cardDomNode && this._cardStack.length === 1 && !skipDefault) {
       // No card to go to when done, so ask for a default
       // card and continue work once it exists.
       return Cards.pushDefaultCard(function() {
@@ -723,13 +722,16 @@ Cards = {
       numCards = this._cardStack.length - firstIndex;
 
     if (showMethod !== 'none') {
-      var nextCardIndex = null;
-      if (nextCardSpec)
+      var nextCardIndex = -1;
+      if (nextCardSpec) {
         nextCardIndex = this._findCard(nextCardSpec);
-      else if (this._cardStack.length)
+      } else if (this._cardStack.length) {
         nextCardIndex = Math.min(firstIndex - 1, this._cardStack.length - 1);
+      }
 
-      this._showCard(nextCardIndex, showMethod, 'back');
+      if (nextCardIndex > -1) {
+        this._showCard(nextCardIndex, showMethod, 'back');
+      }
     }
 
     // Update activeCardIndex if nodes were removed that would affect its
@@ -816,10 +818,14 @@ Cards = {
       if (isForward) {
         // If a forward animation and overlay had a vertical transition,
         // disable it, use normal horizontal transition.
-        if (showMethod !== 'immediate' &&
-            beginNode.classList.contains('anim-vertical')) {
-          removeClass(beginNode, 'anim-vertical');
-          addClass(beginNode, 'disabled-anim-vertical');
+        if (showMethod !== 'immediate') {
+          if (beginNode.classList.contains('anim-vertical')) {
+            removeClass(beginNode, 'anim-vertical');
+            addClass(beginNode, 'disabled-anim-vertical');
+          } else if (beginNode.classList.contains('anim-fade')) {
+            removeClass(beginNode, 'anim-fade');
+            addClass(beginNode, 'disabled-anim-fade');
+          }
         }
       } else {
         endNode = null;
@@ -881,8 +887,9 @@ Cards = {
       removeClass(beginNode, 'no-anim');
       removeClass(endNode, 'no-anim');
 
-      if (cardInst && cardInst.onCardVisible)
-        cardInst.onCardVisible();
+      if (cardInst && cardInst.cardImpl.onCardVisible) {
+        cardInst.cardImpl.onCardVisible();
+      }
     }
 
     // Hide toaster while active card index changed:
@@ -894,6 +901,11 @@ Cards = {
   },
 
   _onTransitionEnd: function(event) {
+    // Avoid other transitions except ones on cards as a whole.
+    if (!event.target.classList.contains('card')) {
+      return;
+    }
+
     var activeCard = this._cardStack[this.activeCardIndex];
     // If no current card, this could be initial setup from cache, no valid
     // cards yet, so bail.
@@ -923,9 +935,13 @@ Cards = {
       // If an vertical overlay transition was was disabled, if
       // current node index is an overlay, enable it again.
       var endNode = activeCard.domNode;
+
       if (endNode.classList.contains('disabled-anim-vertical')) {
         removeClass(endNode, 'disabled-anim-vertical');
         addClass(endNode, 'anim-vertical');
+      } else if (endNode.classList.contains('disabled-anim-fade')) {
+        removeClass(endNode, 'disabled-anim-fade');
+        addClass(endNode, 'anim-fade');
       }
 
       // Popup toaster that pended for previous card view.
@@ -1103,7 +1119,6 @@ Toaster = {
     }
 
     var text, textId, showUndo = false;
-    var undoBtn = this.body.querySelector('.toaster-banner-undo');
     if (type === 'undo') {
       this.undoableOp = operation;
       // There is no need to show toaster if affected message count < 1
@@ -1142,6 +1157,10 @@ Toaster = {
                                          this._timeout);
   },
 
+  isShowing: function() {
+    return !this.body.classList.contains('collapsed');
+  },
+
   hide: function() {
     this.body.classList.add('collapsed');
     this.body.classList.remove('fadeout');
@@ -1156,35 +1175,113 @@ Toaster = {
   }
 };
 
-/**
- * Confirm dialog helper function. Display the dialog by providing dialog body
- * element and button id/handler function.
- *
- */
-var ConfirmDialog = {
-  dialog: null,
-  show: function(dialog, confirm, cancel) {
-    this.dialog = dialog;
-    var formSubmit = function(evt) {
-      this.hide();
-      switch (evt.explicitOriginalTarget.id) {
-        case confirm.id:
-          confirm.handler();
-          break;
-        case cancel.id:
-          if (cancel.handler)
-            cancel.handler();
-          break;
+////////////////////////////////////////////////////////////////////////////////
+// ConfirmDialog: defined inline with mail_common because of a cycle
+// with Cards. When Cards is split out of mail_common, this card
+// can be moved out too.
+function ConfirmDialog(domNode, mode, args) {
+  this.domNode = domNode;
+
+  var dialogBodyNode = args.dialogBodyNode,
+      confirm = args.confirm,
+      cancel = args.cancel,
+      callback = args.callback;
+
+  if (dialogBodyNode) {
+    this.domNode.appendChild(dialogBodyNode);
+  } else {
+    // If no dialogBodyNode passed in, use the default form display, and
+    // configure the confirm/cancel hand, for the simple way of handling
+    // confirm dialogs.
+    dialogBodyNode = this.domNode.querySelector('.confirm-dialog-form');
+
+    dialogBodyNode.querySelector('.confirm-dialog-message')
+                  .textContent = args.message;
+
+    dialogBodyNode.classList.remove('collapsed');
+
+    confirm = {
+      handler: function() {
+        callback(true);
       }
-      return false;
     };
-    dialog.addEventListener('submit', formSubmit.bind(this));
-    document.body.appendChild(dialog);
-  },
+    cancel = {
+      handler: function() {
+        callback(false);
+      }
+    };
+  }
+
+  // Wire up the event handling
+  dialogBodyNode.addEventListener('submit', function(evt) {
+    evt.preventDefault();
+    evt.stopPropagation();
+
+    this.hide();
+
+    var target = evt.explicitOriginalTarget,
+        targetId = target.id,
+        isOk = target.classList.contains('confirm-dialog-ok'),
+        isCancel = target.classList.contains('confirm-dialog-cancel');
+
+    if ((isOk || targetId === confirm.id) && confirm.handler) {
+      confirm.handler();
+    } else if ((isCancel || targetId === cancel.id) && cancel.handler) {
+      cancel.handler();
+    }
+  }.bind(this));
+}
+
+ConfirmDialog.prototype = {
   hide: function() {
-    document.body.removeChild(this.dialog);
+    Cards.removeCardAndSuccessors(this.domNode, 'immediate', 1, null, true);
+  },
+  die: function() {
   }
 };
+
+/**
+ * A class method used by others to create confirm dialogs.
+ * This method has two call types, to accommodate older
+ * code that used ConfirmDialog to pass a full form node:
+ *
+ *  ConfirmDialog.show(dialogFormNode, confirmObject, cancelObject);
+ *
+ * and simpler code that just wants to pass a string message
+ * and a callback that returns true (if OK is pressed) or
+ * false (if cancel is pressed):
+ *
+ *  ConfirmDialog.show(messageString, function(confirmed) {});
+ *
+ * This newer style mimics a plain confirm dialog, with an
+ * OK and Cancel that are not customizable.
+ */
+ConfirmDialog.show = function(message, callback, cancel) {
+  var dialogBodyNode;
+
+  // Old style confirms that have their own form.
+  if (typeof message !== 'string') {
+    dialogBodyNode = message;
+    message = null;
+  }
+
+  Cards.pushCard('confirm_dialog', 'default', 'immediate', {
+    dialogBodyNode: dialogBodyNode,
+    message: message,
+    confirm: callback,
+    callback: callback,
+    cancel: cancel
+  }, 'right');
+};
+
+Cards.defineCardWithDefaultMode(
+    'confirm_dialog',
+    { tray: false },
+    ConfirmDialog,
+    confirmDialogTemplateNode
+);
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // Attachment Formatting Helpers
 
@@ -1341,6 +1438,8 @@ exports.ConfirmDialog = ConfirmDialog;
 exports.FormNavigation = FormNavigation;
 exports.prettyDate = prettyDate;
 exports.prettyFileSize = prettyFileSize;
+exports.addClass = addClass;
+exports.removeClass = removeClass;
 exports.batchAddClass = batchAddClass;
 exports.bindContainerClickAndHold = bindContainerClickAndHold;
 exports.bindContainerHandler = bindContainerHandler;

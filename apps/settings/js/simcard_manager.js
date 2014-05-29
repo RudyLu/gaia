@@ -308,7 +308,12 @@
         'pukRequired',
         'networkLocked',
         'serviceProviderLocked',
-        'corporateLocked'
+        'corporateLocked',
+        'network1Locked',
+        'network2Locked',
+        'hrpdNetworkLocked',
+        'ruimCorporateLocked',
+        'ruimServiceProviderLocked'
       ];
 
       // make sure the card is in locked mode or not
@@ -436,7 +441,7 @@
 
 })(window);
 
-window.navigator.mozL10n.ready(function() {
+window.navigator.mozL10n.once(function() {
   AirplaneModeHelper.ready(function() {
     SimCardManager.init();
   });

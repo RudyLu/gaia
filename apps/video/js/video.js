@@ -94,6 +94,8 @@ var pendingUpdateTitleText = false;
 // Videos recorded by our own camera have filenames of this form
 var FROMCAMERA = /DCIM\/\d{3}MZLLA\/VID_\d{4}\.3gp$/;
 
+var videoControlsAutoHidingMsOverride;
+
 // Pause on visibility change
 document.addEventListener('visibilitychange', function visibilityChange() {
   if (document.hidden) {
@@ -407,11 +409,15 @@ function showInfoView() {
 
   //Populate info overlay view
   MediaUtils.populateMediaInfo(data);
+  // We need to disable NFC sharing when showing info view
+  setNFCSharing(false);
   //Show the video info view
   dom.infoView.classList.remove('hidden');
 }
 
 function hideInfoView() {
+  // Enable NFC sharing when user hides info and returns to fullscreen mode
+  setNFCSharing(true);
   dom.infoView.classList.add('hidden');
 }
 
@@ -799,6 +805,8 @@ function setVideoPlaying(playing) {
 }
 
 function deleteCurrentVideo() {
+  // We need to disable NFC sharing when showing delete confirmation dialog
+  setNFCSharing(false);
   // If we're deleting the file shown in the player we've got to
   // return to the thumbnail list. We pass false to hidePlayer() to tell it
   // not to record new metadata for the file we're about to delete.
@@ -813,6 +821,9 @@ function deleteCurrentVideo() {
     } else {
       hidePlayer(false);
     }
+  } else {
+      // Enable NFC sharing when cancels delete and returns to fullscreen mode
+      setNFCSharing(true);
   }
 }
 
@@ -885,9 +896,33 @@ function setVideoUrl(player, video, callback) {
 }
 
 function scheduleVideoControlsAutoHiding() {
+  // Allow control of timeout, e.g., during unit testing
+  var autoHideMs = (videoControlsAutoHidingMsOverride !== null) ?
+      videoControlsAutoHidingMsOverride : 250;
+
   controlFadeTimeout = setTimeout(function() {
     setControlsVisibility(false);
-  }, 250);
+  }, autoHideMs);
+}
+
+function setNFCSharing(enable) {
+  if (!window.navigator.mozNfc) {
+    return;
+  }
+
+  if (enable) {
+    // If we have NFC, we need to put the callback to have shrinking UI.
+    window.navigator.mozNfc.onpeerready = function(event) {
+      // The callback function is called when user confirm to share the
+      // content, send it with NFC Peer.
+      videodb.getFile(video.name, function(file) {
+        navigator.mozNfc.getNFCPeer(event.detail).sendFile(file);
+      });
+    };
+  } else {
+    // We need to remove onpeerready while out of fullscreen view.
+    window.navigator.mozNfc.onpeerready = null;
+  }
 }
 
 // show video player
@@ -937,37 +972,31 @@ function showPlayer(video, autoPlay, enterFullscreen, keepControls) {
 
     dom.play.classList.remove('paused');
     playerShowing = true;
-    VideoUtils.fitContainer(dom.videoContainer, dom.player,
-                            currentVideo.metadata.rotation || 0);
 
-
+    var rotation;
     if ('metadata' in currentVideo) {
       if (currentVideo.metadata.currentTime === dom.player.duration) {
         currentVideo.metadata.currentTime = 0;
       }
       dom.videoTitle.textContent = currentVideo.metadata.title;
       dom.player.currentTime = currentVideo.metadata.currentTime || 0;
+      rotation = currentVideo.metadata.rotation;
     } else {
       dom.videoTitle.textContent = currentVideo.title || '';
       dom.player.currentTime = 0;
+      rotation = 0;
     }
+
+    VideoUtils.fitContainer(dom.videoContainer, dom.player,
+                            rotation || 0);
 
     if (dom.player.seeking) {
       dom.player.onseeked = doneSeeking;
     } else {
       doneSeeking();
     }
-
-   if (window.navigator.mozNfc) {
-      // If we have NFC, we need to put the callback to have shrinking UI.
-      window.navigator.mozNfc.onpeerready = function(event) {
-        // The callback function is called when user confirm to share the
-        // content, send it with NFC Peer.
-        videodb.getFile(video.name, function(file) {
-          navigator.mozNfc.getNFCPeer(event.detail).sendFile(file);
-        });
-      };
-    }
+    // Enable NFC sharing in fullscreen player mode
+    setNFCSharing(true);
   });
 }
 
@@ -980,10 +1009,8 @@ function hidePlayer(updateVideoMetadata, callback) {
   }
 
   dom.player.pause();
-  if (window.navigator.mozNfc) {
-    // We need to remove onpeerready while out of sharable context.
-    window.navigator.mozNfc.onpeerready = null;
-  }
+  // Disable NFC sharing when leaving player mode
+  setNFCSharing(false);
 
   function completeHidingPlayer() {
     // switch to the video gallery view
@@ -1090,6 +1117,12 @@ function play() {
 function pause() {
   // Switch the button icon
   dom.play.classList.add('paused');
+
+  // Check the dragging is true or not before pausing
+  if (dragging) {
+    dragging = false;
+    dom.playHead.classList.remove('active');
+  }
 
   // Stop playing the video
   dom.player.pause();

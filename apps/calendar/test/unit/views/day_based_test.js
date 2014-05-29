@@ -251,7 +251,7 @@ suiteGroup('Views.DayBased', function() {
       subject._assignPosition(busy, el);
 
       assert.equal(el.style.top, '83.3333%', 'top');
-      assert.equal(el.style.height, '50%', 'height');
+      assert.equal(el.style.height, 'calc(50% - 0.1rem)', 'height');
       assert.match(el.className, /\bpartial-hour\b/, 'partial-hour found');
     });
 
@@ -260,7 +260,7 @@ suiteGroup('Views.DayBased', function() {
       subject._assignPosition(busy, el);
 
       assert.ok(!el.style.top, 'no top');
-      assert.equal(el.style.height, '150%', 'height');
+      assert.equal(el.style.height, 'calc(150% - 0.1rem)', 'height');
     });
 
     test('25% minutes into hour for 3.25 hours', function() {
@@ -268,7 +268,7 @@ suiteGroup('Views.DayBased', function() {
       subject._assignPosition(busy, el);
 
       assert.equal(el.style.top, '25%', 'top');
-      assert.equal(el.style.height, '325%', 'height');
+      assert.equal(el.style.height, 'calc(325% - 0.1rem)', 'height');
     });
 
     test('cross the next day', function() {
@@ -277,7 +277,7 @@ suiteGroup('Views.DayBased', function() {
       subject._assignPosition(busy, el);
 
       assert.ok(!el.style.top, 'no top');
-      assert.equal(el.style.height, '100%', 'height');
+      assert.equal(el.style.height, 'calc(100% - 0.1rem)', 'height');
     });
   });
 
@@ -306,10 +306,6 @@ suiteGroup('Views.DayBased', function() {
       var hour = subject.hours.get(busytime._id);
       assert.ok(hour, 'has hour record');
 
-      // verify the flag
-      var idx = hour.flags.indexOf(subject.calendarId(busytime));
-      assert.ok(idx !== -1, 'has calendar id flag on hour');
-
       // verify its in the dom
       var elements = hour.element.querySelectorAll(
         '[data-id="' + busytime._id + '"]'
@@ -329,7 +325,6 @@ suiteGroup('Views.DayBased', function() {
       var max = 24 - intialHour;
       var curHour = intialHour + 1;
       var selector = '[data-id="' + busytime._id + '"]';
-      var calendarId = subject.calendarId(busytime);
 
       for (; curHour < max; curHour++) {
         subject._createRecord(curHour, busytime, event);
@@ -338,7 +333,6 @@ suiteGroup('Views.DayBased', function() {
         // verify we didn't add another element for this hour
         var eventEl = hour.element.querySelector(selector);
         assert.ok(!eventEl, 'did not add additonal event');
-        assert.include(hour.flags, calendarId);
       }
     });
 
@@ -354,7 +348,6 @@ suiteGroup('Views.DayBased', function() {
       );
 
       assert.ok(eventEl);
-      assert.include(hour.flags, subject.calendarId(busytime));
     });
 
     test('all day events', function() {
@@ -369,14 +362,6 @@ suiteGroup('Views.DayBased', function() {
 
       // verify hour
       assert.ok(hour, 'has hour');
-
-      // verify flag
-      assert.ok(hour.flags, 'has flags');
-
-      assert.include(
-        hour.flags, subject.calendarId(busytime),
-        'includes calendar id'
-      );
 
       // verify dom element
       var el = hour.element.querySelector(
@@ -467,31 +452,10 @@ suiteGroup('Views.DayBased', function() {
       var c = add(1, 'two');
 
       var hour = subject.hours.get(1);
-      var hourElement = hour.element;
-      var classList = hourElement.classList;
-      var calendarId = subject.calendarId(b.busytime);
       var records = hour.records;
 
-      assert.isTrue(classList.contains(calendarId), 'starts with id');
       subject.remove(c.busytime);
-
-      assert.isTrue(
-        classList.contains(calendarId),
-        'does not initially remove'
-      );
-
-
-      //XXX: we want to verify that the class
-      //id is not removed until all records
-      //with the classId are removed.
       subject.remove(b.busytime);
-
-      // now it should be removed as there are
-      // no more calendar-id-1 elements
-      assert.ok(
-        !classList.contains(calendarId),
-        'finally removes'
-      );
 
       assert.isFalse(records.has(b.busytime._id), 'remove b');
       assert.isFalse(records.has(c.busytime._id), 'remove c');

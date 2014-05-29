@@ -1,0 +1,10 @@
+{
+  "settings": {
+    "src": ["apps/settings/README.md",
+            "apps/settings/js/**/*.js"
+    ],
+    "options": {
+      "destination": "docs/settings"
+    }
+  }
+}

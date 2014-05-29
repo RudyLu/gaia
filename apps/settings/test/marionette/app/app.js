@@ -1,5 +1,6 @@
 'use strict';
 var Base = require('./base'),
+    RootPanel = require('./regions/root'),
     BluetoothPanel = require('./regions/bluetooth'),
     DoNotTrackPanel = require('./regions/do_not_track'),
     HotspotPanel = require('./regions/hotspot'),
@@ -15,7 +16,9 @@ var Base = require('./base'),
     NotificationsPanel = require('./regions/notifications'),
     ScreenLockPanel = require('./regions/screen_lock'),
     AppPermissionPanel = require('./regions/app_permission'),
-    DisplayPanel = require('./regions/display');
+    DisplayPanel = require('./regions/display'),
+    AppStoragePanel = require('./regions/app_storage'),
+    MediaStoragePanel = require('./regions/media_storage');
 
 // origin of the settings app
 var ORIGIN = 'app://settings.gaiamobile.org';
@@ -47,16 +50,23 @@ Settings.Selectors = {
   'improveSection': '#improveBrowserOS',
   'feedbackPanel': 'button[data-href="#improveBrowserOS-chooseFeedback"]',
   'soundMenuItem': '#menuItem-sound',
-  'languagePanel': '#languages',
   'languageMenuItem': '#menuItem-languageAndRegion',
-  'screenLockMenuItem': '#menuItem-phoneLock',
+  'screenLockMenuItem': '#menuItem-screenLock',
   'appPermissionPanel': '#menuItem-appPermissions',
-  'displayMenuItem': '#menuItem-display'
+  'displayMenuItem': '#menuItem-display',
+  'appStorageMenuItem': '#menuItem-applicationStorage',
+  'mediaStorageMenuItem': '#menuItem-mediaStorage'
 };
 
 Settings.prototype = {
 
   __proto__: Base.prototype,
+
+  get rootPanel() {
+    this._rootPanel = this._rootPanel ||
+      new RootPanel(this.client);
+    return this._rootPanel;
+  },
 
   get bluetoothPanel() {
     this.openPanel('bluetoothMenuItem');
@@ -156,13 +166,37 @@ Settings.prototype = {
     return this._appPermissionPanel;
   },
 
+  get appStoragePanel() {
+    this.openPanel.call(this, 'appStorageMenuItem');
+    this._appStoragePanel =
+      this._appStoragePanel || new AppStoragePanel(this.client);
+    return this._appStoragePanel;
+  },
+
+  get mediaStoragePanel() {
+    this.openPanel('mediaStorageMenuItem');
+    this._mediaStoragePanel = this._mediaStoragePanel ||
+      new MediaStoragePanel(this.client);
+    return this._mediaStoragePanel;
+  },
+
+  set currentLanguage(value) {
+    // open the language panel
+    var languagePanel = this.languagePanel;
+    languagePanel.currentLanguage = value;
+    languagePanel.back();
+  },
+
   /**
    * @private
    */
   openPanel: function app_openPanel(selector, parentSelector) {
+    console.log('[test] openPanel() ' + selector);
     var localParentSelector = parentSelector || 'menuItemsSection';
     var menuItem = this.waitForElement(selector);
     var parentSection = this.waitForElement(localParentSelector);
+
+    console.log('[test] openPanel() - tap ' + selector);
     menuItem.tap();
     this.client.waitFor(function() {
       var loc = parentSection.location();

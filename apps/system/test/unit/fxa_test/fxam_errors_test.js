@@ -9,7 +9,7 @@ suite('Error manager', function() {
     'CANNOT_CREATE_ACCOUNT': 'cannot-create',
     'RESET_PASSWORD_ERROR': 'reset-password-error',
     'RESET_PASSWORD_IN_SETTINGS': 'reset-password-in-settings',
-    'INVALID_ACCOUNTID': 'invalid-email',
+    'INVALID_EMAIL': 'invalid-email',
     'INVALID_PASSWORD': 'invalid-password',
     'ALREADY_SIGNED_IN_USER': 'already-signed-in',
     'INTERNAL_ERROR_INVALID_USER': 'generic-error',
@@ -17,7 +17,7 @@ suite('Error manager', function() {
     'NO_TOKEN_SESSION': 'generic-error',
     'GENERIC_ERROR': 'generic-error',
     'UNKNOWN': 'unknown-error',
-    'COPPA_ERROR': 'coppa-error'
+    'COPPA_ERROR': 'coppa-failure-error'
   };
   var response;
   var realL10n;

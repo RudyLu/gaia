@@ -1,7 +1,7 @@
 'use strict';
 /* global eme, Promise, Search */
 
-requireApp('search/js/eme/eme.js');
+requireApp('search/shared/js/everythingme/eme.js');
 requireApp('search/test/unit/mock_search.js');
 requireApp('search/js/providers/provider.js');
 
@@ -36,7 +36,7 @@ suite('search/providers/webresults', function() {
 
   suite('click', function() {
     test('calls browser', function() {
-      var stub = this.sinon.stub(Search, 'navigate');
+      var stub = this.sinon.stub(window, 'open');
       subject.click({
         target: {
           dataset: {
@@ -45,11 +45,8 @@ suite('search/providers/webresults', function() {
           }
         }
       });
-      assert.ok(stub.calledWith('http://mozilla.org', {
-        icon: 'http://mozilla.org/img',
-        originName: undefined,
-        originUrl: 'http://mozilla.org'
-      }));
+      assert.ok(stub.calledOnce);
+      stub.restore();
     });
   });
 
@@ -83,8 +80,12 @@ suite('search/providers/webresults', function() {
 
     test('renders text in result', function() {
       subject.render([{title: 'mozilla'}]);
-      var container = subject.container;
-      assert.notEqual(container.innerHTML.indexOf('mozilla'), -1);
+      var webResult = subject.container.querySelector('.result');
+      assert.equal(webResult.querySelector('.title').innerHTML, 'mozilla');
+      assert.equal(webResult.getAttribute('aria-label'), 'mozilla');
+      assert.equal(webResult.getAttribute('role'), 'link');
+      assert.equal(webResult.querySelector('.icon').getAttribute('role'),
+        'presentation');
     });
   });
 

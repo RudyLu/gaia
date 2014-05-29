@@ -2,6 +2,16 @@
   'use strict';
 
   /* jshint validthis:true */
+  function L10nError(message, id, loc) {
+    this.name = 'L10nError';
+    this.message = message;
+    this.id = id;
+    this.loc = loc;
+  }
+  L10nError.prototype = Object.create(Error.prototype);
+  L10nError.prototype.constructor = L10nError;
+
+
   /* jshint browser:true */
 
   var io = {
@@ -14,25 +24,21 @@
 
       xhr.open('GET', url, !sync);
 
-      //TODO: Replace this with addEventListener (bug 934727)
-      xhr.onreadystatechange = function() {
-        if (xhr.readyState === 4) {
-          if (xhr.status === 200 || xhr.status === 0) {
-            callback(null, xhr.responseText);
-          } else {
-            callback(new Error('Not found: ' + url));
-          }
+      xhr.addEventListener('load', function io_load(e) {
+        if (e.target.status === 200 || e.target.status === 0) {
+          callback(null, e.target.responseText);
+        } else {
+          callback(new L10nError('Not found: ' + url));
         }
-      };
-
-      xhr.onerror = callback;
-      xhr.ontimeout = callback;
+      });
+      xhr.addEventListener('error', callback);
+      xhr.addEventListener('timeout', callback);
 
       // the app: protocol throws on 404, see https://bugzil.la/827243
       try {
         xhr.send(null);
       } catch (e) {
-        callback(new Error('Not found: ' + url));
+        callback(new L10nError('Not found: ' + url));
       }
     },
 
@@ -46,17 +52,21 @@
       xhr.open('GET', url);
 
       xhr.responseType = 'json';
-      xhr.onload = function(e) {
-        callback(null, e.target.response);
-      };
-      xhr.onerror = callback;
-      xhr.ontimeout = callback;
+      xhr.addEventListener('load', function io_loadjson(e) {
+        if (e.target.status === 200 || e.target.status === 0) {
+          callback(null, e.target.response);
+        } else {
+          callback(new L10nError('Not found: ' + url));
+        }
+      });
+      xhr.addEventListener('error', callback);
+      xhr.addEventListener('timeout', callback);
 
       // the app: protocol throws on 404, see https://bugzil.la/827243
       try {
         xhr.send(null);
       } catch (e) {
-        callback(new Error('Not found: ' + url));
+        callback(new L10nError('Not found: ' + url));
       }
     }
   };
@@ -559,6 +569,7 @@
 
 
 
+
   var nestedProps = ['style', 'dataset'];
 
   var parsePatterns;
@@ -702,10 +713,11 @@
   function parseMacro(str) {
     var match = str.match(parsePatterns.macro);
     if (!match) {
-      throw new Error('Malformed macro');
+      throw new L10nError('Malformed macro');
     }
     return [match[1], match[2]];
   }
+
 
 
   var MAX_PLACEABLE_LENGTH = 2500;
@@ -795,8 +807,9 @@
       if (typeof value === 'string') {
         // prevent Billion Laughs attacks
         if (value.length >= MAX_PLACEABLE_LENGTH) {
-          throw new Error('Too many characters in placeable (' + value.length +
-                          ', max allowed is ' + MAX_PLACEABLE_LENGTH + ')');
+          throw new L10nError('Too many characters in placeable (' +
+                              value.length + ', max allowed is ' +
+                              MAX_PLACEABLE_LENGTH + ')');
         }
         return value;
       }
@@ -809,8 +822,8 @@
     var value = str.replace(rePlaceables, function(match, id) {
       // prevent Quadratic Blowup attacks
       if (placeablesCount++ >= MAX_PLACEABLES) {
-        throw new Error('Too many placeables (' + placeablesCount +
-                        ', max allowed is ' + MAX_PLACEABLES + ')');
+        throw new L10nError('Too many placeables (' + placeablesCount +
+                            ', max allowed is ' + MAX_PLACEABLES + ')');
       }
       return subPlaceable(ctxdata, env, match, id);
     });
@@ -989,7 +1002,7 @@
       /* jshint -W084 */
 
       if (!this.isReady) {
-        throw new ContextError('Context not ready');
+        throw new L10nError('Context not ready');
       }
 
       var cur = 0;
@@ -1004,14 +1017,14 @@
         var entry = locale.getEntry(id);
         if (entry === undefined) {
           cur++;
-          warning.call(this, new ContextError(id + ' not found in ' + loc, id,
-                                              loc));
+          warning.call(this, new L10nError(id + ' not found in ' + loc, id,
+                                           loc));
           continue;
         }
         return entry;
       }
 
-      error.call(this, new ContextError(id + ' not found', id));
+      error.call(this, new L10nError(id + ' not found', id));
       return null;
     }
 
@@ -1076,7 +1089,7 @@
 
     this.requestLocales = function requestLocales() {
       if (this.isLoading && !this.isReady) {
-        throw new ContextError('Context not ready');
+        throw new L10nError('Context not ready');
       }
 
       this.isLoading = true;
@@ -1132,23 +1145,12 @@
     }
   }
 
-  Context.Error = ContextError;
-
-  function ContextError(message, id, loc) {
-    this.name = 'ContextError';
-    this.message = message;
-    this.id = id;
-    this.loc = loc;
-  }
-  ContextError.prototype = Object.create(Error.prototype);
-  ContextError.prototype.constructor = ContextError;
-
 
   /* jshint -W104 */
 
   var DEBUG = false;
   var isPretranslated = false;
-  var rtlList = ['ar', 'he', 'fa', 'ps', 'ur'];
+  var rtlList = ['ar', 'he', 'fa', 'ps', 'qps-plocm', 'ur'];
 
   // Public API
 
@@ -1164,19 +1166,10 @@
       return translateFragment.call(navigator.mozL10n, element);
     },
     ready: function ready(callback) {
-      if (!callback) {
-        return;
-      }
-
-      // XXX full compatibility with webL10n, which means that the callback may
-      // be invoked once or multiple times, depending on when mozL10n.ready()
-      // was called.
-      // This should just use ctx.ready. See https://bugzil.la/882592
-      if (navigator.mozL10n.ctx.isReady) {
-        window.setTimeout(callback);
-      } else {
-        navigator.mozL10n.ctx.addEventListener('ready', callback);
-      }
+      return navigator.mozL10n.ctx.ready(callback);
+    },
+    once: function once(callback) {
+      return navigator.mozL10n.ctx.once(callback);
     },
     get readyState() {
       return navigator.mozL10n.ctx.isReady ? 'complete' : 'loading';
@@ -1194,8 +1187,10 @@
     },
     _getInternalAPI: function() {
       return {
+        Error: L10nError,
         Context: Context,
         Locale: Locale,
+        Entity: Entity,
         getPluralRule: getPluralRule,
         rePlaceables: rePlaceables,
         getTranslatableChildren:  getTranslatableChildren,
@@ -1306,9 +1301,10 @@
     var resLinks = document.head
                            .querySelectorAll('link[type="application/l10n"]');
     var iniLinks = [];
-    var link;
+    var i;
 
-    for (link of resLinks) {
+    for (i = 0; i < resLinks.length; i++) {
+      var link = resLinks[i];
       var url = link.getAttribute('href');
       var type = url.substr(url.lastIndexOf('.') + 1);
       if (type === 'ini') {
@@ -1332,8 +1328,8 @@
       }
     }
 
-    for (link of iniLinks) {
-      loadINI.call(this, link, onIniLoaded.bind(this));
+    for (i = 0; i < iniLinks.length; i++) {
+      loadINI.call(this, iniLinks[i], onIniLoaded.bind(this));
     }
   }
 
@@ -1357,9 +1353,13 @@
   }
 
   function fireLocalizedEvent() {
-    var event = document.createEvent('Event');
-    event.initEvent('localized', false, false);
-    event.language = this.ctx.supportedLocales[0];
+    var event = new CustomEvent('localized', {
+      'bubbles': false,
+      'cancelable': false,
+      'detail': {
+        'language': this.ctx.supportedLocales[0]
+      }
+    });
     window.dispatchEvent(event);
   }
 
@@ -1417,7 +1417,8 @@
     var uris = [];
     var match;
 
-    for (var line of entries) {
+    for (var i = 0; i < entries.length; i++) {
+      var line = entries[i];
       // we only care about en-US resources
       if (genericSection && iniPatterns['import'].test(line)) {
         match = iniPatterns['import'].exec(line);
@@ -1449,8 +1450,9 @@
     }
     translateElement.call(this, element);
 
-    for (var node of getTranslatableChildren(element)) {
-      translateElement.call(this, node);
+    var nodes = getTranslatableChildren(element);
+    for (var i = 0; i < nodes.length; i++ ) {
+      translateElement.call(this, nodes[i]);
     }
   }
 

@@ -1,13 +1,12 @@
-/* globals MocksHelper, MockLockScreen, VisibilityManager,
+/* globals MocksHelper, VisibilityManager,
            MockAttentionScreen */
 'use strict';
 
-mocha.globals(['VisibilityManager', 'System', 'lockScreen']);
+mocha.globals(['VisibilityManager', 'System']);
 
 requireApp('system/test/unit/mock_orientation_manager.js');
 requireApp('system/shared/test/unit/mocks/mock_manifest_helper.js');
 requireApp('system/test/unit/mock_attention_screen.js');
-requireApp('system/test/unit/mock_lock_screen.js');
 
 var mocksForVisibilityManager = new MocksHelper([
   'AttentionScreen'
@@ -18,7 +17,6 @@ suite('system/VisibilityManager', function() {
   var visibilityManager;
   mocksForVisibilityManager.attachTestHelpers();
   setup(function(done) {
-    window.lockScreen = MockLockScreen;
     this.sinon.useFakeTimers();
 
     stubById = this.sinon.stub(document, 'getElementById');
@@ -42,17 +40,15 @@ suite('system/VisibilityManager', function() {
         type: 'lock'
       });
 
-      assert.isTrue(stubPublish.calledTwice);
-      assert.equal(stubPublish.getCall(0).args[0], 'hidewindows');
-      assert.equal(stubPublish.getCall(1).args[0], 'hidewindow');
+      assert.isTrue(stubPublish.calledOnce);
+      assert.equal(stubPublish.getCall(0).args[0], 'hidewindow');
 
       visibilityManager._normalAudioChannelActive = true;
       visibilityManager.handleEvent({
         type: 'lock'
       });
 
-      assert.isTrue(stubPublish.calledThrice);
-      assert.equal(stubPublish.getCall(2).args[0], 'hidewindows');
+      assert.isTrue(stubPublish.calledOnce);
 
       visibilityManager._normalAudioChannelActive = false;
     });
@@ -65,17 +61,15 @@ suite('system/VisibilityManager', function() {
         type: 'will-unlock'
       });
 
-      assert.isTrue(stubPublish.calledTwice);
-      assert.isTrue(stubPublish.getCall(0).args[0] === 'showwindows');
-      assert.isTrue(stubPublish.getCall(1).args[0] === 'showwindow');
+      assert.isTrue(stubPublish.calledOnce);
+      assert.isTrue(stubPublish.getCall(0).args[0] === 'showwindow');
 
       MockAttentionScreen.mFullyVisible = true;
       visibilityManager.handleEvent({
         type: 'will-unlock'
       });
 
-      assert.isTrue(stubPublish.calledThrice);
-      assert.isTrue(stubPublish.getCall(2).args[0] === 'showwindows');
+      assert.isTrue(stubPublish.calledOnce);
     });
 
     test('attentionscreenshow', function() {
@@ -94,14 +88,44 @@ suite('system/VisibilityManager', function() {
       assert.isTrue(stubPublish.getCall(1).args[1].origin === 'fake-dialer');
     });
 
-    test('attentionscreenhide', function() {
+    test('rocketbar-overlayopened', function() {
       var stubPublish = this.sinon.stub(visibilityManager, 'publish');
       visibilityManager.handleEvent({
-        type: 'attentionscreenhide'
+        type: 'rocketbar-overlayopened'
       });
 
       assert.isTrue(stubPublish.called);
-      assert.isTrue(stubPublish.getCall(0).args[0] === 'showwindows');
+      assert.isTrue(stubPublish.calledWith('hidewindowforscreenreader'));
+    });
+
+    test('rocketbar-overlayclosed', function() {
+      var stubPublish = this.sinon.stub(visibilityManager, 'publish');
+      visibilityManager.handleEvent({
+        type: 'rocketbar-overlayclosed'
+      });
+
+      assert.isTrue(stubPublish.called);
+      assert.isTrue(stubPublish.calledWith('showwindowforscreenreader'));
+    });
+
+    test('utility-tray-overlayopened', function() {
+      var stubPublish = this.sinon.stub(visibilityManager, 'publish');
+      visibilityManager.handleEvent({
+        type: 'utility-tray-overlayopened'
+      });
+
+      assert.isTrue(stubPublish.called);
+      assert.isTrue(stubPublish.calledWith('hidewindowforscreenreader'));
+    });
+
+    test('utility-tray-overlayclosed', function() {
+      var stubPublish = this.sinon.stub(visibilityManager, 'publish');
+      visibilityManager.handleEvent({
+        type: 'utility-tray-overlayclosed'
+      });
+
+      assert.isTrue(stubPublish.called);
+      assert.isTrue(stubPublish.calledWith('showwindowforscreenreader'));
     });
 
     test('Normal audio channel is on.', function() {
@@ -114,6 +138,14 @@ suite('system/VisibilityManager', function() {
       });
 
       assert.isTrue(visibilityManager._normalAudioChannelActive);
+    });
+
+    test('Discard normal audio channel if homescreen is opening', function() {
+      visibilityManager.handleEvent({
+        type: 'homescreenopening'
+      });
+
+      assert.isFalse(visibilityManager._normalAudioChannelActive);
     });
 
     test('Normal audio channel is off.', function() {

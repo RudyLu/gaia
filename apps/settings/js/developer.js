@@ -31,7 +31,7 @@ var Developer = {
       // fallback if no settings present
       if (!ftuManifestURL) {
         ftuManifestURL = document.location.protocol +
-          '//communications.gaiamobile.org' +
+          '//ftu.gaiamobile.org' +
           (location.port ? (':' + location.port) : '') +
           '/manifest.webapp';
       }
@@ -47,7 +47,7 @@ var Developer = {
         }
 
         if (ftuApp) {
-          ftuApp.launch('ftu');
+          ftuApp.launch();
         } else {
           alert(navigator.mozL10n.get('no-ftu'));
         }
@@ -56,4 +56,4 @@ var Developer = {
   }
 };
 
-navigator.mozL10n.ready(Developer.init.bind(Developer));
+navigator.mozL10n.once(Developer.init.bind(Developer));

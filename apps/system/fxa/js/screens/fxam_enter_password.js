@@ -2,7 +2,7 @@
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 
 /* global FxaModuleStates, FxaModuleUI, FxaModule, FxaModuleNavigation,
-   FxModuleServerRequest, FxaModuleOverlay, FxaModuleManager, FtuLauncher */
+   FxModuleServerRequest, FxaModuleOverlay, FxaModuleManager */
 /* exported FxaModuleEnterPassword */
 
 'use strict';
@@ -52,8 +52,8 @@ var FxaModuleEnterPassword = (function() {
   function _forgotPassword() {
     /*jshint validthis:true*/
     var self = this;
-    if (FtuLauncher.isFtuRunning()) {
-      return self.showErrorResponse({
+    if (this.isFTU) {
+      return this.showErrorResponse({
         error: 'RESET_PASSWORD_IN_SETTINGS'
       });
     }
@@ -120,6 +120,7 @@ var FxaModuleEnterPassword = (function() {
       return;
     }
 
+    this.isFTU = !!(options && options.isftu);
     this.fxaUserEmail.textContent = options.email;
     this.email = options.email;
 

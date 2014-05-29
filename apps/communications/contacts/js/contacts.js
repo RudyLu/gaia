@@ -26,8 +26,12 @@ var SCALE_RATIO = window.innerWidth / 320;
 var Contacts = (function() {
   var SHARED = 'shared';
   var SHARED_PATH = '/' + SHARED + '/' + 'js';
+
   var SHARED_UTILS = 'sharedUtilities';
   var SHARED_UTILS_PATH = SHARED_PATH + '/contacts/import/utilities';
+
+  var SHARED_CONTACTS = 'sharedContacts';
+  var SHARED_CONTACTS_PATH = SHARED_PATH + '/' + 'contacts';
 
   var navigation = new navigationStack('view-contacts-list');
 
@@ -41,6 +45,7 @@ var Contacts = (function() {
       cancelButton,
       addButton,
       appTitleElement,
+      editModeTitleElement,
       asyncScriptsLoaded = false;
 
   var settingsReady = false;
@@ -86,7 +91,12 @@ var Contacts = (function() {
             currentContact = savedContact;
             contactsDetails.render(currentContact, TAG_OPTIONS);
             if (params.tel) {
-              contactsDetails.reMark('tel', params.tel);
+
+              contactsDetails.reMark(
+                'tel',
+                params.tel,
+                JSON.parse(params.isMissedCall) ? 'remark-missed' : 'remark'
+              );
             }
             navigation.go(sectionId, 'right-left');
             showApp();
@@ -188,7 +198,8 @@ var Contacts = (function() {
     settingsButton = document.getElementById('settings-button');
     cancelButton = document.getElementById('cancel_activity');
     addButton = document.getElementById('add-contact-button');
-    appTitleElement = cancelButton.parentNode.querySelector('h1');
+    editModeTitleElement = document.getElementById('edit-title');
+    appTitleElement = document.getElementById('app-title');
 
     TAG_OPTIONS = {
       'phone-type' : [
@@ -239,7 +250,6 @@ var Contacts = (function() {
 
   var init = function init() {
     _ = navigator.mozL10n.get;
-    initLanguages();
     initContainers();
     initEventListeners();
     window.addEventListener('hashchange', checkUrl);
@@ -293,11 +303,6 @@ var Contacts = (function() {
         appTitleElement.textContent = text;
       }
     }
-  };
-
-  var initLanguages = function initLanguages() {
-    document.documentElement.lang = navigator.mozL10n.language.code;
-    document.documentElement.dir = navigator.mozL10n.language.direction;
   };
 
 
@@ -475,8 +480,8 @@ var Contacts = (function() {
     }
   };
 
-  var handleBack = function handleBack() {
-    navigation.back();
+  var handleBack = function handleBack(cb) {
+    navigation.back(cb);
   };
 
   var handleCancel = function handleCancel() {
@@ -557,7 +562,8 @@ var Contacts = (function() {
       callback();
     } else {
       initDetails(function onDetails() {
-        LazyLoader.load(['/contacts/js/utilities/image_thumbnail.js'],
+        LazyLoader.load([
+          '/shared/js/contacts/utilities/image_thumbnail.js'],
         function() {
           Contacts.view('Form', function viewLoaded() {
             formReady = true;
@@ -674,7 +680,7 @@ var Contacts = (function() {
       contacts.List.initSearch(function onInit() {
         contacts.Search.enterSearchMode(evt);
       });
-    });
+    }, SHARED_CONTACTS);
   };
 
   var initEventListeners = function initEventListener() {
@@ -713,8 +719,8 @@ var Contacts = (function() {
 
   var addAsyncScripts = function addAsyncScripts() {
     var lazyLoadFiles = [
-      '/contacts/js/utilities/templates.js',
-      '/contacts/js/contacts_shortcuts.js',
+      '/shared/js/contacts/utilities/templates.js',
+      '/shared/js/contacts/contacts_shortcuts.js',
       '/contacts/js/contacts_tag.js',
       SHARED_UTILS_PATH + '/' + 'misc.js',
       '/contacts/js/utilities/normalizer.js',
@@ -724,7 +730,7 @@ var Contacts = (function() {
       SHARED_UTILS_PATH + '/' + 'sdcard.js',
       SHARED_UTILS_PATH + '/' + 'vcard_parser.js',
       SHARED_UTILS_PATH + '/' + 'status.js',
-      '/contacts/js/utilities/dom.js'
+      '/shared/js/contacts/utilities/dom.js'
     ];
 
     // Lazyload nfc.js if NFC is available
@@ -801,8 +807,8 @@ var Contacts = (function() {
                 contactsDetails.render(currentContact, null, enrichedContact);
               }
               if (contactsList) {
-                contactsList.refresh(currentContact, checkPendingChanges,
-                                   event.reason);
+                contactsList.refresh(enrichedContact || currentContact,
+                                     checkPendingChanges, event.reason);
               }
           });
         } else {
@@ -833,7 +839,6 @@ var Contacts = (function() {
 
   var initContacts = function initContacts(evt) {
     window.setTimeout(Contacts.onLocalized);
-    window.removeEventListener('localized', initContacts);
     if (window.navigator.mozSetMessageHandler && window.self == window.top) {
       var actHandler = ActivityHandler.handle.bind(ActivityHandler);
       window.navigator.mozSetMessageHandler('activity', actHandler);
@@ -856,7 +861,7 @@ var Contacts = (function() {
     });
   };
 
-  window.addEventListener('localized', initContacts); // addEventListener
+  navigator.mozL10n.once(initContacts);
 
   function loadConfirmDialog() {
     var args = Array.slice(arguments);
@@ -908,6 +913,9 @@ var Contacts = (function() {
         case SHARED_UTILS:
           finalPath = SHARED_UTILS_PATH;
           break;
+        case SHARED_CONTACTS:
+          finalPath = SHARED_CONTACTS_PATH;
+          break;
         default:
           finalPath = 'js' + '/' + type;
       }
@@ -940,8 +948,8 @@ var Contacts = (function() {
    * @param {String} view name.
    * @param {Function} callback.
    */
-  function loadView(view, callback) {
-    load('views', view, callback);
+  function loadView(view, callback, type) {
+    load('views', view, callback, type);
   }
 
   /**
@@ -954,7 +962,7 @@ var Contacts = (function() {
   }
 
   var updateSelectCountTitle = function updateSelectCountTitle(count) {
-    appTitleElement.textContent = _('SelectedTxt', {n: count});
+    editModeTitleElement.textContent = _('SelectedTxt', {n: count});
   };
 
   return {
@@ -990,6 +998,9 @@ var Contacts = (function() {
     },
     get SHARED_UTILITIES() {
       return SHARED_UTILS;
+    },
+    get SHARED_CONTACTS() {
+      return SHARED_CONTACTS;
     }
   };
 })();

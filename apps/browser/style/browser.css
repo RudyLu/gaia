@@ -144,10 +144,6 @@ input[type="image"] {
   margin-right: 1rem;
 }
 
-.preview.crashed {
-  background-image: url(images/tab-icon-crashedtab.png);
-}
-
 #tabs-list span {
   pointer-events: none;
   display: block;
@@ -283,6 +279,14 @@ input[type="image"] {
   width: calc(100% - 1.5rem);
 }
 
+#url-input:disabled {
+  color: #000;
+}
+
+#url-bar input:focus {
+  box-shadow: none;
+}
+
 #url-bar.focus {
   border: 0.1rem solid #00c7ef;
 }
@@ -362,6 +366,10 @@ menu[type="toolbar"] button {
   width: 8rem;
   height: 4.5rem;
   float: left;
+}
+
+menu[type="toolbar"] button.hidden {
+  display: none;
 }
 
 input::-moz-focus-inner {

@@ -1,4 +1,4 @@
-var utils = require('./utils');
+  var utils = require('./utils');
 var config;
 const { Cc, Ci, Cr, Cu, CC } = require('chrome');
 Cu.import('resource://gre/modules/Services.jsm');
@@ -18,7 +18,8 @@ var win = {
   Node: {
     TEXT_NODE: 3
   },
-  dispatchEvent: function() {}
+  CustomEvent: function() {},
+  dispatchEvent: function() {},
 };
 let scope = {};
 let JSMin;
@@ -90,9 +91,6 @@ function optimize_getFileContent(webapp, htmlFile, relativePath) {
   } else {
     file = htmlFile.parent.clone();
   }
-  if (paths[0] == 'shared') {
-    file = utils.getFile(config.GAIA_DIR);
-  }
 
   paths.forEach(function appendPath(name) {
     if (name === '..') {
@@ -106,24 +104,7 @@ function optimize_getFileContent(webapp, htmlFile, relativePath) {
   });
 
   try {
-    let content;
-    // we inject extended locales to localization manifest (locales.ini) files
-    if (RE_INI.test(file.path)) {
-      content = utils.getFileContent(file);
-      if (gaia.l10nManager) {
-        var ini = gaia.l10nManager.modifyLocaleIni(content, l10nLocales);
-        content = gaia.l10nManager.serializeIni(ini);
-      }
-    // we substitute the localization properties file from gaia with the ones
-    // from LOCALE_BASEDIR
-    } else if (RE_PROPS.test(relativePath) && gaia.l10nManager &&
-      !file.path.contains('en-US')) {
-      let propFile = gaia.l10nManager.getPropertiesFile(webapp, file.path);
-      if (propFile.exists()) {
-        file = propFile;
-      }
-    }
-    return content ? content : utils.getFileContent(file);
+    return utils.getFileContent(file);
   } catch (e) {
     dump(file.path + ' could not be found.\n');
     return '';
@@ -353,13 +334,7 @@ function optimize_inlineResources(doc, webapp, filePath, htmlFile) {
                                                  oldStyle.href);
     // inline css image url references
     newStyle.innerHTML = content.replace(/url\(([^)]+?)\)/g, function(match, url) {
-      let file;
-      if (cssPath.split('/')[0] === 'shared') {
-        file = utils.getFile(config.GAIA_DIR, cssPath, url);
-      } else {
-        file = utils.getFile(config.GAIA_DIR, webapp.sourceAppDirectoryName,
-                             webapp.sourceDirectoryName, cssPath, url);
-      }
+      let file = utils.getFile(webapp.buildDirectoryFile.path, cssPath, url);
       return match.replace(url, utils.getFileAsDataURI(file));
     });
     oldStyle.parentNode.insertBefore(newStyle, oldStyle);
@@ -422,6 +397,11 @@ function optimize_embedL10nResources(doc, dictionary) {
   // split the l10n dictionary on a per-locale basis,
   // and embed it in the HTML document by enclosing it in <script> nodes.
   for (let lang in dictionary) {
+    // skip to the next language if the dictionary is null
+    if (!dictionary[lang]) {
+      continue;
+    }
+
     let script = doc.createElement('script');
     script.type = 'application/l10n';
     script.lang = lang;
@@ -538,6 +518,11 @@ function optimize_compile(webapp, file, callback) {
   let subDict = newDictionary();
   let fullDict = newDictionary();
 
+  // configure mozL10n.getDictionary to skip the default locale when populating
+  // subDicts
+  let getDictionary = mozL10n.getDictionary.bind(mozL10n,
+                                                 config.GAIA_DEFAULT_LOCALE);
+
   // catch console.[log|warn|info] calls and redirect them to `dump()'
   // XXX for some reason, this won't work if gDEBUG >= 2 in l10n.js
   function optimize_dump(str) {
@@ -555,19 +540,30 @@ function optimize_compile(webapp, file, callback) {
 
     function open(type, url, async) {
       debug('loadResource: ' + url);
-      this.readyState = 4;
       this.status = 200;
       this.responseText = optimize_getFileContent(webapp, file, url);
     }
 
+    function addEventListener(type, cb) {
+      if (type === 'load') {
+        this.onload = cb;
+      }
+    }
+
     function send() {
-      this.onreadystatechange();
+      this.onload({
+        'target': {
+          'status': this.status,
+          'responseText': this.responseText,
+        }
+      });
     }
 
     return {
       open: open,
       send: send,
-      onreadystatechange: null
+      addEventListener: addEventListener,
+      onload: null,
     };
   };
 
@@ -582,6 +578,11 @@ function optimize_compile(webapp, file, callback) {
       L10N_OPTIMIZATION_BLACKLIST.indexOf(webapp.sourceDirectoryName) < 0) {
     // selecting a language triggers `XMLHttpRequest' and `dispatchEvent' above
     debug('localizing: ' + file.path);
+
+    // if LOCALE_BASEDIR is set, we're going to show missing strings at
+    // buildtime.
+    var debugL10n = config.LOCALE_BASEDIR != "";
+
     // since l10n.js was read before the document was created, we need to
     // explicitly initialize it again via mozL10n.bootstrap, which looks for
     // *.ini links in the HTML and sets up the localization context
@@ -597,8 +598,8 @@ function optimize_compile(webapp, file, callback) {
 
         // create JSON dicts for the current language; one for the <script> tag
         // embedded in HTML and one for locales-obj/
-        subDict[mozL10n.language.code] = mozL10n.getDictionary(docElt);
-        fullDict[mozL10n.language.code] = mozL10n.getDictionary();
+        subDict[mozL10n.language.code] = getDictionary(docElt);
+        fullDict[mozL10n.language.code] = getDictionary();
 
         processedLocales++;
       }
@@ -620,7 +621,7 @@ function optimize_compile(webapp, file, callback) {
 
       // notify the world that this HTML document has been optimized
       callback();
-    });
+    }, debugL10n);
   } else {
     callback();
   }
@@ -683,20 +684,54 @@ function execute(options) {
       // create one concatenated l10n file per locale for all HTML documents
 
       // create the /locales-obj directory if necessary
-      let localeDir = webapp.buildDirectoryFile.clone();
-      localeDir.append('locales-obj');
-      utils.ensureFolderExists(localeDir);
+      let localeObjDir = webapp.buildDirectoryFile.clone();
+      let reserved = {};
+      localeObjDir.append('locales-obj');
+      utils.ensureFolderExists(localeObjDir);
 
       // create all JSON dictionaries in /locales-obj
       for (let lang in webapp.dictionary) {
-        let file = localeDir.clone();
+        let file = localeObjDir.clone();
         file.append(lang + '.json');
         utils.writeContent(file, JSON.stringify(webapp.dictionary[lang]));
+        reserved[file.leafName] = true;
+      }
+
+      utils.ls(localeObjDir, true).forEach(function(file) {
+        var fname = file.leafName
+        if (utils.getExtension(fname) === 'json' && !reserved[fname]) {
+          file.remove(false);
+        }
+      });
+
+      let localeDir = webapp.buildDirectoryFile.clone();
+      localeDir.append('locales');
+      // FIXME 999903: locales directory won't be removed if DEBUG=1 because we
+      // need l10n properties file in build_stage to get l10n string in DEBUG
+      // mode.
+      if (localeDir.exists() && options.DEBUG !== 1) {
+        localeDir.remove(true);
+      }
+      let sharedLocaleDir = webapp.buildDirectoryFile.clone();
+      sharedLocaleDir.append('shared');
+      sharedLocaleDir.append('locales');
+      // FIXME 999903: locales directory won't be removed if DEBUG=1 because we
+      // need l10n properties file in build_stage to get l10n string in DEBUG
+      // mode.
+      if (sharedLocaleDir.exists() && options.DEBUG !== 1) {
+        sharedLocaleDir.remove(true);
       }
     }
 
     // optimize all HTML documents in the webapp
     let files = utils.ls(webapp.buildDirectoryFile, true, /^(shared|tests?)$/);
+
+    // We need to optimize shared pages as well
+    let sharedPagesDir = webapp.buildDirectoryFile.clone();
+    sharedPagesDir.append('shared');
+    sharedPagesDir.append('pages');
+    let filesSharedPages = utils.ls(sharedPagesDir, true);
+    files = files.concat(filesSharedPages);
     files.forEach(function(file) {
       if (/\.html$/.test(file.leafName)) {
         filesToProcess.push(file);

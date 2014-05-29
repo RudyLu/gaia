@@ -1,5 +1,5 @@
 /* global KeyboardManager, softwareButtonManager, StatusBar,
-          System */
+          System*/
 'use strict';
 
 (function(exports) {
@@ -53,10 +53,14 @@
      * @memberOf LayoutManager
      */
     get height() {
-      return window.innerHeight -
-        (this.keyboardEnabled ? KeyboardManager.getHeight() : 0) -
-        StatusBar.height -
-        softwareButtonManager.height;
+      if (System.locked) {
+        return window.innerHeight;
+      } else {
+        return window.innerHeight -
+          (this.keyboardEnabled ? KeyboardManager.getHeight() : 0) -
+          StatusBar.height -
+          softwareButtonManager.height;
+      }
     },
 
     /**

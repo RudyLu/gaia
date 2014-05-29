@@ -6,6 +6,7 @@ define(function(require, exports, module) {
  */
 
 var debug = require('debug')('controller:hud');
+var debounce = require('lib/debounce');
 var bindAll = require('lib/bind-all');
 
 /**
@@ -27,7 +28,7 @@ function HudController(app) {
   this.app = app;
   this.hud = app.views.hud;
   this.settings = app.settings;
-  this.l10n = app.l10n || navigator.mozL10n;
+  this.l10nGet = app.l10nGet;
   this.notification = app.views.notification;
   this.configure();
   this.bindEvents();
@@ -42,6 +43,10 @@ function HudController(app) {
 HudController.prototype.configure = function() {
   var hasDualCamera = this.settings.cameras.get('options').length > 1;
   this.hud.enable('camera', hasDualCamera);
+
+  // Disable flash button until we
+  // know whether the hardware has flash
+  this.hud.enable('flash', false);
 };
 
 /**
@@ -51,13 +56,17 @@ HudController.prototype.configure = function() {
  * @private
  */
 HudController.prototype.bindEvents = function() {
-  this.app.settings.flashModes.on('change:selected', this.updateFlash);
-  this.app.settings.mode.on('change:selected', this.updateFlash);
-  this.app.on('settings:configured', this.updateFlash);
+  this.app.settings.flashModes.on('change:selected', this.updateFlashMode);
+  this.app.settings.mode.on('change:selected', this.updateFlashMode);
+  this.app.on('settings:configured', this.updateFlashSupport);
+  this.app.once('criticalpathdone', this.hud.show);
 
-  // View
+  // We 'debouce' some UI callbacks to prevent
+  // thrashing the hardware when a user taps repeatedly.
+  // This means the first calback will fire instantly but
+  // subsequent events will be blocked for given time period.
+  this.hud.on('click:camera', debounce(this.onCameraClick, 500, true));
   this.hud.on('click:settings', this.app.firer('settings:toggle'));
-  this.hud.on('click:camera', this.onCameraClick);
   this.hud.on('click:flash', this.onFlashClick);
 
   // Camera
@@ -69,14 +78,23 @@ HudController.prototype.bindEvents = function() {
   this.app.on('timer:cleared', this.hud.setter('timer', 'inactive'));
   this.app.on('timer:started', this.hud.setter('timer', 'active'));
   this.app.on('timer:ended', this.hud.setter('timer', 'inactive'));
+
+  // Settings
+  this.app.on('settings:opened', this.hud.hide);
+  this.app.on('settings:closed', this.hud.show);
+};
+
+HudController.prototype.onSettingsConfigured = function() {
+  this.updateFlashSupport();
 };
 
 HudController.prototype.onModeChange = function() {
   this.clearNotifications();
-  this.updateFlash();
+  this.updateFlashMode();
 };
 
 HudController.prototype.onCameraClick = function() {
+  debug('camera clicked');
   this.clearNotifications();
   this.app.settings.cameras.next();
 };
@@ -109,8 +127,8 @@ HudController.prototype.onFlashClick = function() {
  * @private
  */
 HudController.prototype.notify = function(setting, hdrDeactivated) {
-  var optionTitle = this.l10n.get(setting.selected('title'));
-  var title = this.l10n.get(setting.get('title'));
+  var optionTitle = this.l10nGet(setting.selected('title'));
+  var title = this.l10nGet(setting.get('title'));
   var html;
 
   // Check if the `hdr` setting is going to be deactivated as part
@@ -118,7 +136,7 @@ HudController.prototype.notify = function(setting, hdrDeactivated) {
   // notification if that is the case
   if (hdrDeactivated) {
     html = title + ' ' + optionTitle + '<br/>' +
-      this.l10n.get('hdr-deactivated');
+      this.l10nGet('hdr-deactivated');
   } else {
     html = title + '<br/>' + optionTitle;
   }
@@ -126,14 +144,18 @@ HudController.prototype.notify = function(setting, hdrDeactivated) {
   this.flashNotification = this.notification.display({ text: html });
 };
 
-HudController.prototype.updateFlash = function() {
+HudController.prototype.updateFlashMode = function() {
   var selected = this.settings.flashModes.selected();
-  var supported = this.settings.flashModes.supported();
-
-  this.hud.enable('flash', supported);
+  if (!selected) { return; }
   this.hud.setFlashMode(selected);
+  debug('updated flash mode: %s', selected.key);
+};
 
-  debug('updated flash enabled: %, mode: %s', supported, selected);
+HudController.prototype.updateFlashSupport = function() {
+  var supported = this.settings.flashModes.supported();
+  this.hud.enable('flash', supported);
+  this.updateFlashMode();
+  debug('flash supported: %s', supported);
 };
 
 });

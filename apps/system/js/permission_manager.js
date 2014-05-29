@@ -339,6 +339,8 @@
       this.no.callback = null;
       this.moreInfoLink.removeEventListener('click',
         this.moreInfoHandler);
+      this.hideInfoLink.removeEventListener('click',
+        this.moreInfoHandler);
       this.moreInfo.classList.add('hidden');
     },
 
@@ -381,7 +383,6 @@
       } else if (evt.target === this.moreInfoLink ||
                  evt.target === this.hideInfoLink) {
         this.toggleInfo();
-        this.moreInfoBox.classList.toggle('hidden');
         return;
       }
       this.hidePermissionPrompt();
@@ -472,8 +473,9 @@
         // Show the "More info… " link.
         this.moreInfo.classList.remove('hidden');
         this.moreInfoHandler = this.clickHandler.bind(this);
+        this.hideInfoHandler = this.clickHandler.bind(this);
         this.moreInfoLink.addEventListener('click', this.moreInfoHandler);
-        this.hideInfoLink.addEventListener('click', this.moreInfoHandler);
+        this.hideInfoLink.addEventListener('click', this.hideInfoHandler);
         this.moreInfoBox.textContent = moreInfoText;
       }
       this.currentRequestId = id;
@@ -498,7 +500,7 @@
       this.yes.callback = yescallback;
 
       this.no.textContent = isSharedPermission ?
-          _('dontshare-' + this.permissionType) : _('deny');
+          _('dontshare-' + this.permissionType) : _('dontallow');
       this.noHandler = this.clickHandler.bind(this);
       this.no.addEventListener('click', this.noHandler);
       this.no.callback = nocallback;

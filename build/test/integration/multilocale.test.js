@@ -41,7 +41,6 @@ suite('multilocale Integration tests', function() {
     var cnTzIni = 'shared/locales/tz.ini';
     var langPathInZip = 'shared/resources/languages.json';
 
-
     fs.writeFileSync(localesFilePath, JSON.stringify(localesFileObj));
     var command = 'LOCALES_FILE=' + localesFilePath +
       ' LOCALE_BASEDIR=' + localesDir +
@@ -54,7 +53,7 @@ suite('multilocale Integration tests', function() {
     // We were failing because the output from the gaia build process was
     // larger than the default maximum buffer size on Travis, so we explicitly
     // set a size here.  The default of 200kb is not enough.
-    helper.exec(command, { maxBuffer: 400*1024 }, function(error, stdout, stderr) {
+    helper.exec(command, function(error, stdout, stderr) {
       helper.checkError(error, stdout, stderr);
       var zip = new AdmZip(settingsZipPath);
       if (inlineAndConcat) {

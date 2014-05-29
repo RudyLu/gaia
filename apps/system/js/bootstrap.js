@@ -1,7 +1,35 @@
 /* -*- Mode: js; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- /
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 
+/*global ActivityWindowManager, SecureWindowFactory,
+         SecureWindowManager, HomescreenLauncher,
+         FtuLauncher, SourceView, ScreenManager, Places, Activities,
+         DeveloperHUD, DialerAgent, RemoteDebugger, HomeGesture,
+         SettingsURL, SettingsListener, VisibilityManager, Storage,
+         TelephonySettings, SuspendingAppPriorityManager, TTLView,
+         MediaRecording, AppWindowFactory, SystemDialogManager,
+         applications, Rocketbar, LayoutManager, PermissionManager,
+         HomeSearchbar, SoftwareButtonManager, Accessibility,
+         InternetSharing, SleepMenu, TaskManager */
+
 'use strict';
+
+
+/* === Shortcuts === */
+/* For hardware key handling that doesn't belong to anywhere */
+var Shortcuts = {
+  init: function rm_init() {
+    window.addEventListener('keyup', this);
+  },
+
+  handleEvent: function rm_handleEvent(evt) {
+    if (!ScreenManager.screenEnabled || evt.keyCode !== evt.DOM_VK_F6) {
+      return;
+    }
+
+    document.location.reload();
+  }
+};
 
 window.addEventListener('load', function startup() {
 
@@ -12,9 +40,8 @@ window.addEventListener('load', function startup() {
     /** @global */
     window.appWindowFactory = new AppWindowFactory();
     window.appWindowFactory.start();
-    /** @global */
-    window.activityWindowFactory = new ActivityWindowFactory();
-    window.activityWindowFactory.start();
+    window.activityWindowManager = new ActivityWindowManager();
+    window.activityWindowManager.start();
     /** @global */
     window.secureWindowManager = window.secureWindowManager ||
       new SecureWindowManager();
@@ -27,6 +54,9 @@ window.addEventListener('load', function startup() {
     /** @global */
     window.systemDialogManager = window.systemDialogManager ||
       new SystemDialogManager();
+
+    /** @global */
+    window.mediaPlaybackManager = (new window.MediaPlaybackManager()).start();
 
     /** @global */
     window.lockScreenWindowManager = new window.LockScreenWindowManager();
@@ -68,22 +98,32 @@ window.addEventListener('load', function startup() {
   // Enable checkForUpdate as well if booted without FTU
   window.addEventListener('ftuskip', doneWithFTU);
 
-  window.sourceView = new SourceView();
   Shortcuts.init();
   ScreenManager.turnScreenOn();
-  Places.init();
-  Rocketbar.init();
 
   // Please sort it alphabetically
   window.activities = new Activities();
-  window.devtoolsView = new DevtoolsView();
-  window.dialerRinger = new DialerRinger().start();
+  window.accessibility = new Accessibility();
+  window.accessibility.start();
+  window.developerHUD = new DeveloperHUD().start();
+  window.dialerAgent = new DialerAgent().start();
   window.homeGesture = new HomeGesture().start();
+  window.homeSearchbar = new HomeSearchbar();
+  window.internetSharing = new InternetSharing();
+  window.internetSharing.start();
   window.layoutManager = new LayoutManager().start();
   window.permissionManager = new PermissionManager();
   window.permissionManager.start();
+  window.places = new Places();
+  window.places.start();
   window.remoteDebugger = new RemoteDebugger();
+  window.rocketbar = new Rocketbar();
+  window.sleepMenu = new SleepMenu();
+  window.sleepMenu.start();
   window.softwareButtonManager = new SoftwareButtonManager().start();
+  window.sourceView = new SourceView();
+  window.taskManager = new TaskManager();
+  window.taskManager.start();
   window.telephonySettings = new TelephonySettings();
   window.telephonySettings.start();
   window.ttlView = new TTLView();
@@ -111,21 +151,6 @@ window.addEventListener('load', function startup() {
 
 window.storage = new Storage();
 
-/* === Shortcuts === */
-/* For hardware key handling that doesn't belong to anywhere */
-var Shortcuts = {
-  init: function rm_init() {
-    window.addEventListener('keyup', this);
-  },
-
-  handleEvent: function rm_handleEvent(evt) {
-    if (!ScreenManager.screenEnabled || evt.keyCode !== evt.DOM_VK_F6)
-      return;
-
-    document.location.reload();
-  }
-};
-
 /* === Localization === */
 /* set the 'lang' and 'dir' attributes to <html> when the page is translated */
 window.addEventListener('localized', function onlocalized() {
@@ -150,8 +175,9 @@ navigator.mozSettings.addObserver(
   'clear.remote-windows.data',
   function clearRemoteWindowsData(setting) {
     var shouldClear = setting.settingValue;
-    if (!shouldClear)
+    if (!shouldClear) {
       return;
+    }
 
     // Delete all storage and cookies from our content processes
     var request = navigator.mozApps.getSelf();
@@ -163,14 +189,6 @@ navigator.mozSettings.addObserver(
     var lock = navigator.mozSettings.createLock();
     lock.set({'clear.remote-windows.data': false});
   });
-
-// Cancel dragstart event to workaround
-// https://bugzilla.mozilla.org/show_bug.cgi?id=783076
-// which stops OOP home screen pannable with left mouse button on
-// B2G/Desktop.
-window.addEventListener('dragstart', function(evt) {
-  evt.preventDefault();
-}, true);
 
 /* === XXX Bug 900512 === */
 // On some devices touching the hardware home button triggers

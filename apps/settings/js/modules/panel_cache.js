@@ -21,12 +21,12 @@ define(function(require) {
       }
 
       LazyLoader.load(['shared/style/action_menu.css',
-                       'shared/style/buttons.css',
+                       'shared/style_unstable/buttons.css',
                        'shared/style/confirm.css',
-                       'shared/style/input_areas.css',
+                       'shared/style_unstable/input_areas.css',
                        'shared/style/progress_activity.css',
                        'style/apps.css',
-                       'style/phone_lock.css',
+                       'style/screen_lock.css',
                        'style/simcard.css',
                        'style/updates.css',
                        'style/downloads.css'],

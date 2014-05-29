@@ -23,16 +23,27 @@ PreferencesBuilder.prototype.execute = function(config) {
 };
 
 PreferencesBuilder.prototype.preparePref = function() {
-  this.homescreen = this.config.HOMESCREEN +
+  this.system = this.config.SYSTEM +
     (this.config.GAIA_PORT ? this.config.GAIA_PORT : '');
 
+  // XXX Please remove 'browser.manifestURL'.
+  // After gecko does not need it anymore.
+  // follow up bug 1014487
   this.prefs['browser.manifestURL'] =
-                   this.homescreen + '/manifest.webapp';
-  this.prefs['b2g.neterror.url'] = this.homescreen + '/net_error.html';
-  if (this.homescreen.substring(0, 6) == 'app://') { // B2G bug 773884
-      this.homescreen += '/index.html';
+                   this.system + '/manifest.webapp';
+  this.prefs['b2g.system_manifest_url'] =
+                   this.system + '/manifest.webapp';
+
+  this.prefs['b2g.neterror.url'] = this.system + '/net_error.html';
+  if (this.system.substring(0, 6) == 'app://') { // B2G bug 773884
+      this.system += '/index.html';
   }
-  this.prefs['browser.homescreenURL'] = this.homescreen;
+  
+  // XXX Please remove 'browser.homescreenURL'.
+  // After gecko does not need it anymore.
+  // follow up bug 1014487
+  this.prefs['browser.homescreenURL'] = this.system;
+  this.prefs['b2g.system_startup_url'] = this.system;
 
   this.domains = [];
   this.domains.push(this.config.GAIA_DOMAIN);
@@ -44,6 +55,10 @@ PreferencesBuilder.prototype.preparePref = function() {
   this.prefs['network.http.max-connections-per-server'] = 15;
   this.prefs['dom.mozInputMethod.enabled'] = true;
   this.prefs['layout.css.sticky.enabled'] = true;
+  this.prefs['intl.uidirection.qps-plocm'] = 'rtl';
+
+  // This pref can be removed once bug 1000199 has landed
+  this.prefs['dom.webcomponents.enabled'] = true;
 
   // for https://bugzilla.mozilla.org/show_bug.cgi?id=811605 to let user know
   //what prefs is for ril debugging
@@ -80,7 +95,7 @@ PreferencesBuilder.prototype.setLocalDomainPref = function() {
 
 PreferencesBuilder.prototype.setDesktopPref = function() {
   // Set system app as default firefox tab
-  this.prefs['browser.startup.homepage'] = this.homescreen;
+  this.prefs['browser.startup.homepage'] = this.system;
   this.prefs['startup.homepage_welcome_url'] = '';
   // Disable dialog asking to set firefox as default OS browser
   this.prefs['browser.shell.checkDefaultBrowser'] = false;
@@ -159,6 +174,7 @@ PreferencesBuilder.prototype.setDebugPref = function() {
   this.prefs['dom.w3c_touch_events.enabled'] = 1;
   this.prefs['dom.promise.enabled'] = true;
   this.prefs['dom.wakelock.enabled'] = true;
+  this.prefs['image.mozsamplesize.enabled'] = true;
   this.prefs['webgl.verbose'] = true;
 
   // Turn off unresponsive script dialogs so test-agent can keep running...

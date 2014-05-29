@@ -15,11 +15,12 @@ class FTUStep1(Base):
 
     def __init__(self, marionette):
         Base.__init__(self, marionette)
-        self.wait_for_element_displayed(*self._welcome_title_locator)
+        self.wait_for_condition(lambda m: m.find_element(*self._welcome_title_locator).location['x'] == 0)
 
     def tap_next(self):
+        # TODO Remove the sleep when Bug 1013249 is fixed
+        time.sleep(2)
+
         self.wait_for_element_displayed(*self._next_button_locator)
-        # TODO sometimes we may tap before the click handlers are ready
-        time.sleep(1)
         self.marionette.find_element(*self._next_button_locator).tap()
         return FTUStep2(self.marionette)

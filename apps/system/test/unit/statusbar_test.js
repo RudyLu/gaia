@@ -5,16 +5,9 @@ requireApp('system/shared/test/unit/mocks/mock_mobile_operator.js');
 requireApp('system/shared/test/unit/mocks/mock_navigator_moz_mobile_connections.js');
 requireApp('system/shared/test/unit/mocks/mock_icc_helper.js');
 requireApp('system/shared/test/unit/mocks/mock_navigator_moz_telephony.js');
+requireApp('system/shared/test/unit/mocks/mock_app_window_manager.js');
 requireApp('system/test/unit/mock_l10n.js');
-requireApp('system/test/unit/mock_lock_screen.js', function() {
-
-  // Because we can't see it while we attach helpers,
-  // which may not be loaded yet.
-  //
-  // And it can't be used as helper because the name
-  // can't be "MocklockScreen".
-  window.lockScreen = MockLockScreen;
-});
+requireApp('system/test/unit/mock_system.js');
 requireApp('system/js/mock_simslot.js');
 requireApp('system/js/mock_simslot_manager.js');
 requireApp('system/test/unit/mock_app_window_manager.js');
@@ -27,10 +20,11 @@ var mocksForStatusBar = new MocksHelper([
   'MobileOperator',
   'SIMSlotManager',
   'AppWindowManager',
-  'TouchForwarder'
+  'TouchForwarder',
+  'System'
 ]).init();
 
-mocha.globals(['Clock', 'StatusBar', 'lockScreen', 'System']);
+mocha.globals(['Clock', 'StatusBar', 'System']);
 suite('system/Statusbar', function() {
   var mobileConnectionCount = 2;
   var fakeStatusBarNode, fakeTopPanel, fakeStatusBarBackground,
@@ -40,9 +34,6 @@ suite('system/Statusbar', function() {
 
   mocksForStatusBar.attachTestHelpers();
   suiteSetup(function(done) {
-    window.lockScreen = MockLockScreen;
-    originalLocked = window.lockScreen.locked;
-    window.lockScreen.locked = false;
     realMozL10n = navigator.mozL10n;
     navigator.mozL10n = MockL10n;
     realMozMobileConnections = navigator.mozMobileConnections;
@@ -54,7 +45,6 @@ suite('system/Statusbar', function() {
   });
 
   suiteTeardown(function() {
-    window.lockScreen.locked = originalLocked;
     navigator.mozL10n = realMozL10n;
     navigator.mozMobileConnections = realMozMobileConnections;
     navigator.mozTelephony = realMozTelephony;
@@ -201,13 +191,13 @@ suite('system/Statusbar', function() {
       StatusBar.screen = null;
     });
     test('first launch', function() {
-      MockLockScreen.locked = true;
+      window.System.locked = true;
       StatusBar.init();
       assert.equal(StatusBar.clock.timeoutID, null);
       assert.equal(StatusBar.icons.time.hidden, true);
     });
     test('lock', function() {
-      MockLockScreen.locked = true;
+      window.System.locked = true;
       var evt = new CustomEvent('lock');
       StatusBar.handleEvent(evt);
       assert.equal(StatusBar.clock.timeoutID, null);
@@ -227,33 +217,33 @@ suite('system/Statusbar', function() {
     });
     test('attentionsceen hide', function() {
       // Test this when lockscreen is off.
-      var originalLocked = window.lockScreen.locked;
-      window.lockScreen.locked = false;
+      var originalLocked = window.System.locked;
+      window.System.locked = false;
       var evt = new CustomEvent('attentionscreenhide');
       StatusBar.handleEvent(evt);
       assert.notEqual(StatusBar.clock.timeoutID, null);
       assert.equal(StatusBar.icons.time.hidden, false);
-      window.lockScreen.locked = originalLocked;
+      window.System.locked = originalLocked;
     });
-    test('emergency call when locked', function() {
-      var evt = new CustomEvent('lockpanelchange', {
-        detail: {
-          panel: 'emergency-call'
-        }
-      });
-      StatusBar.screen.classList.add('locked');
+    test('secure app launched, as emergency call when locked', function() {
+      var evt = new CustomEvent('secure-appcreated');
       StatusBar.handleEvent(evt);
       assert.notEqual(StatusBar.clock.timeoutID, null);
       assert.equal(StatusBar.icons.time.hidden, false);
+
+      evt = new CustomEvent('secure-appterminated');
+      StatusBar.handleEvent(evt);
+      assert.equal(StatusBar.clock.timeoutID, null);
+      assert.equal(StatusBar.icons.time.hidden, true);
     });
     test('moztime change while lockscreen is unlocked', function() {
-      var originalLocked = window.lockScreen.locked;
-      window.lockScreen.locked = false;
+      var originalLocked = window.System.locked;
+      window.System.locked = false;
       var evt = new CustomEvent('moztimechange');
       StatusBar.handleEvent(evt);
       assert.notEqual(StatusBar.clock.timeoutID, null);
       assert.equal(StatusBar.icons.time.hidden, false);
-      window.lockScreen.locked = originalLocked;
+      window.System.locked = originalLocked;
     });
     test('screen enable but screen is unlocked', function() {
       var evt = new CustomEvent('screenchange', {
@@ -261,7 +251,7 @@ suite('system/Statusbar', function() {
           screenEnabled: true
         }
       });
-      MockLockScreen.locked = false;
+      window.System.locked = false;
       StatusBar.handleEvent(evt);
       assert.notEqual(StatusBar.clock.timeoutID, null);
       assert.equal(StatusBar.icons.time.hidden, false);
@@ -272,7 +262,7 @@ suite('system/Statusbar', function() {
           screenEnabled: true
         }
       });
-      MockLockScreen.locked = true;
+      window.System.locked = true;
       StatusBar.handleEvent(evt);
       assert.equal(StatusBar.clock.timeoutID, null);
       assert.equal(StatusBar.icons.time.hidden, true);
@@ -1251,9 +1241,23 @@ suite('system/Statusbar', function() {
         return e;
     }
 
+    function forgeMouseEvent(type, x, y) {
+      var e = document.createEvent('MouseEvent');
+
+      e.initMouseEvent(type, true, true, window, 1, x, y, x, y,
+                       false, false, false, false, 0, null);
+
+      return e;
+    }
+
     function fakeDispatch(type, x, y) {
-      var e = forgeTouchEvent(type, x, y);
-      StatusBar.panelTouchHandler(e);
+      var e;
+      if (type.startsWith('mouse')) {
+        e = forgeMouseEvent(type, x, y);
+      } else {
+        e = forgeTouchEvent(type, x, y);
+      }
+      StatusBar.panelHandler(e);
 
       return e;
     }
@@ -1305,44 +1309,6 @@ suite('system/Statusbar', function() {
       StatusBar.handleEvent(evt);
 
       assert.isFalse(StatusBar.element.classList.contains('invisible'));
-    });
-
-    test('homescreenopened should set classes and call show()', function() {
-      var showStub = this.sinon.stub(StatusBar, 'show');
-      var evt = new CustomEvent('homescreenopened');
-      StatusBar.handleEvent(evt);
-      assert.ok(showStub.calledOnce);
-      assert.ok(StatusBar.element.classList.contains('on-homescreen'));
-      assert.ok(StatusBar.background.classList.contains('on-homescreen'));
-      showStub.restore();
-
-    });
-
-    test('homescreenclosing should unset classes', function() {
-      StatusBar.element.classList.add('on-homescreen');
-      StatusBar.background.classList.add('on-homescreen');
-      var evt = new CustomEvent('homescreenclosing');
-      StatusBar.handleEvent(evt);
-      assert.isFalse(StatusBar.element.classList.contains('on-homescreen'));
-      assert.isFalse(StatusBar.background.classList.contains('on-homescreen'));
-    });
-
-    test('rocketbarfocus', function() {
-      var evt = new CustomEvent('rocketbarfocus');
-      StatusBar.handleEvent(evt);
-      assert.ok(StatusBar.element.classList.contains('rocketbar-focused'));
-      assert.ok(StatusBar.background.classList.contains('rocketbar-focused'));
-    });
-
-    test('rocketbarblur', function() {
-      StatusBar.element.classList.add('rocketbar-focused');
-      StatusBar.background.classList.add('rocketbar-focused');
-      var evt = new CustomEvent('rocketbarblur');
-      StatusBar.handleEvent(evt);
-      assert.isFalse(StatusBar.element.classList.
-        contains('rocketbar-focused'));
-      assert.isFalse(StatusBar.background.classList.
-        contains('rocketbar-focused'));
     });
 
     test('the status bar should show when attentionscreen is showing',
@@ -1471,6 +1437,17 @@ suite('system/Statusbar', function() {
       });
     });
 
+    test('it should prevent default on mouse events keep the focus on the app',
+    function() {
+      var mousedown = fakeDispatch('mousedown', 100, 0);
+      var mousemove = fakeDispatch('mousemove', 100, 2);
+      var mouseup = fakeDispatch('mouseup', 100, 2);
+
+      assert.isTrue(mousedown.defaultPrevented);
+      assert.isTrue(mousemove.defaultPrevented);
+      assert.isTrue(mouseup.defaultPrevented);
+    });
+
     suite('Touch forwarding >', function() {
       var forwardSpy;
 
@@ -1478,7 +1455,7 @@ suite('system/Statusbar', function() {
         forwardSpy = this.sinon.spy(MockTouchForwarder.prototype, 'forward');
       });
 
-      test('it should prevent default on all touch events to prevent relows',
+      test('it should prevent default on all touch events to prevent reflows',
       function() {
         var touchstart = fakeDispatch('touchstart', 100, 0);
         var touchmove = fakeDispatch('touchmove', 100, 2);
@@ -1563,6 +1540,37 @@ suite('system/Statusbar', function() {
       StatusBar.handleEvent(evt);
 
       assert.isFalse(StatusBar.element.classList.contains('invisible'));
+    });
+  });
+
+  suite('NFC', function() {
+    test('NFC is off', function() {
+      var evt = new CustomEvent('nfc-state-changed', {
+        detail: {
+          active: false
+        }
+      });
+      StatusBar.handleEvent(evt);
+      assert.equal(StatusBar.icons.nfc.hidden, true);
+    });
+
+    test('NFC is on', function() {
+      var evt = new CustomEvent('nfc-state-changed', {
+        detail: {
+          active: true
+        }
+      });
+      StatusBar.handleEvent(evt);
+      assert.equal(StatusBar.icons.nfc.hidden, false);
+    });
+  });
+
+  suite('Wifi', function() {
+    test('Wifi status change event', function() {
+      var spyUpdateWifi = this.sinon.spy(StatusBar.update, 'wifi');
+      var evt = new CustomEvent('wifi-statuschange');
+      StatusBar.handleEvent(evt);
+      assert.isTrue(spyUpdateWifi.called);
     });
   });
 });

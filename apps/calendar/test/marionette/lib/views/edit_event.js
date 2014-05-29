@@ -28,6 +28,11 @@ EditEvent.prototype = {
     this.setFormValue('location', value);
   },
 
+  set calendar(value) {
+    var select = this.findElement('select[name="calendarId"]');
+    this.client.helper.tapSelectOption(select, value);
+  },
+
   set startDate(value) {
     this.setFormValue('startDate', value);
   },
@@ -42,6 +47,15 @@ EditEvent.prototype = {
 
   set endTime(value) {
     this.setFormValue('endTime', value);
+  },
+
+  set allDay(value) {
+    var checkbox = this.findElement('input[name="allday"]');
+    var checked = checkbox.getAttribute('checked');
+    if (value !== checked) {
+      // click needs to happen on label!
+      this.client.helper.closest(checkbox, 'label').click();
+    }
   },
 
   set reminders(value) {

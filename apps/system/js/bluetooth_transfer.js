@@ -335,8 +335,9 @@ var BluetoothTransfer = {
       (evt.received == true) ?
       _('bluetooth-receiving-progress') : _('bluetooth-sending-progress');
     var content =
-      '<img src="style/bluetooth_transfer/images/transfer.png" />' +
-      '<div class="bluetooth-transfer-progress">' + transferMode + '</div>' +
+      '<img src="style/bluetooth_transfer/images/transfer.png" ' +
+      'role="presentation" /><div class="bluetooth-transfer-progress">' +
+      transferMode + '</div>' +
       // XXX: Bug 804533 - [Bluetooth]
       // Need sending/receiving icon for Bluetooth file transfer
       '<progress value="0" max="1"></progress>';
@@ -345,6 +346,7 @@ var BluetoothTransfer = {
     transferTask.id = 'bluetooth-transfer-status';
     transferTask.className = 'notification';
     transferTask.setAttribute('data-id', address);
+    transferTask.setAttribute('role', 'link');
     transferTask.innerHTML = content;
     transferTask.addEventListener('click',
                                   this.onCancelTransferTask.bind(this));
@@ -386,7 +388,7 @@ var BluetoothTransfer = {
     var _ = navigator.mozL10n.get;
 
     var cancel = {
-      title: _('continue'),
+      title: _('continueFileTransfer'),
       callback: this.continueTransfer.bind(this)
     };
 
