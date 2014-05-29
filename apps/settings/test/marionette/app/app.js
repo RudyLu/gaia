@@ -191,9 +191,14 @@ Settings.prototype = {
    * @private
    */
   openPanel: function app_openPanel(selector, parentSelector) {
+    this.client.helper.wait(5000);
+
+    console.log('[test] openPanel() ' + selector);
     var localParentSelector = parentSelector || 'menuItemsSection';
     var menuItem = this.waitForElement(selector);
     var parentSection = this.waitForElement(localParentSelector);
+
+    console.log('[test] openPanel() - tap ' + selector);
     menuItem.tap();
     this.client.waitFor(function() {
       var loc = parentSection.location();
