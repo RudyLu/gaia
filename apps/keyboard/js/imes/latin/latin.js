@@ -121,7 +121,13 @@
   // this much more highly weighted than the second suggested word.
   const AUTO_CORRECT_THRESHOLD = 1.30;
 
-  var inputSequence = Promise.resolve();
+  /*
+   * Since inputContext.sendKey is an async fuction that will return a promise,
+   * and we need to update the current state (capitalization, input value)
+   * after the promise is resolved, we need to have an queue for each click,
+   * or the key would be sent with a wrong state.
+   */
+  var inputSequencePromise = Promise.resolve();
 
   // keyboard.js calls this to pass us the interface object we need
   // to communicate with it
@@ -337,22 +343,14 @@
    *
    * Update the capitalization state, if we're capitalizing
    */
-
-  /*
-   * @param {Object}, keyObject keyObject which contains both lowercase
-   * and uppercase keycodes.
-   */
-  function click(keyObject, repeat) {
+  function click(keyCode, upperKeyCode, repeat) {
     // If the key is anything other than a backspace, forget about any
     // previous changes that we would otherwise revert.
-    var keycode;
 
-    inputSequence = inputSequence.then(function() {
-      // Get the keycode for current state
-      keycode = getKeyCode(keyObject);
-      console.log('keycode ' + keycode);
-
-      if (keycode !== BACKSPACE) {
+    inputSequencePromise = inputSequencePromise.then(function() {
+      keyCode = keyboard.isCapitalized() && upperKeyCode ? upperKeyCode :
+                                                           keyCode;
+      if (keyCode !== BACKSPACE) {
         revertTo = revertFrom = '';
         justAutoCorrected = false;
       }
@@ -361,11 +359,11 @@
 
       if (selection) {
         // If there is selected text, don't do anything fancy here.
-        handler = handleKey(keycode);
+        handler = handleKey(keyCode);
       }
       else {
-        switch (keycode) {
-          case SPACE:        // This list of characters matches the WORDSEP regexp
+        switch (keyCode) {
+          case SPACE:     // This list of characters matches the WORDSEP regexp
             case RETURN:
             case PERIOD:
             case QUESTION:
@@ -374,7 +372,7 @@
             case COLON:
             case SEMICOLON:
             // These keys may trigger word or punctuation corrections
-            handler = handleCorrections(keycode);
+            handler = handleCorrections(keyCode);
           correctionDisabled = false;
           break;
 
@@ -383,13 +381,13 @@
           break;
 
           default:
-            handler = handleKey(keycode);
+            handler = handleKey(keyCode);
         }
       }
       return handler;
     }).then(function() {
-      keycode = getKeyCode(keyObject);
-
+      keyCode = keyboard.isCapitalized() && upperKeyCode ? upperKeyCode :
+                                                           keyCode;
       // handleCorrections() above or it is now out of date, so clear it
       // so it doesn't get used later
       autoCorrection = null;
@@ -401,14 +399,14 @@
       updateSuggestions(repeat);
 
       // Exit symbol layout mode after space or return key is pressed.
-      if (keycode === SPACE || keycode === RETURN) {
+      if (keyCode === SPACE || keyCode === RETURN) {
         keyboard.setLayoutPage(LAYOUT_PAGE_DEFAULT);
       }
 
-      lastSpaceTimestamp = (keycode === SPACE) ? Date.now() : 0;
+      lastSpaceTimestamp = (keyCode === SPACE) ? Date.now() : 0;
     });
 
-    return inputSequence;
+    return inputSequencePromise;
   }
 
   // Handle any key (including backspace) and do the right thing even if
@@ -552,11 +550,10 @@
   function autoPunctuate(keycode) {
     switch (keycode) {
     case SPACE:
-      if (Date.now() - lastSpaceTimestamp < DOUBLE_SPACE_TIME) {
+      if (Date.now() - lastSpaceTimestamp < DOUBLE_SPACE_TIME)
         return fixPunctuation(PERIOD, SPACE);
-      } else {
+      else
         return handleKey(keycode);
-      }
       break;
 
     case PERIOD:
@@ -975,21 +972,6 @@
 
     var c = inputText[i];
     return c === '.' || c === '?' || c === '!';
-  }
-
-  function getKeyCode(keyObject) {
-    console.log('keyObject: ' + JSON.stringify(keyObject) );
-    var keycode;
-    if (typeof keyObject.upperKeyCode === 'undefined') {
-      console.log('no upper');
-      keycode = keyObject.keyCode;
-    } else {
-      keycode = keyboard.isCapitalized() ? keyObject.upperKeyCode :
-                                           keyObject.keyCode;
-    }
-
-    console.log('code to return ' + keycode);
-    return keycode;
   }
 
   if (!('LAYOUT_PAGE_DEFAULT' in window))
