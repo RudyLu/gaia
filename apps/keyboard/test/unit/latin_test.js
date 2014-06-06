@@ -4,7 +4,6 @@ requireApp('keyboard/test/unit/setup_engine.js');
 requireApp('keyboard/js/imes/latin/latin.js');
 
 suite('latin input method capitalization and punctuation', function() {
-  suiteSetup(init);
 
   // this will hold the input method we're testing
   var im;
@@ -14,6 +13,34 @@ suite('latin input method capitalization and punctuation', function() {
 
   // State we maintain to work with the im
   var isUpperCase;
+
+  var defaultKeyboardGlue = {
+    resetUpperCase: function() {
+      isUpperCase = false;
+    },
+    sendKey: sendKey,
+    sendCandidates: function(words) {
+      // gotSuggestions(words);
+    },
+    setUpperCase: function(uc) {
+      isUpperCase = uc;
+    },
+    setLayoutPage: function() {
+    },
+    isCapitalized: function() {
+      return isUpperCase;
+    }
+  };
+
+  function sendKey(keycode) {
+    if (keycode === 8) { // backspace
+      output = output.substring(0, output.length - 1);
+    }
+    else {
+      output += String.fromCharCode(keycode);
+    }
+    return Promise.resolve();
+  }
 
   // Call this before each test to reset the state to the default
   function reset() {
@@ -27,31 +54,7 @@ suite('latin input method capitalization and punctuation', function() {
 
     // Initialize the input method with the object it will use to send
     // its output back to us
-    im.init({
-      resetUpperCase: function() {
-        isUpperCase = false;
-      },
-      sendKey: function(keycode) {
-        if (keycode === 8) { // backspace
-          output = output.substring(0, output.length - 1);
-        }
-        else {
-          output += String.fromCharCode(keycode);
-        }
-        return Promise.resolve();
-      },
-      sendCandidates: function(words) {
-        // gotSuggestions(words);
-      },
-      setUpperCase: function(uc) {
-        isUpperCase = uc;
-      },
-      setLayoutPage: function() {
-      },
-      isCapitalized: function() {
-        return isUpperCase;
-      }
-    });
+    im.init(defaultKeyboardGlue);
   }
 
   // Utility funcs
@@ -245,6 +248,8 @@ suite('latin input method capitalization and punctuation', function() {
   // output in each case.
 
   suite('Input keys one by one', function() {
+    suiteSetup(init);
+
     setup(function() {
       // reset the output state
       reset();
@@ -264,6 +269,8 @@ suite('latin input method capitalization and punctuation', function() {
   });
 
   suite('Input keys continuously', function() {
+    suiteSetup(init);
+
     setup(function() {
       // reset the output state
       reset();
@@ -280,6 +287,46 @@ suite('latin input method capitalization and punctuation', function() {
         }
       }
     }
+  });
+
+  suite('Input keys while one of them would be rejected', function() {
+    var glueToRejectKey = null;
+
+    suiteSetup(function() {
+      im = InputMethods.latin;
+      glueToRejectKey = Object.create(defaultKeyboardGlue);
+      glueToRejectKey.sendKey = function() {
+        return Promise.reject();
+      };
+
+      im.init(glueToRejectKey);
+    });
+
+    setup(function() {
+      // reset the output state
+      reset();
+      im.activate('en', {
+        type: 'text',
+        inputmode: '',
+        value: '',
+        selectionStart: 0,
+        selectionEnd: 0
+      },{suggest: false, correct: false});
+    });
+
+    test('Can input after the previous key has been rejected', function(next) {
+      im.click('a'.charCodeAt(0)).then(function() {
+        // Restore the sendKey to the normal one
+        glueToRejectKey.sendKey = sendKey;
+
+        // input anther key
+        im.click('b'.charCodeAt(0)).then(function() {
+          assert.isTrue(true); // The promise would be resolved
+          assert.equal('b', output);
+          next();
+        });
+      });
+    });
   });
 
   function runtest(input, type, mode, statename, options) {

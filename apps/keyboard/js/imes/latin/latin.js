@@ -344,12 +344,14 @@
    * Update the capitalization state, if we're capitalizing
    */
   function click(keyCode, upperKeyCode, repeat) {
-    // If the key is anything other than a backspace, forget about any
-    // previous changes that we would otherwise revert.
-
-    inputSequencePromise = inputSequencePromise.then(function() {
+    // Wait for the previous keys have been resolved and then handle the next
+    // key.
+    var nextKeyPromise = inputSequencePromise.then(function() {
       keyCode = keyboard.isCapitalized() && upperKeyCode ? upperKeyCode :
                                                            keyCode;
+
+      // If the key is anything other than a backspace, forget about any
+      // previous changes that we would otherwise revert.
       if (keyCode !== BACKSPACE) {
         revertTo = revertFrom = '';
         justAutoCorrected = false;
@@ -385,9 +387,10 @@
         }
       }
       return handler;
-    }).then(function() {
-      keyCode = keyboard.isCapitalized() && upperKeyCode ? upperKeyCode :
-                                                           keyCode;
+    });
+
+    // After the next key is resolved, we could update the state here.
+    inputSequencePromise = nextKeyPromise.then(function() {
       // handleCorrections() above or it is now out of date, so clear it
       // so it doesn't get used later
       autoCorrection = null;
@@ -404,8 +407,13 @@
       }
 
       lastSpaceTimestamp = (keyCode === SPACE) ? Date.now() : 0;
+    }, function() {
+      // the previous sendKey or replaceSurroundingText has been rejected,
+      // No need to update the state.
     });
 
+    // Need to return the promise, so that the caller could know
+    // what to process next.
     return inputSequencePromise;
   }
 
