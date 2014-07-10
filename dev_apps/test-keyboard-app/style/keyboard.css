@@ -19,14 +19,18 @@ body {
 }
 
 .key {
-  background-color: #333;
-  font-size: 2.4rem;
-  border: 0.2rem solid gray;
-  color: white;
-  margin: 0.2rem;
+  display: inline-block;
+  min-width: 2.6rem;
+  padding: 0;
+  font-size: 0;
+  font-family: sans-serif;
+  border: none;
+  border-radius: 0;  /* To override the system-default border radius for button element  */
+  background: none;
 }
 
 .popup {
+  display: inline-block;
   position: absolute;
   top: -5.8rem;
   width: 5.6rem;
@@ -36,4 +40,12 @@ body {
   line-height: 5.6rem;
   border-radius: 50%;
   background-color: red;
+}
+
+.visual-wrapper {
+  display: inline-block;
+  position: relative;
+  width: 100%;
+  height: 4.3rem;
+  margin: 0.4rem 0;
 }
