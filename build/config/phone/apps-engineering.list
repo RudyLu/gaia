@@ -11,6 +11,7 @@ dev_apps/verticalhome
 dev_apps/membuster
 dev_apps/music2
 dev_apps/test-ime
+dev_apps/test-keyboard-app
 dev_apps/share-receiver
 dev_apps/template
 dev_apps/test-agent
