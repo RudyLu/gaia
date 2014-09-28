@@ -143,7 +143,7 @@ var MusicComms = {
 
   _getPlayerReady: function(callback) {
     if (typeof PlayerView === 'undefined') {
-      LazyLoader.load('js/Player.js', function() {
+      LazyLoader.load('js/player_view.js', function() {
         PlayerView.init();
         PlayerView.setOptions(playerSettings);
 
