@@ -34,8 +34,11 @@ var PlayerView = {
   },
 
   get audio() {
-    delete this._audio;
-    return this._audio = document.getElementById('player-audio');
+
+    return this.player.getAudio();
+
+    //delete this._audio;
+    //return this._audio = document.getElementById('player-audio');
   },
 
   get playStatus() {
@@ -119,16 +122,8 @@ var PlayerView = {
     this.previousControl.addEventListener('touchend', this);
     this.nextControl.addEventListener('touchend', this);
 
-    this.audio.addEventListener('play', this);
-    this.audio.addEventListener('pause', this);
-    this.audio.addEventListener('playing', this);
-    this.audio.addEventListener('durationchange', this);
-    this.audio.addEventListener('timeupdate', this);
-    this.audio.addEventListener('ended', this);
-    // Listen to mozinterruptbegin and mozinterruptend for notifying the system
-    // media playback widget to reflect the playing status.
-    this.audio.addEventListener('mozinterruptbegin', this);
-    this.audio.addEventListener('mozinterruptend', this);
+    this.player = new Player();
+    this.player.start();
 
     // Listen to visiblitychange to know when to stop listening to the
     // 'timeupdate' event.
@@ -882,8 +877,9 @@ var PlayerView = {
 
   handleEvent: function pv_handleEvent(evt) {
     var target = evt.target;
-    if (!target)
+    if (!target) {
       return;
+    }
 
     switch (evt.type) {
       case 'click':
@@ -943,19 +939,6 @@ var PlayerView = {
         }
 
         break;
-      case 'play':
-        this.playControl.classList.remove('is-pause');
-        break;
-      case 'pause':
-        this.playControl.classList.add('is-pause');
-        this.playStatus = PLAYSTATUS_PAUSED;
-        this.updateRemotePlayStatus();
-        break;
-      case 'playing':
-        // The playing event fires when the audio is ready to start.
-        this.playStatus = PLAYSTATUS_PLAYING;
-        this.updateRemotePlayStatus();
-        break;
       case 'touchstart':
       case 'touchmove':
         if (evt.type === 'touchstart') {
@@ -1000,37 +983,6 @@ var PlayerView = {
         else if (target.id === 'player-controls-previous')
           this.startFastSeeking(-1);
         break;
-      case 'durationchange':
-      case 'timeupdate':
-        this.updateSeekBar();
-
-        // Update the metadata when the new track is really loaded
-        // when it just started to play, or the duration will be 0 then it will
-        // break the duration that the connected A2DP has.
-        if (evt.type === 'durationchange' || this.audio.currentTime === 0)
-          this.updateRemoteMetadata();
-
-        // Since we don't always get reliable 'ended' events, see if
-        // we've reached the end this way.
-        // See: https://bugzilla.mozilla.org/show_bug.cgi?id=783512
-        // If we're within 1 second of the end of the song, register
-        // a timeout to skip to the next song one second after the song ends
-        if (this.audio.currentTime >= this.audio.duration - 1 &&
-            this.endedTimer == null) {
-          var timeToNext = (this.audio.duration - this.audio.currentTime + 1);
-          this.endedTimer = setTimeout(function() {
-                                         this.next(true);
-                                       }.bind(this),
-                                       timeToNext * 1000);
-        }
-        break;
-      case 'ended':
-        // Because of the workaround above, we have to ignore real ended
-        // events if we already have a timer set to emulate them
-        if (!this.endedTimer)
-          this.next(true);
-        break;
-
       case 'visibilitychange':
         if (document.hidden) {
           this.audio.removeEventListener('timeupdate', this);
@@ -1041,21 +993,6 @@ var PlayerView = {
           this.updateSeekBar();
         }
         break;
-
-      case 'mozinterruptbegin':
-        this.playStatus = INTERRUPT_BEGIN;
-        this.updateRemotePlayStatus();
-        break;
-
-      case 'mozinterruptend':
-        // After received the mozinterruptend event the player should recover
-        // its status to the status before mozinterruptbegin, it should be
-        // PLAYING because mozinterruptbegin only fires when an audio element
-        // is playing.
-        this.playStatus = PLAYSTATUS_PLAYING;
-        this.updateRemotePlayStatus();
-        break;
-
       default:
         return;
     }
