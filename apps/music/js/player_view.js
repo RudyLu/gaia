@@ -34,15 +34,13 @@ var PlayerView = {
   },
 
   get audio() {
-
-    return this.player.getAudio();
-
+    return this._player.getAudio();
     //delete this._audio;
     //return this._audio = document.getElementById('player-audio');
   },
 
   get playStatus() {
-    return this._playStatus;
+    return this._player.state;
   },
 
   set playStatus(val) {
@@ -122,8 +120,8 @@ var PlayerView = {
     this.previousControl.addEventListener('touchend', this);
     this.nextControl.addEventListener('touchend', this);
 
-    this.player = new Player();
-    this.player.start();
+    this._player = new Player();
+    this._player.start();
 
     // Listen to visiblitychange to know when to stop listening to the
     // 'timeupdate' event.
