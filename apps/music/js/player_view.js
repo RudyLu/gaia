@@ -33,12 +33,6 @@ var PlayerView = {
     return this._view = document.getElementById('views-player');
   },
 
-  get audio() {
-    return this._player.getAudio();
-    //delete this._audio;
-    //return this._audio = document.getElementById('player-audio');
-  },
-
   get playStatus() {
     return this._player.state;
   },
@@ -350,37 +344,6 @@ var PlayerView = {
     }
   },
 
-  setAudioSrc: function pv_setAudioSrc(file) {
-    var url = URL.createObjectURL(file);
-    this.playingBlob = file;
-    // Reset src before we set a new source to the audio element
-    this.audio.removeAttribute('src');
-    this.audio.load();
-    // Add mozAudioChannelType to the player
-    this.audio.mozAudioChannelType = 'content';
-    this.audio.src = url;
-    this.audio.load();
-
-    this.audio.play();
-    // An object URL must be released by calling URL.revokeObjectURL()
-    // when we no longer need them
-    this.audio.onloadeddata = function(evt) { URL.revokeObjectURL(url); };
-    this.audio.onerror = (function(evt) {
-      if (this.onerror)
-        this.onerror(evt);
-    }).bind(this);
-    // when play a new song, reset the seekBar first
-    // this can prevent showing wrong duration
-    // due to b2g cannot get some mp3's duration
-    // and the seekBar can still show 00:00 to -00:00
-    this.setSeekBar(0, 0, 0);
-
-    if (this.endedTimer) {
-      clearTimeout(this.endedTimer);
-      this.endedTimer = null;
-    }
-  },
-
   updateRemoteMetadata: function pv_updateRemoteMetadata() {
     // If MusicComms does not exist or data source is empty, we don't have to
     // update the metadata.
@@ -537,7 +500,7 @@ var PlayerView = {
         musicdb.updateMetadata(songData.name, songData.metadata);
 
         this.getFile(songData, function(file) {
-          this.setAudioSrc(file);
+          this._player.setAudioSrc(file);
           // When we need to preview an audio like in picker mode,
           // we will not autoplay the picked song unless the user taps to play
           // And we just call pause right after play.
@@ -558,7 +521,7 @@ var PlayerView = {
                       name: this.dataSource.name,
                       blob: this.dataSource});
 
-        this.setAudioSrc(this.dataSource);
+        this._player.setAudioSrc(this.dataSource);
       }.bind(this));
     } else {
       // If we reach here, the player is paused so resume it
@@ -597,7 +560,7 @@ var PlayerView = {
   next: function pv_next(isAutomatic) {
     if (this.sourceType === TYPE_BLOB || this.sourceType === TYPE_SINGLE) {
       // When the player ends, reassign src it if the dataSource is a blob
-      this.setAudioSrc(this.playingBlob);
+      this._player.setAudioSrc(this.playingBlob);
       this.pause();
       return;
     }

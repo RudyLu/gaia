@@ -66,8 +66,9 @@ Player.prototype.handleEvent = function(evt) {
       // Update the metadata when the new track is really loaded
       // when it just started to play, or the duration will be 0 then it will
       // break the duration that the connected A2DP has.
-      if (evt.type === 'durationchange' || this.audio.currentTime === 0)
+      if (evt.type === 'durationchange' || this.audio.currentTime === 0) {
         this.updateRemoteMetadata();
+      }
 
       // Since we don't always get reliable 'ended' events, see if
       // we've reached the end this way.
@@ -87,8 +88,9 @@ Player.prototype.handleEvent = function(evt) {
     case 'ended':
       // Because of the workaround above, we have to ignore real ended
       // events if we already have a timer set to emulate them
-      if (!this.endedTimer)
+      if (!this.endedTimer) {
         this.next(true);
+      }
       break;
 
     case 'mozinterruptbegin':
@@ -128,8 +130,9 @@ Player.prototype.setAudioSrc = function(file) {
   // when we no longer need them
   this.audio.onloadeddata = function(evt) { URL.revokeObjectURL(url); };
   this.audio.onerror = (function(evt) {
-    if (this.onerror)
+    if (this.onerror) {
       this.onerror(evt);
+    }
   }).bind(this);
   // when play a new song, reset the seekBar first
   // this can prevent showing wrong duration
