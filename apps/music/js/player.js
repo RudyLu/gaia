@@ -19,6 +19,9 @@ var INTERRUPT_END = 'mozinterruptend';
 function Player() {
   this.audio = document.createElement('audio');
   this.state = '';
+
+  // For state subscription
+  this._topics = {};
 }
 
 exports.Player = Player;
@@ -147,6 +150,17 @@ Player.prototype.setAudioSrc = function(file) {
 };
 
 Player.prototype.updateState = function() {
+};
+
+Player.prototype.registerListener = function(topic, handler) {
+   // Create the topic's object if not yet created
+   if (!this._topics[topic]) {
+     this._topics[topic] = { queue: [] };
+   }
+
+   // Add the listener to queue
+   var index = topics[topic].queue.push(listener) -1;
+
 };
 
 })(window);
