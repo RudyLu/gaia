@@ -117,6 +117,11 @@ var PlayerView = {
     this._player = new Player();
     this._player.start();
 
+    // Save the handler for unregistering listener
+    // XXX: need to find a place to unregister
+    this._stateChangeHandler = this.handleStateChange.bind(this);
+    this._player.registerListener('state', this._stateChangeHandler);
+
     // Listen to visiblitychange to know when to stop listening to the
     // 'timeupdate' event.
     window.addEventListener('visibilitychange', this);
@@ -532,7 +537,7 @@ var PlayerView = {
   pause: function pv_pause() {
     this.checkSCOStatus();
     this._clearInterpageMessage();
-    this.audio.pause();
+    this._player.pause();
   },
 
   stop: function pv_stop() {
@@ -850,10 +855,11 @@ var PlayerView = {
             this.showInfo();
             break;
           case 'player-controls-play':
-            if (this.playStatus === PLAYSTATUS_PLAYING)
+            if (this._player.state === PLAYSTATUS_PLAYING) {
               this.pause();
-            else
+            } else {
               this.play();
+            }
             break;
           case 'player-album-repeat':
             this.showInfo();
@@ -956,6 +962,19 @@ var PlayerView = {
         break;
       default:
         return;
+    }
+  },
+  // handle the player state change
+  handleStateChange: function(state) {
+    switch(state) {
+      case PLAYSTATUS_PLAYING:
+        this.playControl.classList.remove('is-pause');
+        break;
+      case PLAYSTATUS_PAUSED:
+        this.playControl.classList.add('is-pause');
+        break;
+      default:
+        console.log('Unknown player state reported: ' + state);
     }
   }
 };

@@ -42,6 +42,16 @@ Player.prototype.start = function() {
   audio.addEventListener('mozinterruptend', this);
 };
 
+Player.prototype.pause = function() {
+  this.audio.pause();
+};
+
+Player.prototype.destroy = function() {
+  this.audio = null;
+  this.state = '';
+  this._topics = null;
+};
+
 Player.prototype.handleEvent = function(evt) {
   var target = evt.target;
   if (!target) {
@@ -50,12 +60,12 @@ Player.prototype.handleEvent = function(evt) {
 
   switch (evt.type) {
     case 'play':
-      this.playControl.classList.remove('is-pause');
+      this.publish('state', PLAYSTATUS_PLAYING);
       break;
     case 'pause':
-      this.playControl.classList.add('is-pause');
       this.state = PLAYSTATUS_PAUSED;
-      this.updateRemotePlayStatus();
+      this.publish('state', PLAYSTATUS_PAUSED);
+      //this.updateRemotePlayStatus();
       break;
     case 'playing':
       // The playing event fires when the audio is ready to start.
@@ -149,19 +159,43 @@ Player.prototype.setAudioSrc = function(file) {
   }
 };
 
-Player.prototype.updateState = function() {
+Player.prototype.updateState = function(state) {
+  this.state = state;
 };
 
-Player.prototype.registerListener = function(topic, handler) {
+Player.prototype.publish = function(topic, info) {
+  // If the topic doesn't exist, or there's no listeners in queue, just leave
+  if(!this._topics[topic] || !this._topics[topic].queue.length) {
+    return;
+  }
+
+  // Cycle through topics queue, fire!
+  var listeners = this._topics[topic].queue;
+  listeners.forEach(function(item) {
+    item(info || {});
+  });
+};
+
+Player.prototype.registerListener = function(topic, listener) {
    // Create the topic's object if not yet created
    if (!this._topics[topic]) {
      this._topics[topic] = { queue: [] };
    }
 
    // Add the listener to queue
-   var index = topics[topic].queue.push(listener) -1;
+   this._topics[topic].queue.push(listener);
+};
 
+Player.prototype.unregisterListener = function(topic, listener) {
+   var listeners = this._topics[topic].queue;
+   if (!listeners) {
+     return;
+   }
+
+   var index = listeners.indexOf(listener);
+   if (index >= 0) {
+     listeners.splice(index, 1);
+   }
 };
 
 })(window);
-
