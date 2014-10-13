@@ -530,7 +530,7 @@ var PlayerView = {
       }.bind(this));
     } else {
       // If we reach here, the player is paused so resume it
-      this.audio.play();
+      this._player.play();
     }
   },
 

@@ -42,6 +42,10 @@ Player.prototype.start = function() {
   audio.addEventListener('mozinterruptend', this);
 };
 
+Player.prototype.play = function() {
+  this.audio.play();
+};
+
 Player.prototype.pause = function() {
   this.audio.pause();
 };
