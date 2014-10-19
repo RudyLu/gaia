@@ -52,8 +52,17 @@ Player.prototype.pause = function() {
   this.audio.pause();
 };
 
+Player.prototype.stop = function() {
+  this.audio.removeAttribute('src');
+  this.audio.load();
+};
+
 Player.prototype.seek = function(time) {
   this.audio.currentTime = time;
+};
+
+Player.prototype.getSrc = function() {
+  return this.audio.src;
 };
 
 Player.prototype.getStartTime = function() {
@@ -116,7 +125,7 @@ Player.prototype.handleEvent = function(evt) {
       // when it just started to play, or the duration will be 0 then it will
       // break the duration that the connected A2DP has.
       if (evt.type === 'durationchange' || this.audio.currentTime === 0) {
-        this.pulish('metadatachange');
+        this.publish('metadatachange');
       }
 
       // Since we don't always get reliable 'ended' events, see if
@@ -127,15 +136,16 @@ Player.prototype.handleEvent = function(evt) {
       if (this.audio.currentTime >= this.audio.duration - 1 &&
           this.endedTimer == null) {
         var timeToNext = (this.audio.duration - this.audio.currentTime + 1);
-        this.endedTimer = window.setTimeout(this.next.bind(this, true),
-                                            timeToNext * 1000);
+        this.endedTimer = window.setTimeout(function() {
+          this.publish('state', PLAYSTATUS_STOPPED);
+        }.bind(this), timeToNext * 1000);
       }
       break;
     case 'ended':
       // Because of the workaround above, we have to ignore real ended
       // events if we already have a timer set to emulate them
       if (!this.endedTimer) {
-        this.next(true);
+        this.publish('state', PLAYSTATUS_STOPPED);
       }
       break;
 
@@ -180,8 +190,6 @@ Player.prototype.setAudioSrc = function(file) {
   // this can prevent showing wrong duration
   // due to b2g cannot get some mp3's duration
   // and the seekBar can still show 00:00 to -00:00
-  this.setSeekBar(0, 0, 0);
-
   if (this.endedTimer) {
     clearTimeout(this.endedTimer);
     this.endedTimer = null;

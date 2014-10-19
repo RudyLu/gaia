@@ -125,6 +125,9 @@ var PlayerView = {
     this._timeChangeHandler = this.updateSeekBar.bind(this);
     this._player.registerListener('time', this._timeChangeHandler);
 
+    this._metadataChangeHandler = this.updateRemoteMetadata.bind(this);
+    this._player.registerListener('metadatachange', this._metadataChangeHandler);
+
     // Listen to visiblitychange to know when to stop listening to the
     // 'timeupdate' event.
     window.addEventListener('visibilitychange', this);
@@ -368,7 +371,7 @@ var PlayerView = {
       artist: metadata.artist || unknownArtist,
       album: metadata.album || unknownAlbum,
 
-      duration: this.audio.duration * 1000,
+      duration: this._player.getDuration() * 1000,
       mediaNumber: this.currentIndex + 1,
       totalMediaCount: this.dataSource.length
     };
@@ -378,7 +381,7 @@ var PlayerView = {
     // attribute is in the metadata, then listeners should reuse the previous
     // picture. If .picture is null, something went wrong and listeners should
     // probably use a blank picture (or their own placeholder).
-    if (this.audio.currentTime === 0) {
+    if (this._player.getCurrentTime() === 0) {
       getAlbumArtBlob(fileinfo, function(err, blob) {
         if (!err) {
           if (blob)
@@ -484,6 +487,7 @@ var PlayerView = {
 
         this.getFile(songData, function(file) {
           this._player.setAudioSrc(file);
+          this.setSeekBar(0, 0, 0);
           // When we need to preview an audio like in picker mode,
           // we will not autoplay the picked song unless the user taps to play
           // And we just call pause right after play.
@@ -494,7 +498,7 @@ var PlayerView = {
             this.pause();
         }.bind(this));
       }.bind(this));
-    } else if (this.sourceType === TYPE_BLOB && !this.audio.src) {
+    } else if (this.sourceType === TYPE_BLOB && !this._player.getSrc()) {
       // When we have to play a blob, we need to parse the metadata
       this.getMetadata(this.dataSource, function(metadata) {
         // Add the blob from the dataSource to the fileinfo
@@ -505,6 +509,7 @@ var PlayerView = {
                       blob: this.dataSource});
 
         this._player.setAudioSrc(this.dataSource);
+        this.setSeekBar(0, 0, 0);
       }.bind(this));
     } else {
       // If we reach here, the player is paused so resume it
@@ -520,8 +525,7 @@ var PlayerView = {
 
   stop: function pv_stop() {
     this.pause();
-    this.audio.removeAttribute('src');
-    this.audio.load();
+    this._player.stop();
 
     this.clean();
     // Player in open activity does not have ModeManager.
@@ -544,6 +548,8 @@ var PlayerView = {
     if (this.sourceType === TYPE_BLOB || this.sourceType === TYPE_SINGLE) {
       // When the player ends, reassign src it if the dataSource is a blob
       this._player.setAudioSrc(this.playingBlob);
+      this.setSeekBar(0, 0, 0);
+
       this.pause();
       return;
     }
@@ -592,7 +598,7 @@ var PlayerView = {
     // If a song starts more than 3 (seconds),
     // when users click skip backward, it will restart the current song
     // otherwise just skip to the previous song
-    if (this.audio.currentTime > 3) {
+    if (this._player.getCurrentTime() > 3) {
       this.play(this.currentIndex);
       return;
     }
@@ -634,14 +640,15 @@ var PlayerView = {
     this._player.updateRemotePlayStatus();
 
     this.intervalID = window.setInterval(function() {
-      this.seekAudio(this.audio.currentTime + offset);
+      this.seekAudio(this._player.getCurrentTime() + offset);
     }.bind(this), 15);
   },
 
   stopFastSeeking: function pv_stopFastSeeking() {
     this.isTouching = this.isFastSeeking = false;
-    if (this.intervalID)
+    if (this.intervalID) {
       window.clearInterval(this.intervalID);
+    }
 
     // After we cancel the fast seeking, an 'playing' will be fired,
     // so that we don't have to update the remote play status here.
@@ -652,6 +659,8 @@ var PlayerView = {
     if (this.isTouching) {
       return;
     }
+
+    console.log('updateSeekbar');
 
     // If ModeManager is undefined, then the music app is launched by the open
     // activity. Otherwise, only seek the audio when the mode is PLAYER because
@@ -879,17 +888,20 @@ var PlayerView = {
           this.isTouching = true;
           this.seekIndicator.classList.add('highlight');
         }
-        if (this.isTouching && this.audio.duration > 0) {
+        if (this.isTouching && this._player.getDuration() > 0) {
           // target is the seek bar
           var touch = evt.touches[0];
           var x = (touch.clientX - target.offsetLeft) / target.offsetWidth;
-          if (x < 0)
+          if (x < 0) {
             x = 0;
-          if (x > 1)
+          }
+          if (x > 1) {
             x = 1;
+          }
           this.seekTime = x * this.seekBar.max;
-          this.setSeekBar(this.audio.startTime,
-            this.audio.duration, this.seekTime);
+          this.setSeekBar(this._player.getStartTime(),
+                          this._player.getDuration(),
+                          this.seekTime);
         }
         break;
       case 'touchend':
@@ -900,7 +912,7 @@ var PlayerView = {
           this.stopFastSeeking();
         } else if (target.id === 'player-seek-bar') {
           this.seekIndicator.classList.remove('highlight');
-          if (this.audio.duration > 0 && this.isTouching) {
+          if (this._player.getDuration() > 0 && this.isTouching) {
             this.seekAudio(this.seekTime);
             this.seekTime = 0;
           }
@@ -940,6 +952,9 @@ var PlayerView = {
         break;
       case PLAYSTATUS_PAUSED:
         this.playControl.classList.add('is-pause');
+        break;
+      case PLAYSTATUS_STOPPED:
+        this.next(true);
         break;
       default:
         console.log('Unknown player state reported: ' + state);
