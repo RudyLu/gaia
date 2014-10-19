@@ -122,6 +122,9 @@ var PlayerView = {
     this._stateChangeHandler = this.handleStateChange.bind(this);
     this._player.registerListener('state', this._stateChangeHandler);
 
+    this._timeChangeHandler = this.updateSeekBar.bind(this);
+    this._player.registerListener('time', this._timeChangeHandler);
+
     // Listen to visiblitychange to know when to stop listening to the
     // 'timeupdate' event.
     window.addEventListener('visibilitychange', this);
@@ -391,31 +394,6 @@ var PlayerView = {
     }
   },
 
-  updateRemotePlayStatus: function pv_updateRemotePlayStatus() {
-    // If MusicComms does not exist then no need to update the play status.
-    if (typeof MusicComms === 'undefined')
-      return;
-
-    var position = this.pausedPosition ?
-      this.pausedPosition : this.audio.currentTime;
-
-    var info = {
-      playStatus: this.playStatus,
-      duration: this.audio.duration * 1000,
-      position: position * 1000
-    };
-
-    // Before we resume the player, we need to keep the paused position
-    // because once the connected A2DP device receives different positions
-    // on AFTER paused and BEFORE playing, it will break the play/pause states
-    // that the A2DP device kept.
-    this.pausedPosition = (this.playStatus === PLAYSTATUS_PLAYING) ?
-      null : this.audio.currentTime;
-
-    // Notify the remote device that status is changed.
-    MusicComms.notifyStatusChanged(info);
-  },
-
   // The song data might return from the existed dataSource
   // or we will retrieve it directly from the MediaDB.
   getSongData: function pv_getSongData(index, callback) {
@@ -559,7 +537,7 @@ var PlayerView = {
     }
 
     this.playStatus = PLAYSTATUS_STOPPED;
-    this.updateRemotePlayStatus();
+    this._player.updateRemotePlayStatus();
   },
 
   next: function pv_next(isAutomatic) {
@@ -653,7 +631,7 @@ var PlayerView = {
     var offset = direction * 2;
 
     this.playStatus = direction ? PLAYSTATUS_FWD_SEEK : PLAYSTATUS_REV_SEEK;
-    this.updateRemotePlayStatus();
+    this._player.updateRemotePlayStatus();
 
     this.intervalID = window.setInterval(function() {
       this.seekAudio(this.audio.currentTime + offset);
@@ -671,8 +649,9 @@ var PlayerView = {
 
   updateSeekBar: function pv_updateSeekBar() {
     // Don't update the seekbar when the user is seeking.
-    if (this.isTouching)
+    if (this.isTouching) {
       return;
+    }
 
     // If ModeManager is undefined, then the music app is launched by the open
     // activity. Otherwise, only seek the audio when the mode is PLAYER because
@@ -685,25 +664,13 @@ var PlayerView = {
   },
 
   seekAudio: function pv_seekAudio(seekTime) {
-    if (seekTime !== undefined)
-      this.audio.currentTime = seekTime;
-
-    var startTime = this.audio.startTime;
-
-    var endTime;
-    // The audio element's duration might be NaN or 'Infinity' if it's not ready
-    // We should get the duration from the buffered parts before the duration
-    // is ready, and be sure to get the buffered parts if there is data in it.
-    if (isNaN(this.audio.duration)) {
-      endTime = 0;
-    } else if (this.audio.duration === Infinity) {
-      endTime = (this.audio.buffered.length > 0) ?
-        this.audio.buffered.end(this.audio.buffered.length - 1) : 0;
-    } else {
-      endTime = this.audio.duration;
+    if (seekTime !== undefined) {
+      this._player.seek(seekTime);
     }
 
-    var currentTime = this.audio.currentTime;
+    var startTime = this._player.getStartTime();
+    var currentTime = this._player.getCurrentTime();
+    var endTime = this._player.getDuration();
 
     this.setSeekBar(startTime, endTime, currentTime);
   },
@@ -952,9 +919,9 @@ var PlayerView = {
         break;
       case 'visibilitychange':
         if (document.hidden) {
-          this.audio.removeEventListener('timeupdate', this);
+          this._player.unregisterListener('time', this._timeChangeHandler);
         } else {
-          this.audio.addEventListener('timeupdate', this);
+          this._player.registerListener('time', this._timeChangeHandler);
           // Ensure that the scrubber is synced up. It can get out of sync if we
           // paused while the music app was in the background.
           this.updateSeekBar();
@@ -964,6 +931,7 @@ var PlayerView = {
         return;
     }
   },
+
   // handle the player state change
   handleStateChange: function(state) {
     switch(state) {

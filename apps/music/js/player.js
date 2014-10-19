@@ -1,5 +1,7 @@
 /* Create a player module here */
 
+/* global MusicComms */
+
 (function(exports) {
 'use strict';
 
@@ -50,6 +52,36 @@ Player.prototype.pause = function() {
   this.audio.pause();
 };
 
+Player.prototype.seek = function(time) {
+  this.audio.currentTime = time;
+};
+
+Player.prototype.getStartTime = function() {
+  return this.audio.startTime;
+};
+
+Player.prototype.getCurrentTime = function() {
+  return this.audio.currentTime;
+};
+
+Player.prototype.getDuration = function() {
+  var endTime;
+  var duration = this.audio.duration;
+  // The audio element's duration might be NaN or 'Infinity' if it's not ready
+  // We should get the duration from the buffered parts before the duration
+  // is ready, and be sure to get the buffered parts if there is data in it.
+  if (isNaN(duration)) {
+    endTime = 0;
+  } else if (duration === Infinity) {
+    endTime = (this.audio.buffered.length > 0) ?
+      this.audio.buffered.end(this.audio.buffered.length - 1) : 0;
+  } else {
+    endTime = this.audio.duration;
+  }
+
+  return endTime;
+};
+
 Player.prototype.destroy = function() {
   this.audio = null;
   this.state = '';
@@ -69,7 +101,7 @@ Player.prototype.handleEvent = function(evt) {
     case 'pause':
       this.state = PLAYSTATUS_PAUSED;
       this.publish('state', PLAYSTATUS_PAUSED);
-      //this.updateRemotePlayStatus();
+      this.updateRemotePlayStatus();
       break;
     case 'playing':
       // The playing event fires when the audio is ready to start.
@@ -78,13 +110,13 @@ Player.prototype.handleEvent = function(evt) {
       break;
     case 'durationchange':
     case 'timeupdate':
-      this.updateSeekBar();
+      this.publish('time', this.audio.currentTime);
 
       // Update the metadata when the new track is really loaded
       // when it just started to play, or the duration will be 0 then it will
       // break the duration that the connected A2DP has.
       if (evt.type === 'durationchange' || this.audio.currentTime === 0) {
-        this.updateRemoteMetadata();
+        this.pulish('metadatachange');
       }
 
       // Since we don't always get reliable 'ended' events, see if
@@ -95,13 +127,10 @@ Player.prototype.handleEvent = function(evt) {
       if (this.audio.currentTime >= this.audio.duration - 1 &&
           this.endedTimer == null) {
         var timeToNext = (this.audio.duration - this.audio.currentTime + 1);
-        this.endedTimer = setTimeout(function() {
-                                       this.next(true);
-                                     }.bind(this),
-                                     timeToNext * 1000);
+        this.endedTimer = window.setTimeout(this.next.bind(this, true),
+                                            timeToNext * 1000);
       }
       break;
-
     case 'ended':
       // Because of the workaround above, we have to ignore real ended
       // events if we already have a timer set to emulate them
@@ -124,10 +153,6 @@ Player.prototype.handleEvent = function(evt) {
       //this.updateRemotePlayStatus();
       break;
   }
-};
-
-Player.prototype.getAudio = function() {
-  return this.audio;
 };
 
 Player.prototype.setAudioSrc = function(file) {
@@ -165,6 +190,32 @@ Player.prototype.setAudioSrc = function(file) {
 
 Player.prototype.updateState = function(state) {
   this.state = state;
+};
+
+Player.prototype.updateRemotePlayStatus = function() {
+    // If MusicComms does not exist then no need to update the play status.
+    if (typeof MusicComms === 'undefined') {
+      return;
+    }
+
+    var position = this.pausedPosition ?
+      this.pausedPosition : this.audio.currentTime;
+
+    var info = {
+      playStatus: this.state,
+      duration: this.audio.duration * 1000,
+      position: position * 1000
+    };
+
+    // Before we resume the player, we need to keep the paused position
+    // because once the connected A2DP device receives different positions
+    // on AFTER paused and BEFORE playing, it will break the play/pause states
+    // that the A2DP device kept.
+    this.pausedPosition = (this.state === PLAYSTATUS_PLAYING) ?
+      null : this.audio.currentTime;
+
+    // Notify the remote device that status is changed.
+    MusicComms.notifyStatusChanged(info);
 };
 
 Player.prototype.publish = function(topic, info) {
