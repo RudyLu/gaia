@@ -2,6 +2,13 @@
 'use strict';
 
 requireApp('music/js/player.js');
+require('/shared/test/unit/mocks/mock_audio.js');
+
+var mocksHelperForPlayer = new MocksHelper([
+  'Audio'
+]);
+
+mocksHelperForPlayer.init();
 
 suite('music player', function() {
 

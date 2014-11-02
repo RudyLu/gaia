@@ -177,7 +177,6 @@ Player.prototype.setAudioSrc = function(file) {
   this.audio.src = url;
   this.audio.load();
 
-  this.audio.play();
   // An object URL must be released by calling URL.revokeObjectURL()
   // when we no longer need them
   this.audio.onloadeddata = function(evt) {
