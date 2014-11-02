@@ -488,14 +488,17 @@ var PlayerView = {
         this.getFile(songData, function(file) {
           this._player.setAudioSrc(file);
           this.setSeekBar(0, 0, 0);
+
           // When we need to preview an audio like in picker mode,
           // we will not autoplay the picked song unless the user taps to play
           // And we just call pause right after play.
           // Also we pause at beginning when SCO is enabled, the user can still
           // select songs to the player but it won't start, they have to wait
           // until the SCO is disconnected.
-          if (this.sourceType === TYPE_SINGLE || MusicComms.isSCOEnabled)
-            this.pause();
+          //
+          if (this.sourceType !== TYPE_SINGLE && !MusicComms.isSCOEnabled) {
+            this._player.play();
+          }
         }.bind(this));
       }.bind(this));
     } else if (this.sourceType === TYPE_BLOB && !this._player.getSrc()) {
@@ -508,8 +511,7 @@ var PlayerView = {
                       name: this.dataSource.name,
                       blob: this.dataSource});
 
-        this._player.setAudioSrc(this.dataSource);
-        this.setSeekBar(0, 0, 0);
+        this.setSrcAndPlay(this.dataSource);
       }.bind(this));
     } else {
       // If we reach here, the player is paused so resume it
@@ -549,7 +551,6 @@ var PlayerView = {
       // When the player ends, reassign src it if the dataSource is a blob
       this._player.setAudioSrc(this.playingBlob);
       this.setSeekBar(0, 0, 0);
-
       this.pause();
       return;
     }
@@ -959,5 +960,15 @@ var PlayerView = {
       default:
         console.log('Unknown player state reported: ' + state);
     }
+  },
+
+  setSrcAndPlay: function(file) {
+    this._player.setAudioSrc(file);
+    // when play a new song, reset the seekBar first
+    // this can prevent showing wrong duration
+    // due to b2g cannot get some mp3's duration
+    // and the seekBar can still show 00:00 to -00:00
+    this.setSeekBar(0, 0, 0);
+    this._player.play();
   }
 };

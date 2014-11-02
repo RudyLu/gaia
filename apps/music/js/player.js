@@ -180,16 +180,16 @@ Player.prototype.setAudioSrc = function(file) {
   this.audio.play();
   // An object URL must be released by calling URL.revokeObjectURL()
   // when we no longer need them
-  this.audio.onloadeddata = function(evt) { URL.revokeObjectURL(url); };
+  this.audio.onloadeddata = function(evt) {
+    URL.revokeObjectURL(url);
+  };
+
   this.audio.onerror = (function(evt) {
     if (this.onerror) {
       this.onerror(evt);
     }
   }).bind(this);
-  // when play a new song, reset the seekBar first
-  // this can prevent showing wrong duration
-  // due to b2g cannot get some mp3's duration
-  // and the seekBar can still show 00:00 to -00:00
+
   if (this.endedTimer) {
     clearTimeout(this.endedTimer);
     this.endedTimer = null;
@@ -201,29 +201,29 @@ Player.prototype.updateState = function(state) {
 };
 
 Player.prototype.updateRemotePlayStatus = function() {
-    // If MusicComms does not exist then no need to update the play status.
-    if (typeof MusicComms === 'undefined') {
-      return;
-    }
+  // If MusicComms does not exist then no need to update the play status.
+  if (typeof MusicComms === 'undefined') {
+    return;
+  }
 
-    var position = this.pausedPosition ?
-      this.pausedPosition : this.audio.currentTime;
+  var position = this.pausedPosition ?
+    this.pausedPosition : this.audio.currentTime;
 
-    var info = {
-      playStatus: this.state,
-      duration: this.audio.duration * 1000,
-      position: position * 1000
-    };
+  var info = {
+    playStatus: this.state,
+    duration: this.audio.duration * 1000,
+    position: position * 1000
+  };
 
-    // Before we resume the player, we need to keep the paused position
-    // because once the connected A2DP device receives different positions
-    // on AFTER paused and BEFORE playing, it will break the play/pause states
-    // that the A2DP device kept.
-    this.pausedPosition = (this.state === PLAYSTATUS_PLAYING) ?
-      null : this.audio.currentTime;
+  // Before we resume the player, we need to keep the paused position
+  // because once the connected A2DP device receives different positions
+  // on AFTER paused and BEFORE playing, it will break the play/pause states
+  // that the A2DP device kept.
+  this.pausedPosition = (this.state === PLAYSTATUS_PLAYING) ?
+    null : this.audio.currentTime;
 
-    // Notify the remote device that status is changed.
-    MusicComms.notifyStatusChanged(info);
+  // Notify the remote device that status is changed.
+  MusicComms.notifyStatusChanged(info);
 };
 
 Player.prototype.publish = function(topic, info) {
