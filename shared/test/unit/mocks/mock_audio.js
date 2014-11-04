@@ -1,10 +1,13 @@
 'use strict';
+/* global Event */
 
 function MockAudio(src) {
   MockAudio.instances.push(this);
   this.src = src;
   this.readyState = 1;
   this.paused = true;
+  // Element for event dispatch
+  this._element = document.createElement('div');
 }
 
 MockAudio.instances = [];
@@ -30,8 +33,33 @@ MockAudio.prototype.pause = function() {
   this.paused = true;
 };
 
+MockAudio.prototype.load = function() {
+};
+
 MockAudio.prototype.cloneNode = function() {
   return this;
+};
+
+MockAudio.prototype.removeAttribute = function() {
+};
+
+/*
+ * Mock functions to control the event dispatching
+ *
+ */
+MockAudio.prototype.addEventListener = function() {
+  var element = this._element;
+  element.addEventListener.apply(element, arguments);
+};
+
+MockAudio.prototype.removeEventListener = function() {
+  var element = this._element;
+  element.removeEventListener.apply(element, arguments);
+};
+
+MockAudio.prototype.startPlaying = function() {
+  console.log(this._element);
+  this._element.dispatchEvent(new Event('play'));
 };
 
 function MockAudioContext(channel) {

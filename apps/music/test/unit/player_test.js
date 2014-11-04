@@ -11,6 +11,8 @@ var mocksHelperForPlayer = new MocksHelper([
 mocksHelperForPlayer.init();
 
 suite('music player', function() {
+  mocksHelperForPlayer.attachTestHelpers();
+
   var player;
   setup(function() {
     player = new Player();
@@ -21,6 +23,10 @@ suite('music player', function() {
   });
 
   suite('basic functions', function() {
+    setup(function() {
+      this.sinon.stub(player._audio);
+    });
+
     test('play', function() {
       player.play();
       assert.isTrue(player._audio.play.calledOnce);
@@ -39,20 +45,21 @@ suite('music player', function() {
 
     test('seek', function() {
       player.seek(100);
-      //assert.equal(player._audio.currentTime, 100);
-      assert.equal(100, 100);
+      assert.equal(player._audio.currentTime, 100);
     });
   });
 
   suite('player notification', function() {
+    setup(function() {
+      player.start();
+    });
+
     test('register the listener for state', function() {
       var fakeListener = sinon.stub();
       player.registerListener('state', fakeListener);
 
       player.play();
-
-      assert.isTrue
-      player.audio
+      player._audio.startPlaying();
 
       assert.isTrue(fakeListener.called,
                     'does not get notified when start playing');
@@ -62,7 +69,8 @@ suite('music player', function() {
       var fakeListener = sinon.stub();
       player.registerListener('whatever', fakeListener);
 
-      player.updateState('state');
+      player.play();
+      player._audio.startPlaying();
 
       assert.isFalse(fakeListener.called,
                     'should not get notified when did not register');
@@ -73,11 +81,11 @@ suite('music player', function() {
       player.registerListener('state', fakeListener);
       player.unregisterListener('state', fakeListener);
 
-      player.updateState('state');
+      player.play();
+      player._audio.startPlaying();
 
       assert.isFalse(fakeListener.called,
                     'should not get notified when did not register');
     });
   });
 });
-
