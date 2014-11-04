@@ -19,7 +19,7 @@ var INTERRUPT_BEGIN = 'mozinterruptbegin';
 var INTERRUPT_END = 'mozinterruptend';
 
 function Player() {
-  this.audio = document.createElement('audio');
+  this._audio = new Audio();
   this.state = '';
 
   // For state subscription
@@ -29,7 +29,7 @@ function Player() {
 exports.Player = Player;
 
 Player.prototype.start = function() {
-  var audio = this.audio;
+  var audio = this._audio;
 
   audio.addEventListener('play', this);
   audio.addEventListener('pause', this);
@@ -45,54 +45,54 @@ Player.prototype.start = function() {
 };
 
 Player.prototype.play = function() {
-  this.audio.play();
+  this._audio.play();
 };
 
 Player.prototype.pause = function() {
-  this.audio.pause();
+  this._audio.pause();
 };
 
 Player.prototype.stop = function() {
-  this.audio.removeAttribute('src');
-  this.audio.load();
+  this._audio.removeAttribute('src');
+  this._audio.load();
 };
 
 Player.prototype.seek = function(time) {
-  this.audio.currentTime = time;
+  this._audio.currentTime = time;
 };
 
 Player.prototype.getSrc = function() {
-  return this.audio.src;
+  return this._audio.src;
 };
 
 Player.prototype.getStartTime = function() {
-  return this.audio.startTime;
+  return this._audio.startTime;
 };
 
 Player.prototype.getCurrentTime = function() {
-  return this.audio.currentTime;
+  return this._audio.currentTime;
 };
 
 Player.prototype.getDuration = function() {
   var endTime;
-  var duration = this.audio.duration;
+  var duration = this._audio.duration;
   // The audio element's duration might be NaN or 'Infinity' if it's not ready
   // We should get the duration from the buffered parts before the duration
   // is ready, and be sure to get the buffered parts if there is data in it.
   if (isNaN(duration)) {
     endTime = 0;
   } else if (duration === Infinity) {
-    endTime = (this.audio.buffered.length > 0) ?
-      this.audio.buffered.end(this.audio.buffered.length - 1) : 0;
+    endTime = (this._audio.buffered.length > 0) ?
+      this._audio.buffered.end(this._audio.buffered.length - 1) : 0;
   } else {
-    endTime = this.audio.duration;
+    endTime = this._audio.duration;
   }
 
   return endTime;
 };
 
 Player.prototype.destroy = function() {
-  this.audio = null;
+  this._audio = null;
   this.state = '';
   this._topics = null;
 };
@@ -119,12 +119,12 @@ Player.prototype.handleEvent = function(evt) {
       break;
     case 'durationchange':
     case 'timeupdate':
-      this.publish('time', this.audio.currentTime);
+      this.publish('time', this._audio.currentTime);
 
       // Update the metadata when the new track is really loaded
       // when it just started to play, or the duration will be 0 then it will
       // break the duration that the connected A2DP has.
-      if (evt.type === 'durationchange' || this.audio.currentTime === 0) {
+      if (evt.type === 'durationchange' || this._audio.currentTime === 0) {
         this.publish('metadatachange');
       }
 
@@ -133,9 +133,9 @@ Player.prototype.handleEvent = function(evt) {
       // See: https://bugzilla.mozilla.org/show_bug.cgi?id=783512
       // If we're within 1 second of the end of the song, register
       // a timeout to skip to the next song one second after the song ends
-      if (this.audio.currentTime >= this.audio.duration - 1 &&
+      if (this._audio.currentTime >= this._audio.duration - 1 &&
           this.endedTimer == null) {
-        var timeToNext = (this.audio.duration - this.audio.currentTime + 1);
+        var timeToNext = (this._audio.duration - this._audio.currentTime + 1);
         this.endedTimer = window.setTimeout(function() {
           this.publish('state', PLAYSTATUS_STOPPED);
         }.bind(this), timeToNext * 1000);
@@ -169,21 +169,20 @@ Player.prototype.setAudioSrc = function(file) {
   var url = URL.createObjectURL(file);
   this.playingBlob = file;
 
-  // Reset src before we set a new source to the audio element
-  this.audio.removeAttribute('src');
-  this.audio.load();
+  this.stop();
+
   // Add mozAudioChannelType to the player
-  this.audio.mozAudioChannelType = 'content';
-  this.audio.src = url;
-  this.audio.load();
+  this._audio.mozAudioChannelType = 'content';
+  this._audio.src = url;
+  this._audio.load();
 
   // An object URL must be released by calling URL.revokeObjectURL()
   // when we no longer need them
-  this.audio.onloadeddata = function(evt) {
+  this._audio.onloadeddata = function(evt) {
     URL.revokeObjectURL(url);
   };
 
-  this.audio.onerror = (function(evt) {
+  this._audio.onerror = (function(evt) {
     if (this.onerror) {
       this.onerror(evt);
     }
@@ -206,11 +205,11 @@ Player.prototype.updateRemotePlayStatus = function() {
   }
 
   var position = this.pausedPosition ?
-    this.pausedPosition : this.audio.currentTime;
+    this.pausedPosition : this._audio.currentTime;
 
   var info = {
     playStatus: this.state,
-    duration: this.audio.duration * 1000,
+    duration: this._audio.duration * 1000,
     position: position * 1000
   };
 
@@ -219,7 +218,7 @@ Player.prototype.updateRemotePlayStatus = function() {
   // on AFTER paused and BEFORE playing, it will break the play/pause states
   // that the A2DP device kept.
   this.pausedPosition = (this.state === PLAYSTATUS_PLAYING) ?
-    null : this.audio.currentTime;
+    null : this._audio.currentTime;
 
   // Notify the remote device that status is changed.
   MusicComms.notifyStatusChanged(info);

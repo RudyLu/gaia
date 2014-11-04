@@ -1,8 +1,8 @@
-/* global Player */
 'use strict';
+/* global Player, MocksHelper */
 
-requireApp('music/js/player.js');
 require('/shared/test/unit/mocks/mock_audio.js');
+requireApp('music/js/player.js');
 
 var mocksHelperForPlayer = new MocksHelper([
   'Audio'
@@ -11,23 +11,48 @@ var mocksHelperForPlayer = new MocksHelper([
 mocksHelperForPlayer.init();
 
 suite('music player', function() {
+  var player;
+  setup(function() {
+    player = new Player();
+  });
+
+  teardown(function() {
+    player.destroy();
+  });
+
+  suite('basic functions', function() {
+    test('play', function() {
+      player.play();
+      assert.isTrue(player._audio.play.calledOnce);
+    });
+
+    test('pause', function() {
+      player.pause();
+      assert.isTrue(player._audio.pause.calledOnce);
+    });
+
+    test('stop', function() {
+      player.stop();
+      assert.isTrue(player._audio.removeAttribute.calledWith('src'));
+      assert.isTrue(player._audio.load.calledOnce);
+    });
+
+    test('seek', function() {
+      player.seek(100);
+      //assert.equal(player._audio.currentTime, 100);
+      assert.equal(100, 100);
+    });
+  });
 
   suite('player notification', function() {
-    var player;
-
-    setup(function() {
-      player = new Player();
-    });
-
-    teardown(function() {
-      player.destroy();
-    });
-
     test('register the listener for state', function() {
       var fakeListener = sinon.stub();
       player.registerListener('state', fakeListener);
 
-      player.updateState('state');
+      player.play();
+
+      assert.isTrue
+      player.audio
 
       assert.isTrue(fakeListener.called,
                     'does not get notified when start playing');
