@@ -15,7 +15,7 @@
          ExternalStorageMonitor,
          BrowserSettings, AppMigrator, SettingsMigrator,
          CpuManager, CellBroadcastSystem, EdgeSwipeDetector, QuickSettings,
-         BatteryOverlay, BaseModule, AppWindowManager */
+         BatteryOverlay, BaseModule, AppWindowManager, ValueSelectorOverlay */
 'use strict';
 
 
@@ -60,6 +60,13 @@ window.addEventListener('load', function startup() {
     if (window.SuspendingAppPriorityManager) {
       window.suspendingAppPriorityManager = new SuspendingAppPriorityManager();
     }
+
+    /** @global */
+    // Must load before appWindowManager, to handle
+    //     inputmethod-contextchange event for trusted UI.
+    window.valueSelectorOverlay = new ValueSelectorOverlay();
+    window.valueSelectorOverlay.start();
+
     /** @global */
     window.systemDialogManager = window.systemDialogManager ||
       new SystemDialogManager();
