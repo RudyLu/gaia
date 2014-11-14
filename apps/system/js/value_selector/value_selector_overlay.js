@@ -24,8 +24,8 @@ ValueSelectorOverlay.prototype.start = function() {
 
   // Only active to show value selector for trusted UI
   this.active = false;
-  window.addEventListener('trusteduishow', this);
-  window.addEventListener('trusteduihide', this);
+  //window.addEventListener('trusteduishow', this);
+  //window.addEventListener('trusteduihide', this);
 
   this.render();
 };
@@ -36,11 +36,18 @@ ValueSelectorOverlay.prototype.render = function() {
 };
 
 ValueSelectorOverlay.prototype.handleEvent = function(evt) {
+
+  console.log('trusted UI value selector: ' + evt.type);
   switch (evt.type) {
     case 'mozChromeEvent':
+      console.log('trusted UI value selector: mozChromeEvent ' +
+                  evt.detail.type);
       if (!this.active ||
           !evt.detail ||
           evt.detail.type !== 'inputmethod-contextchange') {
+
+        console.log('trusted UI value selector: mozChromeEvent  early return ' +
+                     this.active);
         return;
       }
 
@@ -49,8 +56,12 @@ ValueSelectorOverlay.prototype.handleEvent = function(evt) {
       if (typesToHandle.indexOf(evt.detail.inputType) < 0) {
         return;
       }
+
+      console.log(' calling stop propagation');
+
       // Making sure system dialog and app-window won't receive this event.
       evt.stopImmediatePropagation();
+
       this.debug('broadcast: for value selector');
       this.broadcast('inputmethod-contextchange', evt.detail);
 
@@ -73,6 +84,16 @@ ValueSelectorOverlay.prototype.handleEvent = function(evt) {
 ValueSelectorOverlay.prototype._setVisibleForScreenReader =
   function vso__setVisibleForScreenReader(visible) {
   // XXX: do nothing
+};
+
+ValueSelectorOverlay.prototype.activate = function(frame) {
+  this.active = true;
+  this.trustedUiFrame = frame;
+};
+
+ValueSelectorOverlay.prototype.deactivate = function() {
+  this.active = false;
+  this.trustedUiFrame = null;
 };
 
 }(window));

@@ -64,8 +64,8 @@ window.addEventListener('load', function startup() {
     /** @global */
     // Must load before appWindowManager, to handle
     //     inputmethod-contextchange event for trusted UI.
-    window.valueSelectorOverlay = new ValueSelectorOverlay();
-    window.valueSelectorOverlay.start();
+    //window.valueSelectorOverlay = new ValueSelectorOverlay();
+    //window.valueSelectorOverlay.start();
 
     /** @global */
     window.systemDialogManager = window.systemDialogManager ||

@@ -1,7 +1,7 @@
 /* -*- Mode: js2; js2-basic-offset: 2; indent-tabs-mode: nil -*- */
 /* vim: set ft=javascript sw=2 ts=2 autoindent cindent expandtab: */
 
-/* global inputWindowManager */
+/* global inputWindowManager, ValueSelectorOverlay */
 
 'use strict';
 
@@ -64,11 +64,22 @@ var TrustedUIManager = {
     window.addEventListener('keyboardchange', this);
     this.header.addEventListener('action', this);
     this.errorClose.addEventListener('click', this);
+
+    /**
+     * XXX: To handle showing value selector in dialog overlay.
+     * For now, this is used for trusted UI only, and will be deprecated by
+     * Bug 911880.
+     */
+    this.valueSelector = new ValueSelectorOverlay(this);
+    this.valueSelector.start();
   },
 
   open: function trui_open(name, frame, chromeEventId, onCancelCB) {
     screen.mozLockOrientation('portrait');
     this._hideAllFrames();
+
+    this.valueSelector.activate(frame);
+
     if (this.currentStack.length) {
       this._makeDialogHidden(this._getTopDialog());
       this._pushNewDialog(name, frame, chromeEventId, onCancelCB);
@@ -88,6 +99,7 @@ var TrustedUIManager = {
                              this.currentStack.length;
 
     this._restoreOrientation();
+    this.valueSelector.deactivate();
 
     if (callback)
       callback();
