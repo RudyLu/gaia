@@ -10,14 +10,14 @@
 
 (function(exports) {
 
-function ValueSelectorOverlay() {
+function TrustedUiValueSelector() {
 }
 
-exports.ValueSelectorOverlay = ValueSelectorOverlay;
+exports.TrustedUiValueSelector = TrustedUiValueSelector;
 
-ValueSelectorOverlay.prototype = Object.create(window.BaseUI.prototype);
+TrustedUiValueSelector.prototype = Object.create(window.BaseUI.prototype);
 
-ValueSelectorOverlay.prototype.start = function() {
+TrustedUiValueSelector.prototype.start = function() {
   this.element = document.getElementById('dialog-overlay');
   this.screen = document.getElementById('screen');
   window.addEventListener('mozChromeEvent', this);
@@ -28,12 +28,12 @@ ValueSelectorOverlay.prototype.start = function() {
   this.render();
 };
 
-ValueSelectorOverlay.prototype.render = function() {
+TrustedUiValueSelector.prototype.render = function() {
   // Make the value selector show in the dialog overlay
   this.valueSelector = new ValueSelector(this);
 };
 
-ValueSelectorOverlay.prototype.handleEvent = function(evt) {
+TrustedUiValueSelector.prototype.handleEvent = function(evt) {
   switch (evt.type) {
     case 'mozChromeEvent':
       if (!this.active ||
@@ -63,7 +63,7 @@ ValueSelectorOverlay.prototype.handleEvent = function(evt) {
   }
 };
 
-ValueSelectorOverlay.prototype._setVisibleForScreenReader =
+TrustedUiValueSelector.prototype._setVisibleForScreenReader =
   function vso__setVisibleForScreenReader(visible) {
   if (this.trustedUiFrame) {
     this.debug('aria-hidden on TrustedUiFrame:' + !visible);
@@ -71,12 +71,12 @@ ValueSelectorOverlay.prototype._setVisibleForScreenReader =
   }
 };
 
-ValueSelectorOverlay.prototype.activate = function(frame) {
+TrustedUiValueSelector.prototype.activate = function(frame) {
   this.active = true;
   this.trustedUiFrame = frame;
 };
 
-ValueSelectorOverlay.prototype.deactivate = function() {
+TrustedUiValueSelector.prototype.deactivate = function() {
   this.active = false;
   this.trustedUiFrame = null;
 };

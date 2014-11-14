@@ -1,7 +1,7 @@
 /* -*- Mode: js2; js2-basic-offset: 2; indent-tabs-mode: nil -*- */
 /* vim: set ft=javascript sw=2 ts=2 autoindent cindent expandtab: */
 
-/* global inputWindowManager, ValueSelectorOverlay */
+/* global inputWindowManager, TrustedUiValueSelector */
 
 'use strict';
 
@@ -70,7 +70,7 @@ var TrustedUIManager = {
      * For now, this is used for trusted UI only, and will be deprecated by
      * Bug 911880.
      */
-    this.valueSelector = new ValueSelectorOverlay(this);
+    this.valueSelector = new TrustedUiValueSelector();
     this.valueSelector.start();
   },
 
