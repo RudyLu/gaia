@@ -15,9 +15,9 @@
          ExternalStorageMonitor,
          BrowserSettings, AppMigrator, SettingsMigrator,
          CpuManager, CellBroadcastSystem, EdgeSwipeDetector, QuickSettings,
-         BatteryOverlay, BaseModule, AppWindowManager, ValueSelectorOverlay */
+         BatteryOverlay, BaseModule, AppWindowManager, KeyboardManager,
+         TrustedUIManager */
 'use strict';
-
 
 /* === Shortcuts === */
 /* For hardware key handling that doesn't belong to anywhere */
@@ -41,6 +41,12 @@ window.addEventListener('load', function startup() {
    */
   function registerGlobalEntries() {
     /** @global */
+    KeyboardManager.init();
+
+    // Must load after KeyboardManager for correct handling mozChromeEvent.
+    TrustedUIManager.init();
+
+    /** @global */
     window.appWindowManager = new AppWindowManager();
 
     /** @global */
@@ -60,12 +66,6 @@ window.addEventListener('load', function startup() {
     if (window.SuspendingAppPriorityManager) {
       window.suspendingAppPriorityManager = new SuspendingAppPriorityManager();
     }
-
-    /** @global */
-    // Must load before appWindowManager, to handle
-    //     inputmethod-contextchange event for trusted UI.
-    //window.valueSelectorOverlay = new ValueSelectorOverlay();
-    //window.valueSelectorOverlay.start();
 
     /** @global */
     window.systemDialogManager = window.systemDialogManager ||

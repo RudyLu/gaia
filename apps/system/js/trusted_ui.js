@@ -78,8 +78,6 @@ var TrustedUIManager = {
     screen.mozLockOrientation('portrait');
     this._hideAllFrames();
 
-    this.valueSelector.activate(frame);
-
     if (this.currentStack.length) {
       this._makeDialogHidden(this._getTopDialog());
       this._pushNewDialog(name, frame, chromeEventId, onCancelCB);
@@ -99,7 +97,6 @@ var TrustedUIManager = {
                              this.currentStack.length;
 
     this._restoreOrientation();
-    this.valueSelector.deactivate();
 
     if (callback)
       callback();
@@ -318,10 +315,14 @@ var TrustedUIManager = {
 
   _hide: function trui_hide() {
     this.screen.classList.remove('trustedui');
+    this.valueSelector.deactivate();
   },
 
   _show: function trui_show() {
     this.screen.classList.add('trustedui');
+
+    var topFrame = this._getTopDialog().frame;
+    this.valueSelector.activate(topFrame);
   },
 
   _setHeight: function trui_setHeight(height) {
@@ -476,6 +477,3 @@ var TrustedUIManager = {
     }
   }
 };
-
-TrustedUIManager.init();
-
