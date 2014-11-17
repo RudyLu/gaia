@@ -70,7 +70,10 @@ var TrustedUIManager = {
      * For now, this is used for trusted UI only, and will be deprecated by
      * Bug 911880.
      */
-    this.valueSelector = new TrustedUiValueSelector();
+    var context = {
+      element: document.getElementById('dialog-overlay')
+    };
+    this.valueSelector = new TrustedUiValueSelector(context);
     this.valueSelector.start();
   },
 

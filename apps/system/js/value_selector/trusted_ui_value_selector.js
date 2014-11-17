@@ -10,7 +10,9 @@
 
 (function(exports) {
 
-function TrustedUiValueSelector() {
+function TrustedUiValueSelector(context) {
+  this.element = context.element;
+  this.screen = document.getElementById('screen');
 }
 
 exports.TrustedUiValueSelector = TrustedUiValueSelector;
@@ -18,8 +20,6 @@ exports.TrustedUiValueSelector = TrustedUiValueSelector;
 TrustedUiValueSelector.prototype = Object.create(window.BaseUI.prototype);
 
 TrustedUiValueSelector.prototype.start = function() {
-  this.element = document.getElementById('dialog-overlay');
-  this.screen = document.getElementById('screen');
   window.addEventListener('mozChromeEvent', this);
 
   // Only active to show value selector for trusted UI
