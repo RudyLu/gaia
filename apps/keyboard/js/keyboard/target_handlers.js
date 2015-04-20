@@ -62,16 +62,10 @@ DefaultTargetHandler.prototype.commit = function() {
    * maintained out of latin.js.
    */
   var promise;
-  if (this.app.layoutManager.currentPage.imEngine === 'latin') {
-    this.app.console.log('DefaultTargetHandler.commit()::latin::engine.click',
-      keyCode, keyCodeUpper);
-    promise = Promise.resolve(engine.click(keyCode, keyCodeUpper));
-  } else {
-    var code =
-      this.app.upperCaseStateManager.isUpperCase ? keyCodeUpper : keyCode;
-    this.app.console.log('DefaultTargetHandler.commit()::engine.click', code);
-    promise = Promise.resolve(engine.click(code));
-  }
+  var code =
+    this.app.upperCaseStateManager.isUpperCase ? keyCodeUpper : keyCode;
+  this.app.console.log('DefaultTargetHandler.commit()::engine.click', code);
+  promise = Promise.resolve(engine.click(code));
 
   this.app.visualHighlightManager.hide(this.target);
 
