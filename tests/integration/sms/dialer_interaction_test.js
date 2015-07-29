@@ -6,6 +6,7 @@ var assert = require('chai').assert;
 var appRoot = require('app-root-path');
 // TODO Change the path once requireFromApp becomes its own module
 
+console.log('appRoot = ' + appRoot);
 var fromApp = require(appRoot + '/shared/test/integration/require_from_app');
 var Messages = fromApp('sms').require('lib/messages');
 var InboxView = fromApp('sms').require('lib/views/inbox/view');
