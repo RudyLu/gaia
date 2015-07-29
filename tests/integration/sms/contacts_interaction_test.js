@@ -4,6 +4,8 @@
 var assert = require('chai').assert;
 
 var appRoot = require('app-root-path');
+
+console.log('appRoot = ' + appRoot);
 // TODO Change the path once requireFromApp becomes its own module
 var fromApp = require(appRoot + '/shared/test/integration/require_from_app');
 
